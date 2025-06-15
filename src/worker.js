@@ -21,27 +21,13 @@ router.options('*', () => {
     });
 });
 
-// Health check endpoint
-router.get('/', (request, env) => {
-    console.log('Handling root endpoint request');
-    try {
-        return new Response(JSON.stringify({
-            message: 'Order Management API',
-            version: '1.0.0',
-            status: 'healthy',
-            timestamp: new Date().toISOString(),
-            environment: env.MIDTRANS_IS_PRODUCTION === 'true' ? 'production' : 'development'
-        }), {
-            status: 200,
-            headers: { 
-                'Content-Type': 'application/json',
-                ...corsHeaders
-            }
-        });
-    } catch (error) {
-        console.error('Error in root endpoint:', error);
-        throw error;
-    }
+// Health check endpoint - simplified for debugging
+router.get('/', () => {
+    console.log('Handling root endpoint request - simplified');
+    return new Response('OK', {
+        status: 200,
+        headers: corsHeaders
+    });
 });
 
 // Order management endpoints
