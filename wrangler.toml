@@ -1,0 +1,9 @@
+name = "order-management-app"
+main = "src/worker.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+MIDTRANS_SERVER_KEY = "SB-Mid-server-demo_key"
+MIDTRANS_CLIENT_KEY = "SB-Mid-client-demo_key"
+MIDTRANS_IS_PRODUCTION = "false"
+

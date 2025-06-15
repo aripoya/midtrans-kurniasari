@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Order Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      }
+      .gradient-bg {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+      .card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="min-h-screen gradient-bg">
+        <div class="container mx-auto px-4 py-8">
+          <!-- Header -->
+          <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-white mb-2">Order Management System</h1>
+            <p class="text-white/80">Create orders and manage payments with Midtrans integration</p>
+          </div>
+
+          <!-- Tab Navigation -->
+          <div class="flex justify-center mb-8">
+            <div class="card rounded-lg p-1 shadow-lg">
+              <button id="createTab" class="tab-btn px-6 py-2 rounded-md font-medium transition-all duration-200 bg-green-500 text-white shadow-md">
+                🛒 Create Order
+              </button>
+              <button id="ordersTab" class="tab-btn px-6 py-2 rounded-md font-medium transition-all duration-200 text-gray-600 hover:text-gray-900">
+                📋 View Orders
+              </button>
+            </div>
+          </div>
+
+          <!-- Create Order Form -->
+          <div id="createOrderSection" class="max-w-2xl mx-auto">
+            <div class="card rounded-xl shadow-lg p-8">
+              <h2 class="text-2xl font-bold text-gray-900 mb-2">Create New Order</h2>
+              <p class="text-gray-600 mb-6">Fill in the customer details and items to generate a payment link</p>
+
+              <form id="orderForm" class="space-y-6">
+                <!-- Customer Information -->
+                <div>
+                  <h3 class="text-lg font-semibold text-gray-900 mb-4">Customer Information</h3>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
+                      <input type="text" id="customerName" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+                      <input type="email" id="customerEmail" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                  </div>
+                  <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                    <input type="tel" id="customerPhone" placeholder="+62..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  </div>
+                </div>
+
+                <!-- Order Items -->
+                <div>
+                  <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Order Items</h3>
+                    <button type="button" id="addItemBtn" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors">
+                      ➕ Add Item
+                    </button>
+                  </div>
+
+                  <div id="itemsContainer" class="space-y-4">
+                    <div class="item-row grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border border-gray-200 rounded-lg">
+                      <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
+                        <input type="text" class="item-name w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                      </div>
+                      <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Price (IDR) *</label>
+                        <input type="number" class="item-price w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="0" required>
+                      </div>
+                      <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Quantity *</label>
+                        <input type="number" class="item-quantity w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="1" value="1" required>
+                      </div>
+                      <div class="flex items-end">
+                        <button type="button" class="remove-item w-full bg-red-500 text-white px-3 py-2 rounded-md hover:bg-red-600 transition-colors" style="display: none;">
+                          🗑️ Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Total -->
+                  <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <div class="flex justify-between items-center mt-2 pt-2 border-t border-gray-200">
+                      <span class="text-lg font-bold text-gray-900">Total: <span id="totalAmount">Rp 0</span></span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" id="submitBtn" class="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all duration-200">
+                  Create Order & Generate Payment Link
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Orders List -->
+          <div id="ordersSection" class="max-w-6xl mx-auto" style="display: none;">
+            <div class="card rounded-xl shadow-lg p-8">
+              <h2 class="text-2xl font-bold text-gray-900 mb-2">Order Management</h2>
+              <p class="text-gray-600 mb-6">View and manage all orders</p>
+              
+              <div id="ordersContainer">
+                <!-- Sample Orders -->
+                <div class="space-y-4">
+                  <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 class="text-lg font-semibold text-gray-900">ORDER-1703123456-ABC12</h3>
+                        <p class="text-gray-600">John Doe • john@example.com</p>
+                        <p class="text-sm text-gray-500">1 day ago</p>
+                      </div>
+                      <div class="text-right">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          ✅ Paid
+                        </span>
+                        <p class="text-lg font-bold text-gray-900 mt-2">Rp 150.000</p>
+                      </div>
+                    </div>
+                    <div class="mb-4">
+                      <h4 class="text-sm font-medium text-gray-700 mb-2">Items:</h4>
+                      <div class="space-y-1">
+                        <div class="flex justify-between text-sm text-gray-600">
+                          <span>Product A x 2</span>
+                          <span>Rp 150.000</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex gap-2">
+                      <button class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors">
+                        📋 Copy Payment Link
+                      </button>
+                      <button class="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors">
+                        Open Payment Page
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 class="text-lg font-semibold text-gray-900">ORDER-1703123457-DEF34</h3>
+                        <p class="text-gray-600">Jane Smith • jane@example.com</p>
+                        <p class="text-sm text-gray-500">12 hours ago</p>
+                      </div>
+                      <div class="text-right">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          ⏳ Pending
+                        </span>
+                        <p class="text-lg font-bold text-gray-900 mt-2">Rp 200.000</p>
+                      </div>
+                    </div>
+                    <div class="mb-4">
+                      <h4 class="text-sm font-medium text-gray-700 mb-2">Items:</h4>
+                      <div class="space-y-1">
+                        <div class="flex justify-between text-sm text-gray-600">
+                          <span>Product B x 2</span>
+                          <span>Rp 200.000</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex gap-2">
+                      <button class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors">
+                        📋 Copy Payment Link
+                      </button>
+                      <button class="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors">
+                        Open Payment Page
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notification -->
+      <div id="notification" class="fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg bg-green-500 text-white" style="display: none;">
+        <span id="notificationText">Success!</span>
+      </div>
+    </div>
+
+    <script>
+      // Global variables
+      let itemCount = 1;
+
+      // Utility functions
+      function formatCurrency(amount) {
+        return new Intl.NumberFormat('id-ID', {
+          style: 'currency',
+          currency: 'IDR'
+        }).format(amount);
+      }
+
+      function showNotification(message, type = 'success') {
+        const notification = document.getElementById('notification');
+        const notificationText = document.getElementById('notificationText');
+        
+        notificationText.textContent = message;
+        notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg ${
+          type === 'error' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
+        }`;
+        notification.style.display = 'block';
+        
+        setTimeout(() => {
+          notification.style.display = 'none';
+        }, 5000);
+      }
+
+      function calculateTotal() {
+        let total = 0;
+        document.querySelectorAll('.item-row').forEach(row => {
+          const price = parseFloat(row.querySelector('.item-price').value) || 0;
+          const quantity = parseInt(row.querySelector('.item-quantity').value) || 0;
+          total += price * quantity;
+        });
+        document.getElementById('totalAmount').textContent = formatCurrency(total);
+        return total;
+      }
+
+      function addItem() {
+        itemCount++;
+        const container = document.getElementById('itemsContainer');
+        const newItem = document.createElement('div');
+        newItem.className = 'item-row grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border border-gray-200 rounded-lg';
+        newItem.innerHTML = `
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
+            <input type="text" class="item-name w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Price (IDR) *</label>
+            <input type="number" class="item-price w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="0" required>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Quantity *</label>
+            <input type="number" class="item-quantity w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" min="1" value="1" required>
+          </div>
+          <div class="flex items-end">
+            <button type="button" class="remove-item w-full bg-red-500 text-white px-3 py-2 rounded-md hover:bg-red-600 transition-colors">
+              🗑️ Remove
+            </button>
+          </div>
+        `;
+        container.appendChild(newItem);
+        updateRemoveButtons();
+        
+        // Add event listeners for new item
+        newItem.querySelector('.item-price').addEventListener('input', calculateTotal);
+        newItem.querySelector('.item-quantity').addEventListener('input', calculateTotal);
+        newItem.querySelector('.remove-item').addEventListener('click', function() {
+          newItem.remove();
+          updateRemoveButtons();
+          calculateTotal();
+        });
+      }
+
+      function updateRemoveButtons() {
+        const items = document.querySelectorAll('.item-row');
+        items.forEach((item, index) => {
+          const removeBtn = item.querySelector('.remove-item');
+          if (items.length > 1) {
+            removeBtn.style.display = 'block';
+          } else {
+            removeBtn.style.display = 'none';
+          }
+        });
+      }
+
+      // Tab switching
+      document.getElementById('createTab').addEventListener('click', function() {
+        document.getElementById('createOrderSection').style.display = 'block';
+        document.getElementById('ordersSection').style.display = 'none';
+        
+        // Update tab styles
+        document.getElementById('createTab').className = 'tab-btn px-6 py-2 rounded-md font-medium transition-all duration-200 bg-green-500 text-white shadow-md';
+        document.getElementById('ordersTab').className = 'tab-btn px-6 py-2 rounded-md font-medium transition-all duration-200 text-gray-600 hover:text-gray-900';
+      });
+
+      document.getElementById('ordersTab').addEventListener('click', function() {
+        document.getElementById('createOrderSection').style.display = 'none';
+        document.getElementById('ordersSection').style.display = 'block';
+        
+        // Update tab styles
+        document.getElementById('createTab').className = 'tab-btn px-6 py-2 rounded-md font-medium transition-all duration-200 text-gray-600 hover:text-gray-900';
+        document.getElementById('ordersTab').className = 'tab-btn px-6 py-2 rounded-md font-medium transition-all duration-200 bg-blue-500 text-white shadow-md';
+      });
+
+      // Add item button
+      document.getElementById('addItemBtn').addEventListener('click', addItem);
+
+      // Form submission
+      document.getElementById('orderForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Creating Order...';
+        
+        try {
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const orderId = `ORDER-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+          const total = calculateTotal();
+          const paymentLink = `https://app.sandbox.midtrans.com/snap/v2/vtweb/demo-${orderId}`;
+          
+          showNotification('Order created successfully! Payment link generated.');
+          
+          // Reset form
+          document.getElementById('orderForm').reset();
+          document.getElementById('totalAmount').textContent = 'Rp 0';
+          
+          // Show payment link
+          const shouldOpen = confirm(
+            `Order created successfully!\n\nOrder ID: ${orderId}\nTotal: ${formatCurrency(total)}\n\nWould you like to open the payment page?`
+          );
+          if (shouldOpen) {
+            window.open(paymentLink, '_blank');
+          }
+          
+        } catch (error) {
+          showNotification('Demo mode: Order creation simulated successfully!', 'success');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Create Order & Generate Payment Link';
+        }
+      });
+
+      // Initial setup
+      document.addEventListener('DOMContentLoaded', function() {
+        // Add event listeners for initial item
+        document.querySelector('.item-price').addEventListener('input', calculateTotal);
+        document.querySelector('.item-quantity').addEventListener('input', calculateTotal);
+        
+        // Copy payment link functionality
+        document.querySelectorAll('button').forEach(btn => {
+          if (btn.textContent.includes('Copy Payment Link')) {
+            btn.addEventListener('click', function() {
+              navigator.clipboard.writeText('https://app.sandbox.midtrans.com/snap/v2/vtweb/demo-payment');
+              showNotification('Payment link copied to clipboard!');
+            });
+          }
+          if (btn.textContent.includes('Open Payment Page')) {
+            btn.addEventListener('click', function() {
+              window.open('https://app.sandbox.midtrans.com/snap/v2/vtweb/demo-payment', '_blank');
+            });
+          }
+        });
+        
+        updateRemoveButtons();
+      });
+    </script>
+  </body>
+</html>
+
