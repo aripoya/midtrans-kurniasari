@@ -2,7 +2,9 @@ import { Router } from 'itty-router';
 import { createOrder, getOrders, getOrderById } from './handlers/orders.js';
 import { handleMidtransWebhook, checkTransactionStatus } from './handlers/webhook.js';
 
+console.log('Initializing router');
 const router = Router();
+console.log('Router initialized successfully');
 
 // CORS headers for all responses
 const corsHeaders = {
@@ -21,19 +23,25 @@ router.options('*', () => {
 
 // Health check endpoint
 router.get('/', (request, env) => {
-    return new Response(JSON.stringify({
-        message: 'Order Management API',
-        version: '1.0.0',
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        environment: env.MIDTRANS_IS_PRODUCTION === 'true' ? 'production' : 'development'
-    }), {
-        status: 200,
-        headers: { 
-            'Content-Type': 'application/json',
-            ...corsHeaders
-        }
-    });
+    console.log('Handling root endpoint request');
+    try {
+        return new Response(JSON.stringify({
+            message: 'Order Management API',
+            version: '1.0.0',
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            environment: env.MIDTRANS_IS_PRODUCTION === 'true' ? 'production' : 'development'
+        }), {
+            status: 200,
+            headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+            }
+        });
+    } catch (error) {
+        console.error('Error in root endpoint:', error);
+        throw error;
+    }
 });
 
 // Order management endpoints
@@ -76,19 +84,34 @@ router.get('/api/transaction/:orderId/status', async (request, env) => {
 
 // Configuration endpoint (for debugging)
 router.get('/api/config', (request, env) => {
-    return new Response(JSON.stringify({
-        environment: env.MIDTRANS_IS_PRODUCTION === 'true' ? 'production' : 'development',
-        app_name: env.APP_NAME || 'Order Management System',
-        has_midtrans_config: !!(env.MIDTRANS_SERVER_KEY && env.MIDTRANS_CLIENT_KEY),
-        has_database: !!env.DB,
-        timestamp: new Date().toISOString()
-    }), {
-        status: 200,
-        headers: { 
-            'Content-Type': 'application/json',
-            ...corsHeaders
-        }
-    });
+    console.log('Handling /api/config endpoint request');
+    try {
+        // Log each individual env variable and binding
+        console.log('Environment variables available:', {
+            MIDTRANS_IS_PRODUCTION: env.MIDTRANS_IS_PRODUCTION,
+            APP_NAME: env.APP_NAME,
+            has_MIDTRANS_SERVER_KEY: !!env.MIDTRANS_SERVER_KEY,
+            has_MIDTRANS_CLIENT_KEY: !!env.MIDTRANS_CLIENT_KEY,
+            has_DB: !!env.DB
+        });
+        
+        return new Response(JSON.stringify({
+            environment: env.MIDTRANS_IS_PRODUCTION === 'true' ? 'production' : 'development',
+            app_name: env.APP_NAME || 'Order Management System',
+            has_midtrans_config: !!(env.MIDTRANS_SERVER_KEY && env.MIDTRANS_CLIENT_KEY),
+            has_database: !!env.DB,
+            timestamp: new Date().toISOString()
+        }), {
+            status: 200,
+            headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders
+            }
+        });
+    } catch (error) {
+        console.error('Error in /api/config endpoint:', error);
+        throw error;
+    }
 });
 
 // 404 handler
@@ -117,7 +140,20 @@ export default {
                 has_APP_NAME: !!env.APP_NAME
             });
             
-            return await router.handle(request, env, ctx);
+            console.log('About to call router.handle');
+            // Add timeout protection to the router.handle call
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Router handling timeout after 5s')), 5000);
+            });
+            
+            try {
+                const routerPromise = router.handle(request, env, ctx);
+                // Race between router handling and timeout
+                return await Promise.race([routerPromise, timeoutPromise]);
+            } catch (routerError) {
+                console.error('Error in router.handle:', routerError);
+                throw routerError;
+            }
         } catch (error) {
             console.error('Worker error:', error.message);
             console.error('Error stack:', error.stack);
