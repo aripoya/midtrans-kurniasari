@@ -108,12 +108,22 @@ router.all('*', () => {
 export default {
     async fetch(request, env, ctx) {
         try {
+            console.log('Worker starting request handling:', request.url);
+            console.log('Environment bindings:', {
+                has_DB: !!env.DB,
+                has_MIDTRANS_SERVER_KEY: !!env.MIDTRANS_SERVER_KEY,
+                has_MIDTRANS_CLIENT_KEY: !!env.MIDTRANS_CLIENT_KEY,
+                has_MIDTRANS_IS_PRODUCTION: !!env.MIDTRANS_IS_PRODUCTION,
+                has_APP_NAME: !!env.APP_NAME
+            });
+            
             return await router.handle(request, env, ctx);
         } catch (error) {
-            console.error('Worker error:', error);
+            console.error('Worker error:', error.message);
+            console.error('Error stack:', error.stack);
             return new Response(JSON.stringify({
                 error: 'Internal Server Error',
-                message: 'An unexpected error occurred'
+                message: 'An unexpected error occurred: ' + error.message
             }), {
                 status: 500,
                 headers: { 
