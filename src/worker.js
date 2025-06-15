@@ -20,13 +20,13 @@ router.options('*', () => {
 });
 
 // Health check endpoint
-router.get('/', () => {
+router.get('/', (request, env) => {
     return new Response(JSON.stringify({
         message: 'Order Management API',
         version: '1.0.0',
         status: 'healthy',
         timestamp: new Date().toISOString(),
-        environment: process.env.MIDTRANS_IS_PRODUCTION === 'true' ? 'production' : 'development'
+        environment: env.MIDTRANS_IS_PRODUCTION === 'true' ? 'production' : 'development'
     }), {
         status: 200,
         headers: { 
