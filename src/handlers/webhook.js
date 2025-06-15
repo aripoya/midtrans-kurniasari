@@ -174,7 +174,8 @@ export async function checkTransactionStatus(orderId, env) {
             ? `https://api.midtrans.com/v2/${orderId}/status`
             : `https://api.sandbox.midtrans.com/v2/${orderId}/status`;
 
-        const midtransAuth = Buffer.from(serverKey + ':').toString('base64');
+        // Use TextEncoder and btoa for Base64 encoding in Cloudflare Workers
+        const midtransAuth = btoa(serverKey + ':');
         
         const response = await fetch(midtransUrl, {
             method: 'GET',
