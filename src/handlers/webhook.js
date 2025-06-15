@@ -174,7 +174,7 @@ export async function checkTransactionStatus(orderId, env) {
             ? `https://api.midtrans.com/v2/${orderId}/status`
             : `https://api.sandbox.midtrans.com/v2/${orderId}/status`;
 
-        const midtransAuth = btoa(serverKey + ':');
+        const midtransAuth = Buffer.from(serverKey + ':').toString('base64');
         
         const response = await fetch(midtransUrl, {
             method: 'GET',

@@ -66,7 +66,7 @@ export async function createOrder(request, env) {
             ? 'https://api.midtrans.com/v2/charge'
             : 'https://api.sandbox.midtrans.com/v2/charge';
 
-        const midtransAuth = btoa(serverKey + ':');
+        const midtransAuth = Buffer.from(serverKey + ':').toString('base64');
         
         const midtransResponse = await fetch(midtransUrl, {
             method: 'POST',
