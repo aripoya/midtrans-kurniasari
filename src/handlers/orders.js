@@ -1,4 +1,4 @@
-// Order management handlers for demo mode (without D1 database)
+// Enhanced order management handlers for production
 export async function createOrder(request, env) {
     try {
         const orderData = await request.json();
@@ -13,38 +13,147 @@ export async function createOrder(request, env) {
                 headers: { 'Content-Type': 'application/json' }
             });
         }
-        
+
+        // Calculate total amount
+        const totalAmount = orderData.items.reduce((total, item) => {
+            return total + (item.price * item.quantity);
+        }, 0);
+
         // Generate unique order ID
         const orderId = `ORDER-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
         
-        // Calculate total amount
-        const totalAmount = orderData.items.reduce((sum, item) => 
-            sum + (item.price * item.quantity), 0
-        );
+        // Get Midtrans configuration
+        const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
+        const serverKey = env.MIDTRANS_SERVER_KEY;
+        const clientKey = env.MIDTRANS_CLIENT_KEY;
         
-        // For demo purposes without D1 database, we'll simulate the response
-        // In production, this would create Midtrans transaction and save to database
+        if (!serverKey || !clientKey) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Midtrans credentials not configured'
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Prepare Midtrans transaction data
+        const transactionData = {
+            transaction_details: {
+                order_id: orderId,
+                gross_amount: totalAmount
+            },
+            customer_details: {
+                first_name: orderData.customer_name,
+                email: orderData.customer_email,
+                phone: orderData.customer_phone || ''
+            },
+            item_details: orderData.items.map(item => ({
+                id: item.name.toLowerCase().replace(/\s+/g, '_'),
+                price: item.price,
+                quantity: item.quantity,
+                name: item.name
+            })),
+            callbacks: {
+                finish: `${env.APP_URL || 'https://lxdpofbi.manus.space'}/payment/finish`,
+                error: `${env.APP_URL || 'https://lxdpofbi.manus.space'}/payment/error`,
+                pending: `${env.APP_URL || 'https://lxdpofbi.manus.space'}/payment/pending`
+            }
+        };
+
+        // Create Midtrans transaction
+        const midtransUrl = isProduction 
+            ? 'https://api.midtrans.com/v2/charge'
+            : 'https://api.sandbox.midtrans.com/v2/charge';
+
+        const midtransAuth = btoa(serverKey + ':');
         
-        const demoPaymentLink = `https://app.sandbox.midtrans.com/snap/v2/vtweb/demo-${orderId}`;
-        const demoSnapToken = `demo-token-${orderId}`;
-        
-        // Simulate successful response
+        const midtransResponse = await fetch(midtransUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Basic ${midtransAuth}`,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(transactionData)
+        });
+
+        const midtransResult = await midtransResponse.json();
+
+        if (!midtransResponse.ok) {
+            console.error('Midtrans API Error:', midtransResult);
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Failed to create payment transaction',
+                details: midtransResult
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Save order to database
+        if (env.DB) {
+            try {
+                // Insert order
+                const orderInsert = await env.DB.prepare(`
+                    INSERT INTO orders (
+                        id, customer_name, customer_email, customer_phone, 
+                        total_amount, payment_status, payment_token, 
+                        payment_link, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(
+                    orderId,
+                    orderData.customer_name,
+                    orderData.customer_email,
+                    orderData.customer_phone || '',
+                    totalAmount,
+                    'pending',
+                    midtransResult.token,
+                    midtransResult.redirect_url,
+                    new Date().toISOString()
+                ).run();
+
+                // Insert order items
+                for (const item of orderData.items) {
+                    await env.DB.prepare(`
+                        INSERT INTO order_items (
+                            order_id, product_name, product_price, quantity, subtotal
+                        ) VALUES (?, ?, ?, ?, ?)
+                    `).bind(
+                        orderId,
+                        item.name,
+                        item.price,
+                        item.quantity,
+                        item.price * item.quantity
+                    ).run();
+                }
+            } catch (dbError) {
+                console.error('Database Error:', dbError);
+                // Continue even if database fails, as payment is created
+            }
+        }
+
         return new Response(JSON.stringify({
             success: true,
             order_id: orderId,
             total_amount: totalAmount,
-            payment_link: demoPaymentLink,
-            snap_token: demoSnapToken,
-            message: 'Order created successfully with demo payment link (for testing without Midtrans keys)'
+            payment_link: midtransResult.redirect_url,
+            snap_token: midtransResult.token,
+            message: 'Order created successfully!'
         }), {
-            headers: { 'Content-Type': 'application/json' }
+            status: 200,
+            headers: { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }
         });
-        
+
     } catch (error) {
-        console.error('Create order error:', error);
+        console.error('Create Order Error:', error);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message
+            error: 'Internal server error'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
@@ -54,64 +163,62 @@ export async function createOrder(request, env) {
 
 export async function getOrders(request, env) {
     try {
-        // For demo purposes, return sample orders
-        const sampleOrders = [
-            {
-                id: 'ORDER-1703123456-ABC12',
-                customer_name: 'John Doe',
-                customer_email: 'john@example.com',
-                customer_phone: '+6281234567890',
-                total_amount: 150000,
-                payment_status: 'paid',
-                payment_link: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/demo-1',
-                created_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-                items: [
-                    {
-                        product_name: 'Product A',
-                        product_price: 75000,
-                        quantity: 2,
-                        subtotal: 150000
-                    }
-                ]
-            },
-            {
-                id: 'ORDER-1703123457-DEF34',
-                customer_name: 'Jane Smith',
-                customer_email: 'jane@example.com',
-                customer_phone: '+6281234567891',
-                total_amount: 200000,
-                payment_status: 'pending',
-                payment_link: 'https://app.sandbox.midtrans.com/snap/v2/vtweb/demo-2',
-                created_at: new Date(Date.now() - 43200000).toISOString(), // 12 hours ago
-                items: [
-                    {
-                        product_name: 'Product B',
-                        product_price: 100000,
-                        quantity: 2,
-                        subtotal: 200000
-                    }
-                ]
-            }
-        ];
-        
+        if (!env.DB) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Database not configured'
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Get orders with pagination
+        const url = new URL(request.url);
+        const limit = parseInt(url.searchParams.get('limit')) || 50;
+        const offset = parseInt(url.searchParams.get('offset')) || 0;
+
+        const ordersResult = await env.DB.prepare(`
+            SELECT * FROM orders 
+            ORDER BY created_at DESC 
+            LIMIT ? OFFSET ?
+        `).bind(limit, offset).all();
+
+        // Get items for each order
+        const ordersWithItems = await Promise.all(
+            ordersResult.results.map(async (order) => {
+                const itemsResult = await env.DB.prepare(`
+                    SELECT * FROM order_items WHERE order_id = ?
+                `).bind(order.id).all();
+
+                return {
+                    ...order,
+                    items: itemsResult.results
+                };
+            })
+        );
+
         return new Response(JSON.stringify({
             success: true,
-            orders: sampleOrders,
+            orders: ordersWithItems,
             pagination: {
-                page: 1,
-                limit: 10,
-                total: 2,
-                totalPages: 1
+                limit,
+                offset,
+                total: ordersResult.results.length
             }
         }), {
-            headers: { 'Content-Type': 'application/json' }
+            status: 200,
+            headers: { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }
         });
-        
+
     } catch (error) {
-        console.error('Get orders error:', error);
+        console.error('Get Orders Error:', error);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message
+            error: 'Failed to fetch orders'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
@@ -123,77 +230,66 @@ export async function getOrderById(request, env) {
     try {
         const url = new URL(request.url);
         const orderId = url.pathname.split('/').pop();
-        
-        // For demo purposes, return a sample order
-        const sampleOrder = {
-            id: orderId,
-            customer_name: 'Demo Customer',
-            customer_email: 'demo@example.com',
-            customer_phone: '+6281234567890',
-            total_amount: 100000,
-            payment_status: 'pending',
-            payment_link: `https://app.sandbox.midtrans.com/snap/v2/vtweb/demo-${orderId}`,
-            created_at: new Date().toISOString(),
-            items: [
-                {
-                    product_name: 'Demo Product',
-                    product_price: 100000,
-                    quantity: 1,
-                    subtotal: 100000
-                }
-            ]
-        };
-        
-        return new Response(JSON.stringify({
-            success: true,
-            order: sampleOrder
-        }), {
-            headers: { 'Content-Type': 'application/json' }
-        });
-        
-    } catch (error) {
-        console.error('Get order by ID error:', error);
-        return new Response(JSON.stringify({
-            success: false,
-            error: error.message
-        }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
-    }
-}
 
-export async function updateOrderStatus(request, env) {
-    try {
-        const url = new URL(request.url);
-        const orderId = url.pathname.split('/')[3]; // /api/orders/:id/status
-        const { status } = await request.json();
-        
-        // Validate status
-        const validStatuses = ['pending', 'paid', 'failed', 'cancelled'];
-        if (!validStatuses.includes(status)) {
+        if (!orderId) {
             return new Response(JSON.stringify({
                 success: false,
-                error: 'Invalid status. Must be one of: ' + validStatuses.join(', ')
+                error: 'Order ID is required'
             }), {
                 status: 400,
                 headers: { 'Content-Type': 'application/json' }
             });
         }
-        
-        // For demo purposes, always return success
+
+        if (!env.DB) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Database not configured'
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Get order
+        const orderResult = await env.DB.prepare(`
+            SELECT * FROM orders WHERE id = ?
+        `).bind(orderId).first();
+
+        if (!orderResult) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Order not found'
+            }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Get order items
+        const itemsResult = await env.DB.prepare(`
+            SELECT * FROM order_items WHERE order_id = ?
+        `).bind(orderId).all();
+
         return new Response(JSON.stringify({
             success: true,
-            message: 'Order status updated successfully (demo mode)'
+            order: {
+                ...orderResult,
+                items: itemsResult.results
+            }
         }), {
-            headers: { 'Content-Type': 'application/json' }
+            status: 200,
+            headers: { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }
         });
-        
+
     } catch (error) {
-        console.error('Update order status error:', error);
+        console.error('Get Order Error:', error);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message
+            error: 'Failed to fetch order'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
