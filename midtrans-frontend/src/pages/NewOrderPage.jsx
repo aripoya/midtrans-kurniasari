@@ -118,8 +118,10 @@ function NewOrderPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('🔍 Form submit triggered');
     
     if (!validateForm()) {
+      console.log('❌ Form validation failed', errors);
       toast({
         title: "Formulir tidak valid",
         description: "Mohon periksa kembali data yang dimasukkan",
@@ -130,9 +132,16 @@ function NewOrderPage() {
       return;
     }
     
+    console.log('✅ Form validation passed');
     setIsLoading(true);
     
     try {
+      // Verify orderService is available
+      if (typeof orderService !== 'object' || !orderService.createOrder) {
+        console.error('⚠️ orderService not properly imported:', orderService);
+        throw new Error('Internal error: Order service unavailable');
+      }
+      
       // Prepare order data
       const orderData = {
         customer_name: formData.customer_name,
@@ -145,8 +154,35 @@ function NewOrderPage() {
         }))
       };
       
-      // Submit order
-      const response = await orderService.createOrder(orderData);
+      console.log('📦 Sending order data:', orderData);
+      
+      // Submit order - try direct fetch if axios fails
+      let response;
+      try {
+        console.log('🚀 Calling orderService.createOrder');
+        response = await orderService.createOrder(orderData);
+        console.log('✅ Order API response:', response);
+      } catch (apiError) {
+        console.error('❌ orderService.createOrder failed:', apiError);
+        
+        // Fallback: try direct fetch
+        console.log('🔄 Trying direct fetch fallback');
+        const fetchResponse = await fetch('https://order-management-app-production.wahwooh.workers.dev/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(orderData)
+        });
+        
+        if (!fetchResponse.ok) {
+          throw new Error(`Direct fetch failed: ${fetchResponse.status}`);
+        }
+        
+        response = await fetchResponse.json();
+        console.log('✅ Direct fetch succeeded:', response);
+      }
       
       toast({
         title: "Order berhasil dibuat",
@@ -157,16 +193,18 @@ function NewOrderPage() {
       });
       
       // Redirect to payment page or order details
-      if (response && response.redirect_url) {
+      if (response && response.payment_link) {
         // Midtrans redirect
-        window.location.href = response.redirect_url;
+        console.log('🔄 Redirecting to payment page:', response.payment_link);
+        window.location.href = response.payment_link;
       } else {
         // Fallback to order details
-        navigate(`/orders/${response.id}`);
+        console.log('🔄 Redirecting to order details:', response.order_id);
+        navigate(`/orders/${response.order_id}`);
       }
       
     } catch (error) {
-      console.error('Error creating order:', error);
+      console.error('❌ Error creating order:', error);
       toast({
         title: "Gagal membuat pesanan",
         description: error.message || "Terjadi kesalahan saat membuat pesanan",
