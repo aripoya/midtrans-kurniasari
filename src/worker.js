@@ -31,9 +31,20 @@ router.get('/', () => {
 });
 
 // Order management endpoints
-router.post('/api/orders', createOrder);
-router.get('/api/orders', getOrders);
-router.get('/api/orders/:id', getOrderById);
+// Pass corsHeaders to route handlers as part of the request context
+router.post('/api/orders', (request, env) => {
+    // Add corsHeaders to the request context
+    request.corsHeaders = corsHeaders;
+    return createOrder(request, env);
+});
+router.get('/api/orders', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return getOrders(request, env);
+});
+router.get('/api/orders/:id', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return getOrderById(request, env);
+});
 
 // Payment webhook endpoint
 router.post('/api/webhook/midtrans', handleMidtransWebhook);
@@ -143,6 +154,13 @@ export default {
         } catch (error) {
             console.error('Worker error:', error.message);
             console.error('Error stack:', error.stack);
+            // Ensure corsHeaders is defined in the error handler
+            const errorCorsHeaders = corsHeaders || {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            };
+            
             return new Response(JSON.stringify({
                 error: 'Internal Server Error',
                 message: 'An unexpected error occurred: ' + error.message
@@ -150,7 +168,7 @@ export default {
                 status: 500,
                 headers: { 
                     'Content-Type': 'application/json',
-                    ...corsHeaders
+                    ...errorCorsHeaders
                 }
             });
         }

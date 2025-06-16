@@ -1,11 +1,13 @@
 // Enhanced order management handlers for production
 export async function createOrder(request, env) {
-    // CORS headers for all responses - defined at top level of function to ensure availability in all paths
-    const corsHeaders = {
+    // Get corsHeaders from request context or use default if not available
+    const corsHeaders = request.corsHeaders || {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
+    
+    console.log('createOrder handler started with corsHeaders available:', !!corsHeaders);
     
     try {
         const orderData = await request.json();
