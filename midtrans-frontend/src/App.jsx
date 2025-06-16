@@ -2,16 +2,10 @@ import './App.css'
 import { ChakraProvider } from '@chakra-ui/react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
-
-// Simple home page component 
-function HomePage() {
-  return (
-    <div>
-      <h1>Kurniasari Order Management</h1>
-      <p>Halaman Beranda Sederhana</p>
-    </div>
-  )
-}
+import HomePage from './pages/HomePage'
+import OrdersPage from './pages/OrdersPage'
+import NewOrderPage from './pages/NewOrderPage'
+import OrderDetailPage from './pages/OrderDetailPage'
 
 function App() {
   return (
@@ -20,6 +14,9 @@ function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/orders/new" element={<NewOrderPage />} />
+            <Route path="/orders/:id" element={<OrderDetailPage />} />
           </Routes>
         </Layout>
       </Router>
