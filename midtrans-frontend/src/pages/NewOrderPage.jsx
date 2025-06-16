@@ -136,12 +136,6 @@ function NewOrderPage() {
     setIsLoading(true);
     
     try {
-      // Verify orderService is available
-      if (typeof orderService !== 'object' || !orderService.createOrder) {
-        console.error('⚠️ orderService not properly imported:', orderService);
-        throw new Error('Internal error: Order service unavailable');
-      }
-      
       // Prepare order data
       const orderData = {
         customer_name: formData.customer_name,
@@ -156,33 +150,23 @@ function NewOrderPage() {
       
       console.log('📦 Sending order data:', orderData);
       
-      // Submit order - try direct fetch if axios fails
-      let response;
-      try {
-        console.log('🚀 Calling orderService.createOrder');
-        response = await orderService.createOrder(orderData);
-        console.log('✅ Order API response:', response);
-      } catch (apiError) {
-        console.error('❌ orderService.createOrder failed:', apiError);
-        
-        // Fallback: try direct fetch
-        console.log('🔄 Trying direct fetch fallback');
-        const fetchResponse = await fetch('https://order-management-app-production.wahwooh.workers.dev/api/orders', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(orderData)
-        });
-        
-        if (!fetchResponse.ok) {
-          throw new Error(`Direct fetch failed: ${fetchResponse.status}`);
-        }
-        
-        response = await fetchResponse.json();
-        console.log('✅ Direct fetch succeeded:', response);
+      // Use direct fetch instead of orderService to bypass potential issues
+      console.log('🔄 Using direct fetch to API');
+      const fetchResponse = await fetch('https://order-management-app-production.wahwooh.workers.dev/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(orderData)
+      });
+      
+      if (!fetchResponse.ok) {
+        throw new Error(`API request failed: ${fetchResponse.status}`);
       }
+      
+      const response = await fetchResponse.json();
+      console.log('✅ API response:', response);
       
       toast({
         title: "Order berhasil dibuat",
