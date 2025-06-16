@@ -1,21 +1,36 @@
 // Enhanced order management handlers for production
 export async function createOrder(request, env) {
+    // CORS headers for all responses - defined at top level of function to ensure availability in all paths
+    const corsHeaders = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+    
     try {
         const orderData = await request.json();
         
-        // Validate required fields
-        if (!orderData.customer_name || !orderData.customer_email || !orderData.items || orderData.items.length === 0) {
+        // Validate required fields - support both field naming conventions
+        const customerName = orderData.customer_name;
+        const customerEmail = orderData.email || orderData.customer_email;
+        const customerPhone = orderData.phone || orderData.customer_phone || '';
+        const items = orderData.items;
+        
+        if (!customerName || !customerEmail || !items || items.length === 0) {
             return new Response(JSON.stringify({
                 success: false,
-                error: 'Missing required fields: customer_name, customer_email, and items'
+                error: 'Missing required fields: customer_name, email, and items'
             }), {
                 status: 400,
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...corsHeaders
+                }
             });
         }
 
         // Calculate total amount
-        const totalAmount = orderData.items.reduce((total, item) => {
+        const totalAmount = items.reduce((total, item) => {
             return total + (item.price * item.quantity);
         }, 0);
 
@@ -33,41 +48,46 @@ export async function createOrder(request, env) {
                 error: 'Midtrans credentials not configured'
             }), {
                 status: 500,
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...corsHeaders 
+                }
             });
         }
 
-        // Prepare Midtrans transaction data
-        const transactionData = {
+        // Prepare Midtrans payload
+        const midtransPayload = {
             transaction_details: {
                 order_id: orderId,
                 gross_amount: totalAmount
             },
             customer_details: {
-                first_name: orderData.customer_name,
-                email: orderData.customer_email,
-                phone: orderData.customer_phone || ''
+                first_name: customerName,
+                email: customerEmail,
+                phone: customerPhone
             },
-            item_details: orderData.items.map(item => ({
-                id: item.name.toLowerCase().replace(/\s+/g, '_'),
+            item_details: items.map(item => ({
+                id: `ITEM-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
+                name: item.name,
                 price: item.price,
-                quantity: item.quantity,
-                name: item.name
+                quantity: item.quantity
             })),
             callbacks: {
-                finish: `${env.APP_URL || 'https://lxdpofbi.manus.space'}/payment/finish`,
+                finish: `${request.headers.get('origin') || 'https://kurniasari-midtrans-frontend.pages.dev'}/orders/${orderId}`,
                 error: `${env.APP_URL || 'https://lxdpofbi.manus.space'}/payment/error`,
                 pending: `${env.APP_URL || 'https://lxdpofbi.manus.space'}/payment/pending`
             }
         };
 
-        // Create Midtrans transaction
+        // Create Midtrans Snap transaction
         const midtransUrl = isProduction 
-            ? 'https://api.midtrans.com/v2/charge'
-            : 'https://api.sandbox.midtrans.com/v2/charge';
+            ? 'https://app.midtrans.com/snap/v1/transactions'
+            : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
 
-        const midtransAuth = Buffer.from(serverKey + ':').toString('base64');
+        // Use btoa instead of Buffer for base64 encoding - compatible with Cloudflare Workers
+        const midtransAuth = btoa(serverKey + ':');
         
+        console.log('Calling Midtrans API with URL:', midtransUrl);
         const midtransResponse = await fetch(midtransUrl, {
             method: 'POST',
             headers: {
@@ -75,7 +95,7 @@ export async function createOrder(request, env) {
                 'Authorization': `Basic ${midtransAuth}`,
                 'Accept': 'application/json'
             },
-            body: JSON.stringify(transactionData)
+            body: JSON.stringify(midtransPayload)
         });
 
         const midtransResult = await midtransResponse.json();
@@ -88,7 +108,10 @@ export async function createOrder(request, env) {
                 details: midtransResult
             }), {
                 status: 500,
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...corsHeaders
+                }
             });
         }
 
@@ -104,18 +127,18 @@ export async function createOrder(request, env) {
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `).bind(
                     orderId,
-                    orderData.customer_name,
-                    orderData.customer_email,
-                    orderData.customer_phone || '',
+                    customerName,
+                    customerEmail,
+                    customerPhone,
                     totalAmount,
                     'pending',
-                    midtransResult.token,
-                    midtransResult.redirect_url,
+                    midtransResult.token || '',
+                    midtransResult.redirect_url || '',
                     new Date().toISOString()
                 ).run();
 
                 // Insert order items
-                for (const item of orderData.items) {
+                for (const item of items) {
                     await env.DB.prepare(`
                         INSERT INTO order_items (
                             order_id, product_name, product_price, quantity, subtotal
@@ -134,6 +157,7 @@ export async function createOrder(request, env) {
             }
         }
 
+        // Return standardized response with consistent CORS headers
         return new Response(JSON.stringify({
             success: true,
             order_id: orderId,
@@ -142,21 +166,28 @@ export async function createOrder(request, env) {
             snap_token: midtransResult.token,
             message: 'Order created successfully!'
         }), {
-            status: 200,
+            status: 201, // Changed to 201 Created for POST that creates a new resource
             headers: { 
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
+                ...corsHeaders // Use corsHeaders consistently
             }
         });
 
     } catch (error) {
         console.error('Create Order Error:', error);
+        // Log the stack trace for better debugging
+        console.error('Stack trace:', error.stack);
+        
         return new Response(JSON.stringify({
             success: false,
-            error: 'Internal server error'
+            error: 'Internal server error',
+            message: error.message || 'Unknown error'
         }), {
             status: 500,
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+                'Content-Type': 'application/json',
+                ...corsHeaders // corsHeaders available from top of function
+            }
         });
     }
 }
