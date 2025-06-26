@@ -149,25 +149,11 @@ function NewOrderPage() {
       };
       
       console.log('📦 Sending order data:', orderData);
-      console.log('🔄 Using local backend API: http://localhost:8787/api/orders');
+      console.log('🔄 Using configured API client via orderService');
       
-      // Use direct fetch to ensure we're hitting the local endpoint
-      const fetchResponse = await fetch('http://localhost:8787/api/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(orderData)
-      });
-      
-      if (!fetchResponse.ok) {
-        const errorText = await fetchResponse.text();
-        console.error('Error response:', errorText);
-        throw new Error(`API request failed: ${fetchResponse.status}`);
-      }
-      
-      const response = await fetchResponse.json();
+      // Use orderService instead of direct fetch to localhost
+      const response = await orderService.createOrder(orderData);
+      console.log('✅ API response:', response);
       console.log('✅ API response:', response);
       
       toast({
