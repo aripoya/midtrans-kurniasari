@@ -27,10 +27,24 @@ export const orderService = {
   // Create a new order
   async createOrder(orderData) {
     try {
+      // DEBUG: Log the baseURL from the apiClient instance right before making the call.
+      console.log('[DEBUG] orderService.createOrder is using apiClient with baseURL:', apiClient.defaults.baseURL);
       const response = await apiClient.post('/api/orders', orderData);
       return response.data;
     } catch (error) {
-      console.error('Error creating order:', error);
+      console.error('❌ Error creating order:', error);
+
+      // DEBUG: If the request fails, log the full config object from the error.
+      if (error.config) {
+        console.error('[DEBUG] Axios request config that failed:', {
+          url: error.config.url,
+          baseURL: error.config.baseURL,
+          method: error.config.method,
+          headers: error.config.headers,
+          data: error.config.data,
+        });
+      }
+
       throw error;
     }
   },
