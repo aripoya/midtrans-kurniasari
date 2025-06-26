@@ -1,10 +1,8 @@
 import axios from 'axios';
 
-// URL backend production - JANGAN DIUBAH
-const PRODUCTION_API_URL = 'https://order-management-app-production.wahwooh.workers.dev';
-
-// API base URL - SELALU gunakan production URL untuk menghindari error
-const API_BASE_URL = PRODUCTION_API_URL;
+// Use the environment variable from Vite, with a fallback to the production URL.
+// This makes the configuration flexible and respects the build environment.
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://order-management-app-production.wahwooh.workers.dev';
 
 // Create axios instance with default config
 const apiClient = axios.create({
