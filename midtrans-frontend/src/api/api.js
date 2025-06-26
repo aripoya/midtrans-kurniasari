@@ -1,13 +1,10 @@
 import axios from 'axios';
 
-// API base URL - points to our Cloudflare Worker
-// Selalu gunakan backend production untuk menghindari error koneksi
-const API_BASE_URL = 'https://order-management-app-production.wahwooh.workers.dev';
+// URL backend production - JANGAN DIUBAH
+const PRODUCTION_API_URL = 'https://order-management-app-production.wahwooh.workers.dev';
 
-// Kode original (dinonaktifkan untuk sementara):
-// const API_BASE_URL = process.env.NODE_ENV === 'production' 
-//   ? 'https://order-management-app-production.wahwooh.workers.dev'
-//   : 'http://localhost:8787';
+// API base URL - SELALU gunakan production URL untuk menghindari error
+const API_BASE_URL = PRODUCTION_API_URL;
 
 // Create axios instance with default config
 const apiClient = axios.create({
@@ -17,5 +14,8 @@ const apiClient = axios.create({
     'Accept': 'application/json'
   },
 });
+
+// Debug: Log URL yang digunakan saat aplikasi start
+console.log('🔌 API Client diinisialisasi dengan base URL:', API_BASE_URL);
 
 export default apiClient;
