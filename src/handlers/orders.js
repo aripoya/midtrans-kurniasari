@@ -90,8 +90,8 @@ export async function createOrder(request, env) {
             })),
             callbacks: {
                 finish: `${request.headers.get('origin') || 'https://kurniasari-midtrans-frontend.pages.dev'}/orders/${orderId}`,
-                error: `${env.APP_URL || 'https://lxdpofbi.manus.space'}/payment/error`,
-                pending: `${env.APP_URL || 'https://lxdpofbi.manus.space'}/payment/pending`
+                error: `${request.headers.get('origin') || 'https://kurniasari-midtrans-frontend.pages.dev'}/orders/${orderId}?status=error`,
+                pending: `${request.headers.get('origin') || 'https://kurniasari-midtrans-frontend.pages.dev'}/orders/${orderId}?status=pending`
             }
         };
 
@@ -145,7 +145,8 @@ export async function createOrder(request, env) {
                 
                 console.log(`\n✘ [ERROR] Midtrans API status: ${midtransResponse.status}\n`);
                 
-                // DEV MODE ONLY: If Midtrans API returns 401 Unauthorized, create dummy response for testing
+                // DEV MODE ONLY: If Midtrans API returns 401 Unauthorized in development mode, create dummy response for testing
+                // In production mode, we'll let the error pass through to troubleshoot
                 if (midtransResponse.status === 401 && !isProduction) {
                     console.log('🔄 [DEVELOPMENT MODE] Creating dummy Midtrans response for testing UI flow...');
                     
