@@ -89,7 +89,13 @@ router.get('/api/config', (request, env) => {
             APP_NAME: env.APP_NAME,
             has_MIDTRANS_SERVER_KEY: !!env.MIDTRANS_SERVER_KEY,
             has_MIDTRANS_CLIENT_KEY: !!env.MIDTRANS_CLIENT_KEY,
-            has_DB: !!env.DB
+            has_DB: !!env.DB,
+            MIDTRANS_MERCHANT_ID: env.MIDTRANS_MERCHANT_ID,
+            // Tampilkan 4 karakter pertama dan terakhir untuk keamanan
+            SERVER_KEY_PREFIX: env.MIDTRANS_SERVER_KEY ? env.MIDTRANS_SERVER_KEY.substring(0, 4) : null,
+            SERVER_KEY_SUFFIX: env.MIDTRANS_SERVER_KEY ? env.MIDTRANS_SERVER_KEY.slice(-4) : null,
+            CLIENT_KEY_PREFIX: env.MIDTRANS_CLIENT_KEY ? env.MIDTRANS_CLIENT_KEY.substring(0, 4) : null,
+            CLIENT_KEY_SUFFIX: env.MIDTRANS_CLIENT_KEY ? env.MIDTRANS_CLIENT_KEY.slice(-4) : null
         });
         
         return new Response(JSON.stringify({
@@ -97,6 +103,9 @@ router.get('/api/config', (request, env) => {
             app_name: env.APP_NAME || 'Order Management System',
             has_midtrans_config: !!(env.MIDTRANS_SERVER_KEY && env.MIDTRANS_CLIENT_KEY),
             has_database: !!env.DB,
+            merchant_id: env.MIDTRANS_MERCHANT_ID || 'Not configured',
+            server_key_partial: env.MIDTRANS_SERVER_KEY ? `${env.MIDTRANS_SERVER_KEY.substring(0, 4)}...${env.MIDTRANS_SERVER_KEY.slice(-4)}` : 'Not configured',
+            client_key_partial: env.MIDTRANS_CLIENT_KEY ? `${env.MIDTRANS_CLIENT_KEY.substring(0, 4)}...${env.MIDTRANS_CLIENT_KEY.slice(-4)}` : 'Not configured',
             timestamp: new Date().toISOString()
         }), {
             status: 200,
@@ -108,6 +117,49 @@ router.get('/api/config', (request, env) => {
     } catch (error) {
         console.error('Error in /api/config endpoint:', error);
         throw error;
+    }
+});
+
+// Debug database endpoint
+router.get('/api/debug/database', async (request, env) => {
+    try {
+        if (!env.DB) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Database binding not available'
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+        }
+        
+        // Test if database is accessible
+        let dbStatus = "Unknown";
+        try {
+            // Attempt to run a simple query
+            const result = await env.DB.prepare('SELECT 1 AS test').first();
+            dbStatus = result && result.test === 1 ? "Connected" : "Error";
+        } catch (dbError) {
+            dbStatus = "Error: " + dbError.message;
+        }
+        
+        return new Response(JSON.stringify({
+            success: true,
+            database_status: dbStatus,
+            timestamp: new Date().toISOString()
+        }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+    } catch (error) {
+        console.error('Database debug endpoint error:', error);
+        return new Response(JSON.stringify({
+            success: false,
+            error: error.message
+        }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
     }
 });
 

@@ -149,10 +149,10 @@ function NewOrderPage() {
       };
       
       console.log('📦 Sending order data:', orderData);
+      console.log('🔄 Using local backend API: http://localhost:8787/api/orders');
       
-      // Use direct fetch instead of orderService to bypass potential issues
-      console.log('🔄 Using direct fetch to API');
-      const fetchResponse = await fetch('https://order-management-app-production.wahwooh.workers.dev/api/orders', {
+      // Use direct fetch to ensure we're hitting the local endpoint
+      const fetchResponse = await fetch('http://localhost:8787/api/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -162,6 +162,8 @@ function NewOrderPage() {
       });
       
       if (!fetchResponse.ok) {
+        const errorText = await fetchResponse.text();
+        console.error('Error response:', errorText);
         throw new Error(`API request failed: ${fetchResponse.status}`);
       }
       
