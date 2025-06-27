@@ -1,7 +1,9 @@
-import { Box, Heading } from '@chakra-ui/react';
+import { Box, Heading, Flex, Button, Text, HStack } from '@chakra-ui/react';
+import { useAuth } from '../auth/AuthContext';
 
-// Simplified header without router links for debugging
 function Header() {
+  const { isLoggedIn, user, logout } = useAuth();
+
   return (
     <Box
       as="nav"
@@ -11,13 +13,29 @@ function Header() {
       py={4}
       px={4}
     >
-      <Heading
-        fontSize="xl"
-        fontWeight="bold"
-        color="teal.500"
-      >
-        Kurniasari Order Management
-      </Heading>
+      <Flex justify="space-between" align="center">
+        <Heading
+          fontSize="xl"
+          fontWeight="bold"
+          color="teal.500"
+        >
+          Kurniasari Order Management
+        </Heading>
+        
+        {isLoggedIn && (
+          <HStack spacing={4}>
+            <Text>Admin: {user?.username}</Text>
+            <Button
+              colorScheme="teal"
+              variant="outline"
+              size="sm"
+              onClick={logout}
+            >
+              Logout
+            </Button>
+          </HStack>
+        )}
+      </Flex>
     </Box>
   );
 }
