@@ -1,17 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Heading, FormControl, FormLabel, Input, Button,
   VStack, HStack, Text, NumberInput, NumberInputField,
-  FormErrorMessage, useToast, Container
+  FormErrorMessage, useToast, Card, CardBody, Grid, GridItem,
+  Table, Thead, Tbody, Tr, Th, Td, TableContainer, IconButton
 } from '@chakra-ui/react';
+import Select from 'react-select';
+import { DeleteIcon } from '@chakra-ui/icons';
 import { orderService } from '../api/orderService';
+import { productService } from '../api/productService';
 
 function NewOrderPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [items, setItems] = useState([{ name: '', price: '', quantity: 1 }]);
+  const [items, setItems] = useState([{ productId: '', name: '', price: '', quantity: 1 }]);
+  const [products, setProducts] = useState([]);
   
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -21,19 +26,34 @@ function NewOrderPage() {
 
   const [errors, setErrors] = useState({});
 
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const data = await productService.getProducts();
+        setProducts(data.products || []);
+      } catch (error) {
+        toast({ title: "Gagal memuat produk", description: "Tidak dapat mengambil daftar produk dari server.", status: "error", duration: 5000, isClosable: true });
+      }
+    };
+    fetchProducts();
+  }, [toast]);
+
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // Clear error when field is edited
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+    setFormData({ ...formData, [name]: value });
+    if (errors[name]) setErrors({ ...errors, [name]: '' });
+  };
+
+  const handleProductSelect = (index, selectedOption) => {
+    const selectedProduct = products.find(p => p.id === selectedOption.value);
+    if (selectedProduct) {
+      const newItems = [...items];
+      newItems[index] = { ...newItems[index], productId: selectedProduct.id, name: selectedProduct.name, price: selectedProduct.price };
+      setItems(newItems);
+      const newErrors = { ...errors };
+      delete newErrors[`items[${index}].name`];
+      delete newErrors[`items[${index}].price`];
+      setErrors(newErrors);
     }
   };
 
@@ -41,8 +61,6 @@ function NewOrderPage() {
     const newItems = [...items];
     newItems[index][field] = value;
     setItems(newItems);
-    
-    // Clear error
     if (errors[`items[${index}].${field}`]) {
       const newErrors = { ...errors };
       delete newErrors[`items[${index}].${field}`];
@@ -73,39 +91,13 @@ function NewOrderPage() {
 
   const validateForm = () => {
     const newErrors = {};
-    
-    // Validate customer details
-    if (!formData.customer_name) {
-      newErrors.customer_name = 'Nama pelanggan wajib diisi';
-    }
-    
-    if (!formData.email) {
-      newErrors.email = 'Email wajib diisi';
-    } else if (!formData.email.match(/^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/)) {
-      newErrors.email = 'Format email tidak valid';
-    }
-    
-    if (!formData.phone) {
-      newErrors.phone = 'Nomor telepon wajib diisi';
-    }
-    
-    // Validate items
+    if (!formData.customer_name) newErrors.customer_name = 'Nama pelanggan wajib diisi';
+    if (!formData.email) newErrors.email = 'Email wajib diisi';
+    else if (!formData.email.match(/^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/)) newErrors.email = 'Format email tidak valid';
+    if (!formData.phone) newErrors.phone = 'Nomor telepon wajib diisi';
     items.forEach((item, index) => {
-      if (!item.name) {
-        newErrors[`items[${index}].name`] = 'Nama item wajib diisi';
-      }
-      
-      if (!item.price) {
-        newErrors[`items[${index}].price`] = 'Harga wajib diisi';
-      } else if (isNaN(item.price) || Number(item.price) <= 0) {
-        newErrors[`items[${index}].price`] = 'Harga harus berupa angka positif';
-      }
-      
-      if (!item.quantity || Number(item.quantity) < 1) {
-        newErrors[`items[${index}].quantity`] = 'Jumlah minimal 1';
-      }
+      if (!item.name) newErrors[`items[${index}].name`] = 'Pilih produk terlebih dahulu';
     });
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -190,118 +182,96 @@ function NewOrderPage() {
   };
 
   return (
-    <Container maxW="container.lg" py={5}>
-      <Box bg="white" p={6} rounded="md" shadow="md">
-        <form onSubmit={handleSubmit}>
-          <VStack spacing={6} align="stretch">
-            <Heading size="lg">Buat Pesanan Baru</Heading>
-            
-            <Box p={5} borderWidth="1px" borderRadius="md">
-              <Heading size="md" mb={4}>Informasi Pelanggan</Heading>
-              
-              <VStack spacing={4}>
-                <FormControl isRequired isInvalid={errors.customer_name}>
-                  <FormLabel>Nama Pelanggan</FormLabel>
-                  <Input 
-                    name="customer_name"
-                    value={formData.customer_name}
-                    onChange={handleFormChange}
-                  />
-                  <FormErrorMessage>{errors.customer_name}</FormErrorMessage>
-                </FormControl>
-                
-                <FormControl isRequired isInvalid={errors.email}>
-                  <FormLabel>Email</FormLabel>
-                  <Input 
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleFormChange}
-                  />
-                  <FormErrorMessage>{errors.email}</FormErrorMessage>
-                </FormControl>
-                
-                <FormControl isRequired isInvalid={errors.phone}>
-                  <FormLabel>Nomor Telepon</FormLabel>
-                  <Input 
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleFormChange}
-                  />
-                  <FormErrorMessage>{errors.phone}</FormErrorMessage>
-                </FormControl>
-              </VStack>
-            </Box>
-            
-            <Box p={5} borderWidth="1px" borderRadius="md">
-              <Heading size="md" mb={4}>Items Pesanan</Heading>
-              
-              {items.map((item, index) => (
-                <HStack key={index} spacing={4} mb={4} align="start">
-                  <FormControl isRequired isInvalid={errors[`items[${index}].name`]}>
-                    <FormLabel>Nama Item</FormLabel>
-                    <Input 
-                      value={item.name}
-                      onChange={(e) => handleItemChange(index, 'name', e.target.value)}
-                    />
-                    <FormErrorMessage>{errors[`items[${index}].name`]}</FormErrorMessage>
+    <Box p={5}>
+      <form onSubmit={handleSubmit}>
+        <Heading size="lg" mb={6}>Buat Pesanan Baru</Heading>
+        <Grid templateColumns={{ base: "1fr", md: "1fr 2fr" }} gap={6}>
+          <GridItem>
+            <Card>
+              <CardBody>
+                <Heading size="md" mb={4}>Informasi Pelanggan</Heading>
+                <VStack spacing={4}>
+                  <FormControl isRequired isInvalid={errors.customer_name}>
+                    <FormLabel>Nama Pelanggan</FormLabel>
+                    <Input name="customer_name" value={formData.customer_name} onChange={handleFormChange} />
+                    <FormErrorMessage>{errors.customer_name}</FormErrorMessage>
                   </FormControl>
-                  
-                  <FormControl isRequired isInvalid={errors[`items[${index}].price`]}>
-                    <FormLabel>Harga (Rp)</FormLabel>
-                    <NumberInput min={1}>
-                      <NumberInputField 
-                        value={item.price}
-                        onChange={(e) => handleItemChange(index, 'price', e.target.value)}
-                      />
-                    </NumberInput>
-                    <FormErrorMessage>{errors[`items[${index}].price`]}</FormErrorMessage>
+                  <FormControl isRequired isInvalid={errors.email}>
+                    <FormLabel>Email</FormLabel>
+                    <Input name="email" type="email" value={formData.email} onChange={handleFormChange} />
+                    <FormErrorMessage>{errors.email}</FormErrorMessage>
                   </FormControl>
-                  
-                  <FormControl isRequired isInvalid={errors[`items[${index}].quantity`]}>
-                    <FormLabel>Jumlah</FormLabel>
-                    <NumberInput min={1} defaultValue={1}>
-                      <NumberInputField 
-                        value={item.quantity}
-                        onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                      />
-                    </NumberInput>
-                    <FormErrorMessage>{errors[`items[${index}].quantity`]}</FormErrorMessage>
+                  <FormControl isRequired isInvalid={errors.phone}>
+                    <FormLabel>Nomor Telepon</FormLabel>
+                    <Input name="phone" value={formData.phone} onChange={handleFormChange} />
+                    <FormErrorMessage>{errors.phone}</FormErrorMessage>
                   </FormControl>
-                  
-                  <Button 
-                    colorScheme="red" 
-                    onClick={() => removeItem(index)}
-                    mt={8}
-                  >
-                    Hapus
-                  </Button>
+                </VStack>
+              </CardBody>
+            </Card>
+          </GridItem>
+
+          <GridItem>
+            <Card>
+              <CardBody>
+                <Heading as="h2" size="lg" mb={4}>Items Pesanan</Heading>
+                <TableContainer>
+                  <Table variant="simple">
+                    <Thead>
+                      <Tr>
+                        <Th>Produk</Th>
+                        <Th isNumeric>Harga</Th>
+                        <Th isNumeric>Jumlah</Th>
+                        <Th isNumeric>Subtotal</Th>
+                        <Th>Aksi</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {items.map((item, index) => (
+                        <Tr key={index}>
+                          <Td>
+                            <FormControl isRequired isInvalid={errors[`items[${index}].name`]}>
+                              <Select
+                                placeholder="Cari & pilih produk..."
+                                options={products.map(p => ({ value: p.id, label: p.name }))}
+                                onChange={(selectedOption) => handleProductSelect(index, selectedOption)}
+                                value={item.productId ? { value: item.productId, label: item.name } : null}
+                                menuPortalTarget={document.body}
+                                styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
+                              />
+                              <FormErrorMessage>{errors[`items[${index}].name`]}</FormErrorMessage>
+                            </FormControl>
+                          </Td>
+                          <Td isNumeric>Rp {Number(item.price).toLocaleString('id-ID')}</Td>
+                          <Td isNumeric>
+                            <NumberInput size="sm" maxW={20} min={1} defaultValue={1} value={item.quantity} onChange={(valueString) => handleItemChange(index, 'quantity', valueString)}>
+                              <NumberInputField />
+                            </NumberInput>
+                          </Td>
+                          <Td isNumeric>Rp {(Number(item.price) * Number(item.quantity)).toLocaleString('id-ID')}</Td>
+                          <Td>
+                            <IconButton aria-label="Hapus item" icon={<DeleteIcon />} colorScheme="red" size="sm" onClick={() => removeItem(index)} />
+                          </Td>
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                </TableContainer>
+                <HStack justify="flex-end" w="full" mt={4} alignItems="center">
+                  <Button onClick={addItem} colorScheme="teal" size="sm" mr={4}>+ Tambah Item</Button>
+                  <Box p={4} bg="gray.50" borderRadius="md">
+                    <Heading size="md">Total: Rp {calculateTotal().toLocaleString('id-ID')}</Heading>
+                  </Box>
                 </HStack>
-              ))}
-              
-              <Button onClick={addItem} colorScheme="blue">
-                + Tambah Item
-              </Button>
-              
-              <Box mt={6} p={4} bg="gray.50" borderRadius="md">
-                <Heading size="sm" mb={2}>Ringkasan Pesanan</Heading>
-                <Text>Total: Rp {calculateTotal().toLocaleString('id-ID')}</Text>
-              </Box>
-            </Box>
-            
-            <Button 
-              type="submit" 
-              colorScheme="teal" 
-              size="lg"
-              isLoading={isLoading}
-              loadingText="Membuat Pesanan..."
-            >
-              Buat Pesanan &amp; Lanjut ke Pembayaran
-            </Button>
-          </VStack>
-        </form>
-      </Box>
-    </Container>
+              </CardBody>
+            </Card>
+          </GridItem>
+        </Grid>
+        <Button mt={6} type="submit" colorScheme="teal" size="lg" width="full" isLoading={isLoading} loadingText="Membuat Pesanan...">
+          Buat Pesanan & Lanjut ke Pembayaran
+        </Button>
+      </form>
+    </Box>
   );
 }
 
