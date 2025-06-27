@@ -1,6 +1,7 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
 import { createOrder, getOrders, getOrderById } from './handlers/orders.js';
+import { getProducts, createProduct, updateProduct, deleteProduct } from './handlers/products.js';
 import { handleMidtransWebhook, checkTransactionStatus } from './handlers/webhook.js';
 
 console.log('Initializing router');
@@ -32,9 +33,7 @@ router.get('/', () => {
 });
 
 // Order management endpoints
-// Pass corsHeaders to route handlers as part of the request context
 router.post('/api/orders', (request, env) => {
-    // Add corsHeaders to the request context
     request.corsHeaders = corsHeaders;
     return createOrder(request, env);
 });
@@ -45,6 +44,24 @@ router.get('/api/orders', (request, env) => {
 router.get('/api/orders/:id', (request, env) => {
     request.corsHeaders = corsHeaders;
     return getOrderById(request, env);
+});
+
+// Product management endpoints
+router.get('/api/products', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return getProducts(request, env);
+});
+router.post('/api/products', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return createProduct(request, env);
+});
+router.put('/api/products/:id', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return updateProduct(request, env);
+});
+router.delete('/api/products/:id', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return deleteProduct(request, env);
 });
 
 // Payment webhook endpoint
