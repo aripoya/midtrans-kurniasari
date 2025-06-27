@@ -6,6 +6,7 @@ import HomePage from './pages/HomePage'
 import OrdersPage from './pages/OrdersPage'
 import NewOrderPage from './pages/NewOrderPage'
 import OrderDetailPage from './pages/OrderDetailPage'
+import ProductsPage from './pages/ProductsPage'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/orders/new" element={<NewOrderPage />} />
             <Route path="/orders/:id" element={<OrderDetailPage />} />
+            <Route path="/products" element={<ProductsPage />} />
           </Routes>
         </Layout>
       </Router>
