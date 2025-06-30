@@ -60,9 +60,9 @@ function LoginPage() {
       >
         <VStack spacing={6}>
           <Image 
-            src="https://cdn.kurniasari.co.id/logo.png" 
+            src="https://logo.kurniasari.co.id/logo%20kurniasari%20web.svg" 
             alt="Kurniasari Logo" 
-            maxH="80px"
+            maxH="100px"
             fallbackSrc="https://via.placeholder.com/150x80?text=Kurniasari" 
           />
           
