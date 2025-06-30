@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, Heading, Text, Stack, Card, CardBody, Stat, StatLabel, StatNumber, SimpleGrid, useToast } from '@chakra-ui/react';
+import { Box, Heading, Text, Stack, Card, CardBody, Stat, StatLabel, StatNumber, SimpleGrid, useToast, Container, useBreakpointValue } from '@chakra-ui/react';
 import { configService } from '../api/configService';
 
 function HomePage() {
@@ -30,13 +30,18 @@ function HomePage() {
     fetchConfig();
   }, [toast]);
 
+  // Responsif styling untuk iPhone 6.5-6.7 inch
+  const headingSize = useBreakpointValue({ base: "xl", md: "2xl" });
+  const subheadingSize = useBreakpointValue({ base: "md", md: "xl" });
+  const statLabelSize = useBreakpointValue({ base: "sm", md: "md" });
+
   return (
-    <Box>
-      <Box textAlign="center" py={10}>
-        <Heading as="h1" size="2xl" mb={4}>
+    <Container maxW="container.xl" p={{ base: 3, md: 5 }}>
+      <Box textAlign="center" py={{ base: 6, md: 10 }}>
+        <Heading as="h1" size={headingSize} mb={4}>
           Kurniasari Order Management System
         </Heading>
-        <Text fontSize="xl" color="gray.600">
+        <Text fontSize={subheadingSize} color="gray.600">
           Sistem manajemen pemesanan dengan integrasi pembayaran Midtrans
         </Text>
       </Box>
@@ -50,19 +55,19 @@ function HomePage() {
             ) : config ? (
               <Stack>
                 <Stat>
-                  <StatLabel>Environment</StatLabel>
+                  <StatLabel fontSize={statLabelSize}>Environment</StatLabel>
                   <StatNumber>{config.environment}</StatNumber>
                 </Stat>
                 <Stat>
-                  <StatLabel>Nama Aplikasi</StatLabel>
+                  <StatLabel fontSize={statLabelSize}>Nama Aplikasi</StatLabel>
                   <StatNumber>{config.app_name}</StatNumber>
                 </Stat>
                 <Stat>
-                  <StatLabel>Midtrans Config</StatLabel>
+                  <StatLabel fontSize={statLabelSize}>Midtrans Config</StatLabel>
                   <StatNumber>{config.has_midtrans_config ? '✅ Tersedia' : '❌ Tidak Tersedia'}</StatNumber>
                 </Stat>
                 <Stat>
-                  <StatLabel>Database</StatLabel>
+                  <StatLabel fontSize={statLabelSize}>Database</StatLabel>
                   <StatNumber>{config.has_database ? '✅ Terhubung' : '❌ Tidak Terhubung'}</StatNumber>
                 </Stat>
                 <Text fontSize="sm" color="gray.500">
@@ -92,7 +97,7 @@ function HomePage() {
           </CardBody>
         </Card>
       </SimpleGrid>
-    </Box>
+    </Container>
   );
 }
 

@@ -282,7 +282,7 @@ function OrderDetailPage() {
           <VStack spacing={6} align="stretch">
             <Card bg="white" variant="outline" borderWidth="1px">
               <CardBody>
-                <StatGroup>
+                <StatGroup flexDirection={{ base: 'column', md: 'row' }} gap={{ base: 4, md: 0 }}>
                   <Stat>
                     <StatLabel>Status Pembayaran</StatLabel>
                     <StatNumber>{getStatusBadge(order.status)}</StatNumber>
@@ -316,7 +316,23 @@ function OrderDetailPage() {
             <Card variant="outline" borderWidth="1px">
               <CardBody>
                 <Heading size="md" mb={4}>Informasi Pelanggan</Heading>
-                <Table variant="simple">
+                <Box display={{ base: 'block', md: 'none' }}>
+                  <VStack spacing={3} align="stretch">
+                    <Box p={3} bg="gray.50" borderRadius="md">
+                      <Text fontWeight="bold" fontSize="sm" color="gray.500">Nama</Text>
+                      <Text mt={1}>{order.customer_name}</Text>
+                    </Box>
+                    <Box p={3} bg="gray.50" borderRadius="md">
+                      <Text fontWeight="bold" fontSize="sm" color="gray.500">Email</Text>
+                      <Text mt={1} wordBreak="break-all">{order.email}</Text>
+                    </Box>
+                    <Box p={3} bg="gray.50" borderRadius="md">
+                      <Text fontWeight="bold" fontSize="sm" color="gray.500">Telepon</Text>
+                      <Text mt={1}>{order.phone}</Text>
+                    </Box>
+                  </VStack>
+                </Box>
+                <Table variant="simple" display={{ base: 'none', md: 'table' }}>
                   <Tbody>
                     <Tr>
                       <Th>Nama</Th>
@@ -338,7 +354,36 @@ function OrderDetailPage() {
             <Card variant="outline" borderWidth="1px">
               <CardBody>
                 <Heading size="md" mb={4}>Detail Item Pesanan</Heading>
-                <Table variant="simple">
+                {/* Tampilan mobile untuk daftar item */}
+                <Box display={{ base: 'block', md: 'none' }}>
+                  <VStack spacing={4} align="stretch" mb={5}>
+                    {order.items?.map((item, index) => (
+                      <Box key={index} p={4} borderWidth="1px" borderRadius="md" shadow="sm">
+                        <Text fontWeight="bold" fontSize="md" mb={2}>{item.name}</Text>
+                        <Grid templateColumns="repeat(2, 1fr)" gap={2}>
+                          <Box>
+                            <Text fontSize="xs" color="gray.500">Harga Satuan</Text>
+                            <Text>Rp {item.price?.toLocaleString('id-ID')}</Text>
+                          </Box>
+                          <Box>
+                            <Text fontSize="xs" color="gray.500">Jumlah</Text>
+                            <Text>{item.quantity}</Text>
+                          </Box>
+                          <Box gridColumn="span 2">
+                            <Text fontSize="xs" color="gray.500">Subtotal</Text>
+                            <Text fontWeight="bold">Rp {(item.price * item.quantity)?.toLocaleString('id-ID')}</Text>
+                          </Box>
+                        </Grid>
+                      </Box>
+                    ))}
+                  </VStack>
+                  <Flex justify="space-between" p={3} bg="gray.50" borderRadius="md">
+                    <Text fontWeight="bold">Total</Text>
+                    <Text fontWeight="bold">Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
+                  </Flex>
+                </Box>
+                {/* Tampilan desktop untuk tabel */}
+                <Table variant="simple" display={{ base: 'none', md: 'table' }}>
                   <Thead>
                     <Tr>
                       <Th>Nama Item</Th>
@@ -369,7 +414,50 @@ function OrderDetailPage() {
               <Card variant="outline" borderWidth="1px">
                 <CardBody>
                   <Heading size="md" mb={4}>Informasi Transaksi</Heading>
-                  <Table variant="simple">
+                  
+                  {/* Tampilan mobile untuk informasi transaksi */}
+                  <Box display={{ base: 'block', md: 'none' }}>
+                    <VStack spacing={3} align="stretch">
+                      <Box p={3} bg="gray.50" borderRadius="md">
+                        <Text fontWeight="bold" fontSize="sm" color="gray.500">Transaction ID</Text>
+                        <Text mt={1} fontSize="sm" wordBreak="break-all">{order.transaction_id}</Text>
+                        <Button 
+                          size="xs" 
+                          mt={1}
+                          variant="ghost"
+                          onClick={() => {
+                            navigator.clipboard.writeText(order.transaction_id);
+                            toast({
+                              title: "ID Disalin",
+                              status: "success",
+                              duration: 2000,
+                            });
+                          }}
+                        >
+                          Salin ID
+                        </Button>
+                      </Box>
+                      <Box p={3} bg="gray.50" borderRadius="md">
+                        <Text fontWeight="bold" fontSize="sm" color="gray.500">Status Terakhir</Text>
+                        <Box mt={1}>{getStatusBadge(order.status)}</Box>
+                      </Box>
+                      {order.payment_method && (
+                        <Box p={3} bg="gray.50" borderRadius="md">
+                          <Text fontWeight="bold" fontSize="sm" color="gray.500">Metode Pembayaran</Text>
+                          <Box mt={1}>{getPaymentIcon(order.payment_method)}</Box>
+                        </Box>
+                      )}
+                      {order.payment_time && (
+                        <Box p={3} bg="gray.50" borderRadius="md">
+                          <Text fontWeight="bold" fontSize="sm" color="gray.500">Waktu Pembayaran</Text>
+                          <Text mt={1}>{new Date(order.payment_time).toLocaleString('id-ID')}</Text>
+                        </Box>
+                      )}
+                    </VStack>
+                  </Box>
+                  
+                  {/* Tampilan desktop untuk tabel */}
+                  <Table variant="simple" display={{ base: 'none', md: 'table' }}>
                     <Tbody>
                       <Tr>
                         <Th>Transaction ID</Th>

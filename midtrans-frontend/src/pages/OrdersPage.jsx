@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { 
   Box, Heading, Text, Table, Thead, Tbody, Tr, Th, Td, 
-  Badge, Button, Flex, Spinner, useToast 
+  Badge, Button, Flex, Spinner, useToast, Stack, Card, CardBody,
+  HStack, useBreakpointValue, VStack
 } from '@chakra-ui/react';
 import { orderService } from '../api/orderService';
 
 function OrdersPage() {
+  const isMobile = useBreakpointValue({ base: true, md: false });
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ limit: 50, offset: 0, total: 0 });
@@ -67,9 +69,15 @@ function OrdersPage() {
 
   return (
     <Box>
-      <Flex justifyContent="space-between" alignItems="center" mb={6}>
+      <Flex 
+        justifyContent="space-between" 
+        alignItems={{ base: "flex-start", sm: "center" }} 
+        mb={6}
+        flexDirection={{ base: "column", sm: "row" }}
+        gap={3}
+      >
         <Heading size="lg">Daftar Pesanan</Heading>
-        <Button as={RouterLink} to="/orders/new" colorScheme="teal">
+        <Button as={RouterLink} to="/orders/new" colorScheme="teal" size={{ base: "md", sm: "md" }}>
           Buat Pesanan Baru
         </Button>
       </Flex>
@@ -87,55 +95,98 @@ function OrdersPage() {
         </Box>
       ) : (
         <>
-          <Table variant="simple">
-            <Thead>
-              <Tr>
-                <Th>ID</Th>
-                <Th>Nama Pelanggan</Th>
-                <Th>Total</Th>
-                <Th>Status</Th>
-                <Th>Tanggal</Th>
-                <Th>Aksi</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
+          {isMobile ? (
+            <Stack spacing={4}>
               {orders.map((order) => (
-                <Tr key={order.id}>
-                  <Td>{order.id}</Td>
-                  <Td>{order.customer_name}</Td>
-                  <Td>Rp {order.total_amount?.toLocaleString('id-ID')}</Td>
-                  <Td>{getStatusBadge(order.status)}</Td>
-                  <Td>{new Date(order.created_at).toLocaleDateString('id-ID')}</Td>
-                  <Td>
-                    <Button
-                      as={RouterLink}
-                      to={`/orders/${order.id}`}
-                      size="sm"
-                      colorScheme="blue"
-                    >
-                      Detail
-                    </Button>
-                  </Td>
-                </Tr>
+                <Card key={order.id} variant="outline" size="sm">
+                  <CardBody>
+                    <VStack align="stretch" spacing={2}>
+                      <HStack justify="space-between">
+                        <Text fontWeight="bold">ID: {order.id}</Text>
+                        {getStatusBadge(order.status)}
+                      </HStack>
+                      <HStack justify="space-between">
+                        <Text>{order.customer_name}</Text>
+                        <Text fontWeight="medium">Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
+                      </HStack>
+                      <Text color="gray.600" fontSize="sm">
+                        {new Date(order.created_at).toLocaleDateString('id-ID')}
+                      </Text>
+                      <Button
+                        as={RouterLink}
+                        to={`/orders/${order.id}`}
+                        size="sm"
+                        colorScheme="blue"
+                        width="full"
+                        mt={1}
+                      >
+                        Detail
+                      </Button>
+                    </VStack>
+                  </CardBody>
+                </Card>
               ))}
-            </Tbody>
-          </Table>
+            </Stack>
+          ) : (
+            <Box overflowX="auto">
+              <Table variant="simple">
+                <Thead>
+                  <Tr>
+                    <Th>ID</Th>
+                    <Th>Nama Pelanggan</Th>
+                    <Th>Total</Th>
+                    <Th>Status</Th>
+                    <Th>Tanggal</Th>
+                    <Th>Aksi</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {orders.map((order) => (
+                    <Tr key={order.id}>
+                      <Td>{order.id}</Td>
+                      <Td>{order.customer_name}</Td>
+                      <Td>Rp {order.total_amount?.toLocaleString('id-ID')}</Td>
+                      <Td>{getStatusBadge(order.status)}</Td>
+                      <Td>{new Date(order.created_at).toLocaleDateString('id-ID')}</Td>
+                      <Td>
+                        <Button
+                          as={RouterLink}
+                          to={`/orders/${order.id}`}
+                          size="sm"
+                          colorScheme="blue"
+                        >
+                          Detail
+                        </Button>
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </Box>
+          )}
 
-          <Flex justifyContent="space-between" mt={4}>
-            <Text>
+          <Flex 
+            justifyContent="space-between" 
+            mt={4}
+            flexDirection={{ base: "column", sm: "row" }}
+            gap={3}
+          >
+            <Text textAlign={{ base: "center", sm: "left" }}>
               Menampilkan {orders.length} dari {pagination.total} pesanan
             </Text>
-            <Flex>
+            <Flex justifyContent={{ base: "center", sm: "flex-end" }}>
               <Button
                 onClick={handlePrevPage}
                 isDisabled={pagination.offset === 0}
                 mr={2}
+                size={{ base: "sm", md: "md" }}
               >
                 Sebelumnya
               </Button>
               <Button
                 onClick={handleNextPage}
                 isDisabled={pagination.offset + pagination.limit >= pagination.total}
+                size={{ base: "sm", md: "md" }}
               >
                 Selanjutnya
               </Button>

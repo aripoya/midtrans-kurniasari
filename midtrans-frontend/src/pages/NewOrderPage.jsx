@@ -4,7 +4,8 @@ import {
   Box, Heading, FormControl, FormLabel, Input, Button,
   VStack, HStack, Text, NumberInput, NumberInputField,
   FormErrorMessage, useToast, Card, CardBody, Grid, GridItem,
-  Table, Thead, Tbody, Tr, Th, Td, TableContainer, IconButton
+  Table, Thead, Tbody, Tr, Th, Td, TableContainer, IconButton,
+  useBreakpointValue, Stack, Divider, Flex
 } from '@chakra-ui/react';
 import Select from 'react-select';
 import { DeleteIcon } from '@chakra-ui/icons';
@@ -12,6 +13,7 @@ import { orderService } from '../api/orderService';
 import { productService } from '../api/productService';
 
 function NewOrderPage() {
+  const isMobile = useBreakpointValue({ base: true, md: false });
   const navigate = useNavigate();
   const toast = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -182,14 +184,14 @@ function NewOrderPage() {
   };
 
   return (
-    <Box p={5}>
+    <Box p={{ base: 2, md: 5 }}>
       <form onSubmit={handleSubmit}>
-        <Heading size="lg" mb={6}>Buat Pesanan Baru</Heading>
-        <Grid templateColumns={{ base: "1fr", md: "1fr 2fr" }} gap={6}>
+        <Heading size={{ base: "md", md: "lg" }} mb={{ base: 4, md: 6 }}>Buat Pesanan Baru</Heading>
+        <Grid templateColumns={{ base: "1fr", md: "1fr 2fr" }} gap={{ base: 4, md: 6 }}>
           <GridItem>
             <Card>
               <CardBody>
-                <Heading size="md" mb={4}>Informasi Pelanggan</Heading>
+                <Heading size={{ base: "sm", md: "md" }} mb={{ base: 3, md: 4 }}>Informasi Pelanggan</Heading>
                 <VStack spacing={4}>
                   <FormControl isRequired isInvalid={errors.customer_name}>
                     <FormLabel>Nama Pelanggan</FormLabel>
@@ -214,60 +216,152 @@ function NewOrderPage() {
           <GridItem>
             <Card>
               <CardBody>
-                <Heading as="h2" size="lg" mb={4}>Items Pesanan</Heading>
-                <TableContainer>
-                  <Table variant="simple">
-                    <Thead>
-                      <Tr>
-                        <Th>Produk</Th>
-                        <Th isNumeric>Harga</Th>
-                        <Th isNumeric>Jumlah</Th>
-                        <Th isNumeric>Subtotal</Th>
-                        <Th>Aksi</Th>
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {items.map((item, index) => (
-                        <Tr key={index}>
-                          <Td>
+                <Heading as="h2" size={{ base: "sm", md: "md" }} mb={{ base: 3, md: 4 }}>Items Pesanan</Heading>
+                {isMobile ? (
+                  <VStack spacing={4} align="stretch" w="full">
+                    {items.map((item, index) => (
+                      <Card key={index} size="sm" variant="outline">
+                        <CardBody>
+                          <VStack spacing={3} align="stretch">
                             <FormControl isRequired isInvalid={errors[`items[${index}].name`]}>
+                              <FormLabel fontSize="sm">Produk</FormLabel>
                               <Select
                                 placeholder="Cari & pilih produk..."
                                 options={products.map(p => ({ value: p.id, label: p.name }))}
                                 onChange={(selectedOption) => handleProductSelect(index, selectedOption)}
                                 value={item.productId ? { value: item.productId, label: item.name } : null}
                                 menuPortalTarget={document.body}
-                                styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
+                                styles={{
+                                  menuPortal: base => ({ ...base, zIndex: 9999 }),
+                                  control: (base) => ({ ...base, minHeight: '38px' })
+                                }}
                               />
                               <FormErrorMessage>{errors[`items[${index}].name`]}</FormErrorMessage>
                             </FormControl>
-                          </Td>
-                          <Td isNumeric>Rp {Number(item.price).toLocaleString('id-ID')}</Td>
-                          <Td isNumeric>
-                            <NumberInput size="sm" maxW={20} min={1} defaultValue={1} value={item.quantity} onChange={(valueString) => handleItemChange(index, 'quantity', valueString)}>
-                              <NumberInputField />
-                            </NumberInput>
-                          </Td>
-                          <Td isNumeric>Rp {(Number(item.price) * Number(item.quantity)).toLocaleString('id-ID')}</Td>
-                          <Td>
-                            <IconButton aria-label="Hapus item" icon={<DeleteIcon />} colorScheme="red" size="sm" onClick={() => removeItem(index)} />
-                          </Td>
+                            
+                            <HStack justify="space-between">
+                              <FormLabel fontSize="sm" mb={0}>Harga:</FormLabel>
+                              <Text fontWeight="medium">Rp {Number(item.price).toLocaleString('id-ID')}</Text>
+                            </HStack>
+                            
+                            <HStack justify="space-between" align="center">
+                              <FormLabel fontSize="sm" mb={0}>Jumlah:</FormLabel>
+                              <NumberInput 
+                                size="sm" 
+                                maxW="100px" 
+                                min={1} 
+                                defaultValue={1} 
+                                value={item.quantity} 
+                                onChange={(valueString) => handleItemChange(index, 'quantity', valueString)}
+                              >
+                                <NumberInputField />
+                              </NumberInput>
+                            </HStack>
+                            
+                            <Divider />
+                            
+                            <HStack justify="space-between">
+                              <Text fontWeight="bold">Subtotal:</Text>
+                              <Text fontWeight="bold">Rp {(Number(item.price) * Number(item.quantity)).toLocaleString('id-ID')}</Text>
+                            </HStack>
+                            
+                            <Button 
+                              leftIcon={<DeleteIcon />} 
+                              colorScheme="red" 
+                              size="sm" 
+                              onClick={() => removeItem(index)}
+                              mt={1}
+                            >
+                              Hapus
+                            </Button>
+                          </VStack>
+                        </CardBody>
+                      </Card>
+                    ))}
+                  </VStack>
+                ) : (
+                  <TableContainer>
+                    <Table variant="simple">
+                      <Thead>
+                        <Tr>
+                          <Th>Produk</Th>
+                          <Th isNumeric>Harga</Th>
+                          <Th isNumeric>Jumlah</Th>
+                          <Th isNumeric>Subtotal</Th>
+                          <Th>Aksi</Th>
                         </Tr>
-                      ))}
-                    </Tbody>
-                  </Table>
-                </TableContainer>
-                <HStack justify="flex-end" w="full" mt={4} alignItems="center">
-                  <Button onClick={addItem} colorScheme="teal" size="sm" mr={4}>+ Tambah Item</Button>
-                  <Box p={4} bg="gray.50" borderRadius="md">
-                    <Heading size="md">Total: Rp {calculateTotal().toLocaleString('id-ID')}</Heading>
+                      </Thead>
+                      <Tbody>
+                        {items.map((item, index) => (
+                          <Tr key={index}>
+                            <Td>
+                              <FormControl isRequired isInvalid={errors[`items[${index}].name`]}>
+                                <Select
+                                  placeholder="Cari & pilih produk..."
+                                  options={products.map(p => ({ value: p.id, label: p.name }))}
+                                  onChange={(selectedOption) => handleProductSelect(index, selectedOption)}
+                                  value={item.productId ? { value: item.productId, label: item.name } : null}
+                                  menuPortalTarget={document.body}
+                                  styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
+                                />
+                                <FormErrorMessage>{errors[`items[${index}].name`]}</FormErrorMessage>
+                              </FormControl>
+                            </Td>
+                            <Td isNumeric>Rp {Number(item.price).toLocaleString('id-ID')}</Td>
+                            <Td isNumeric>
+                              <NumberInput size="sm" maxW={20} min={1} defaultValue={1} value={item.quantity} onChange={(valueString) => handleItemChange(index, 'quantity', valueString)}>
+                                <NumberInputField />
+                              </NumberInput>
+                            </Td>
+                            <Td isNumeric>Rp {(Number(item.price) * Number(item.quantity)).toLocaleString('id-ID')}</Td>
+                            <Td>
+                              <IconButton aria-label="Hapus item" icon={<DeleteIcon />} colorScheme="red" size="sm" onClick={() => removeItem(index)} />
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </TableContainer>
+                )}
+                <Flex 
+                  direction={{ base: "column", sm: "row" }} 
+                  w="full" 
+                  mt={4} 
+                  alignItems={{ base: "stretch", sm: "center" }}
+                  justifyContent={{ base: "center", sm: "flex-end" }}
+                  gap={3}
+                >
+                  <Button 
+                    onClick={addItem} 
+                    colorScheme="teal" 
+                    size="sm" 
+                    w={{ base: "full", sm: "auto" }}
+                  >
+                    + Tambah Item
+                  </Button>
+                  <Box 
+                    p={{ base: 3, md: 4 }} 
+                    bg="gray.50" 
+                    borderRadius="md"
+                    w={{ base: "full", sm: "auto" }}
+                    textAlign="center"
+                  >
+                    <Heading size={{ base: "sm", md: "md" }}>Total: Rp {calculateTotal().toLocaleString('id-ID')}</Heading>
                   </Box>
-                </HStack>
+                </Flex>
               </CardBody>
             </Card>
           </GridItem>
         </Grid>
-        <Button mt={6} type="submit" colorScheme="teal" size="lg" width="full" isLoading={isLoading} loadingText="Membuat Pesanan...">
+        <Button 
+          mt={{ base: 4, md: 6 }} 
+          type="submit" 
+          colorScheme="teal" 
+          size={{ base: "md", md: "lg" }} 
+          width="full" 
+          isLoading={isLoading} 
+          loadingText="Membuat Pesanan..."
+        >
           Buat Pesanan & Lanjut ke Pembayaran
         </Button>
       </form>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Button, Text, Heading, VStack, Code, Spinner, useToast } from '@chakra-ui/react';
+import { Box, Button, Text, Heading, VStack, Code, Spinner, useToast, Container, useBreakpointValue } from '@chakra-ui/react';
 import apiClient from '../api/api';
 
 function DebugPage() {
@@ -51,9 +51,14 @@ function DebugPage() {
     }
   };
 
+  // Responsif styling untuk iPhone 6.5-6.7 inch
+  const headingSize = useBreakpointValue({ base: "lg", md: "xl" });
+  const buttonWidth = useBreakpointValue({ base: "100%", md: "auto" });
+  const buttonSize = useBreakpointValue({ base: "sm", md: "md" });
+
   return (
-    <Box p={5}>
-      <Heading mb={5}>API Debug Page</Heading>
+    <Container maxW="container.xl" p={{ base: 3, md: 5 }}>
+      <Heading mb={5} size={headingSize}>API Debug Page</Heading>
       
       <VStack spacing={4} align="flex-start" mb={8}>
         <Heading size="md">Test GET Endpoints</Heading>
@@ -61,6 +66,8 @@ function DebugPage() {
           colorScheme="blue" 
           onClick={() => testEndpoint('/api/config')}
           isLoading={loading}
+          width={buttonWidth}
+          size={buttonSize}
         >
           Test /api/config
         </Button>
@@ -68,6 +75,8 @@ function DebugPage() {
           colorScheme="blue" 
           onClick={() => testEndpoint('/api/products')}
           isLoading={loading}
+          width={buttonWidth}
+          size={buttonSize}
         >
           Test GET /api/products
         </Button>
@@ -79,12 +88,14 @@ function DebugPage() {
           colorScheme="green" 
           onClick={() => testEndpoint('/api/products', 'POST', { name: 'Test Product ' + Date.now(), price: 10000 })}
           isLoading={loading}
+          width={buttonWidth}
+          size={buttonSize}
         >
           Test Create Product
         </Button>
       </VStack>
 
-      <Box mt={5} p={4} borderWidth={1} borderRadius="md">
+      <Box mt={5} p={{ base: 3, md: 4 }} borderWidth={1} borderRadius="md" overflowX="auto">
         <Heading size="md" mb={3}>Result:</Heading>
         {loading ? (
           <Spinner />
@@ -93,7 +104,7 @@ function DebugPage() {
             <Text color="red.500" fontWeight="bold">Error: {error.message}</Text>
             <Text>Status: {error.status}</Text>
             <Text mt={2}>Response:</Text>
-            <Code p={2} display="block" whiteSpace="pre-wrap">
+            <Code p={2} display="block" whiteSpace="pre-wrap" fontSize={{ base: "xs", md: "sm" }} overflowX="auto">
               {typeof error.response === 'object' 
                 ? JSON.stringify(error.response, null, 2)
                 : error.response}
@@ -101,7 +112,7 @@ function DebugPage() {
           </Box>
         ) : result ? (
           <Box bg="green.50" p={3} borderRadius="md">
-            <Code p={2} display="block" whiteSpace="pre-wrap">
+            <Code p={2} display="block" whiteSpace="pre-wrap" fontSize={{ base: "xs", md: "sm" }} overflowX="auto">
               {JSON.stringify(result, null, 2)}
             </Code>
           </Box>
@@ -109,7 +120,7 @@ function DebugPage() {
           <Text>Run a test to see results</Text>
         )}
       </Box>
-    </Box>
+    </Container>
   );
 }
 

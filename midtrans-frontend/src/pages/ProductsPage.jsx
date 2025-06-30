@@ -4,7 +4,8 @@ import {
   Input, InputGroup, InputLeftElement, useDisclosure, Modal, ModalOverlay, ModalContent, 
   ModalHeader, ModalCloseButton, ModalBody, FormControl, FormLabel, ModalFooter, NumberInput, 
   NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, AlertDialog, 
-  AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay
+  AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay,
+  useBreakpointValue, Text, Grid, GridItem, Stack, Card, CardBody, IconButton, Container
 } from '@chakra-ui/react';
 import { SearchIcon, AddIcon } from '@chakra-ui/icons';
 import { productService } from '../api/productService';
@@ -78,11 +79,30 @@ function ProductsPage() {
     }
   };
 
+  // Responsif heading size dan button size untuk iPhone 6.5-6.7 inci
+  const headingSize = useBreakpointValue({ base: "md", md: "lg" });
+  const buttonSize = useBreakpointValue({ base: "sm", md: "md" });
+  const isDesktop = useBreakpointValue({ base: false, md: true });
+
   return (
-    <Box>
-      <Flex justifyContent="space-between" alignItems="center" mb={6}>
-        <Heading size="lg">Manajemen Produk</Heading>
-        <Button onClick={() => handleOpenModal()} colorScheme="teal" leftIcon={<AddIcon />}>Tambah Produk</Button>
+    <Container maxW="container.xl" p={{ base: 2, md: 4 }}>
+      <Flex 
+        justifyContent="space-between" 
+        alignItems="center" 
+        mb={6}
+        flexDirection={{ base: "column", sm: "row" }}
+        gap={{ base: 3, sm: 0 }}
+      >
+        <Heading size={headingSize}>Manajemen Produk</Heading>
+        <Button 
+          onClick={() => handleOpenModal()} 
+          colorScheme="teal" 
+          leftIcon={<AddIcon />}
+          size={buttonSize}
+          w={{ base: "100%", sm: "auto" }}
+        >
+          Tambah Produk
+        </Button>
       </Flex>
 
       <InputGroup mb={6}>
@@ -93,22 +113,57 @@ function ProductsPage() {
       {loading ? (
         <Flex justifyContent="center" py={10}><Spinner size="xl" /></Flex>
       ) : (
-        <Table variant="simple">
-          <Thead><Tr><Th>ID</Th><Th>Nama Produk</Th><Th>Harga</Th><Th>Aksi</Th></Tr></Thead>
-          <Tbody>
-            {products.map((product) => (
-              <Tr key={product.id}>
-                <Td>{product.id}</Td>
-                <Td>{product.name}</Td>
-                <Td>Rp {product.price?.toLocaleString('id-ID')}</Td>
-                <Td>
-                  <Button size="sm" colorScheme="blue" mr={2} onClick={() => handleOpenModal(product)}>Edit</Button>
-                  <Button size="sm" colorScheme="red" onClick={() => handleDeleteClick(product)}>Hapus</Button>
-                </Td>
-              </Tr>
-            ))}
-          </Tbody>
-        </Table>
+        <>
+          {/* Tampilan desktop: tabel */}
+          <Table variant="simple" display={{ base: 'none', md: 'table' }}>
+            <Thead><Tr><Th>ID</Th><Th>Nama Produk</Th><Th>Harga</Th><Th>Aksi</Th></Tr></Thead>
+            <Tbody>
+              {products.map((product) => (
+                <Tr key={product.id}>
+                  <Td>{product.id}</Td>
+                  <Td>{product.name}</Td>
+                  <Td>Rp {product.price?.toLocaleString('id-ID')}</Td>
+                  <Td>
+                    <Button size="sm" colorScheme="blue" mr={2} onClick={() => handleOpenModal(product)}>Edit</Button>
+                    <Button size="sm" colorScheme="red" onClick={() => handleDeleteClick(product)}>Hapus</Button>
+                  </Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+          
+          {/* Tampilan mobile: kartu - dioptimalkan untuk iPhone 6.5-6.7 inci */}
+          <Box display={{ base: 'block', md: 'none' }}>
+            <Stack spacing={4}>
+              {products.map((product) => (
+                <Card key={product.id} borderWidth="1px" borderRadius="md" overflow="hidden" boxShadow="sm">
+                  <CardBody p={4}>
+                    <Grid templateColumns="1fr 1fr" gap={3}>
+                      <Box>
+                        <Text fontSize="sm" color="gray.500">ID</Text>
+                        <Text fontSize="sm">{product.id}</Text>
+                      </Box>
+                      <Box>
+                        <Text fontSize="sm" color="gray.500">Harga</Text>
+                        <Text fontWeight="bold">Rp {product.price?.toLocaleString('id-ID')}</Text>
+                      </Box>
+                      <GridItem colSpan={2}>
+                        <Text fontSize="sm" color="gray.500">Nama Produk</Text>
+                        <Text fontWeight="semibold" fontSize="lg">{product.name}</Text>
+                      </GridItem>
+                      <GridItem colSpan={2}>
+                        <Flex mt={2} gap={2}>
+                          <Button size="sm" colorScheme="blue" flex={1} onClick={() => handleOpenModal(product)}>Edit</Button>
+                          <Button size="sm" colorScheme="red" flex={1} onClick={() => handleDeleteClick(product)}>Hapus</Button>
+                        </Flex>
+                      </GridItem>
+                    </Grid>
+                  </CardBody>
+                </Card>
+              ))}
+            </Stack>
+          </Box>
+        </>
       )}
 
       <Modal isOpen={isModalOpen} onClose={onModalClose} initialFocusRef={initialRef} isCentered>
@@ -146,7 +201,7 @@ function ProductsPage() {
           </AlertDialogFooter>
         </AlertDialogContent></AlertDialogOverlay>
       </AlertDialog>
-    </Box>
+    </Container>
   );
 }
 

@@ -12,11 +12,14 @@ import {
   AlertIcon,
   Container,
   Image,
-  Text
+  Text,
+  useBreakpointValue
 } from '@chakra-ui/react';
 import { useAuth } from '../auth/AuthContext';
 
 function LoginPage() {
+  const headingSize = useBreakpointValue({ base: "md", md: "lg" });
+  const boxPadding = useBreakpointValue({ base: 4, md: 8 });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -47,9 +50,9 @@ function LoginPage() {
   };
 
   return (
-    <Container maxW="md" py={12}>
+    <Container maxW="md" py={{ base: 6, md: 12 }} px={{ base: 4, md: 6 }}>
       <Box 
-        p={8} 
+        p={boxPadding} 
         borderWidth={1} 
         borderRadius="lg" 
         boxShadow="lg" 
@@ -63,7 +66,7 @@ function LoginPage() {
             fallbackSrc="https://via.placeholder.com/150x80?text=Kurniasari" 
           />
           
-          <Heading size="lg" textAlign="center">Login Admin</Heading>
+          <Heading size={headingSize} textAlign="center">Login Admin</Heading>
           
           {error && (
             <Alert status="error" borderRadius="md">
