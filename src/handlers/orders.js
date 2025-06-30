@@ -217,6 +217,78 @@ export async function createOrder(request, env) {
             console.log('Status Code:', midtransResponse.status);
             console.log('Response Data:', JSON.stringify(responseData, null, 2));
             console.log('-------------------------------------------');
+
+            // Save order and order items to the database
+            if (env.DB) {
+                try {
+                    const stmts = [];
+
+                    // 1. Prepare statement for the orders table
+                    const orderInsertStmt = env.DB.prepare(`
+                        INSERT INTO orders (order_id, customer_name, customer_email, customer_phone, total_amount, status, midtrans_token, midtrans_redirect_url, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `).bind(
+                        orderId,
+                        customerName,
+                        customerEmail,
+                        customerPhone,
+                        totalAmount,
+                        'pending',
+                        responseData.token,
+                        responseData.redirect_url,
+                        new Date().toISOString(),
+                        new Date().toISOString()
+                    );
+                    stmts.push(orderInsertStmt);
+
+                    // 2. Prepare statements for the order_items table
+                    const orderItemsStmts = items.map(item => {
+                        return env.DB.prepare(`
+                            INSERT INTO order_items (order_id, product_id, product_name, quantity, price)
+                            VALUES (?, ?, ?, ?, ?)
+                        `).bind(
+                            orderId,
+                            item.id,
+                            item.name,
+                            item.quantity,
+                            item.price
+                        );
+                    });
+                    stmts.push(...orderItemsStmts);
+
+                    // Execute the batch transaction
+                    await env.DB.batch(stmts);
+                    console.log(`✅ Order ${orderId} and ${items.length} items saved to database successfully.`);
+
+                } catch (dbError) {
+                    console.error(`✘ [FATAL] Failed to save order ${orderId} to database.`, dbError);
+                    return new Response(JSON.stringify({
+                        success: false,
+                        error: 'Order processed by payment gateway, but failed to save to our system. Please contact support.',
+                        details: dbError.message,
+                        order_id: orderId,
+                        payment_token: responseData.token,
+                        payment_link: responseData.redirect_url
+                    }), {
+                        status: 500,
+                        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                    });
+                }
+            } else {
+                console.log('ℹ️ Skipping database insert because DB environment is not available.');
+            }
+
+            // Return successful response to the client
+            return new Response(JSON.stringify({
+                success: true,
+                message: 'Order created and payment link generated successfully.',
+                order_id: orderId,
+                payment_token: responseData.token,
+                payment_link: responseData.redirect_url
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
         } catch (error) {
             console.error('Error parsing Midtrans API response:', error);
             try {
