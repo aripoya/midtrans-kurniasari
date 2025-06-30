@@ -136,6 +136,7 @@ function NewOrderPage() {
         email: formData.email,
         phone: formData.phone,
         items: items.map(item => ({
+          id: item.productId, // Fix: Include product ID in the payload
           name: item.name,
           price: Number(item.price),
           quantity: Number(item.quantity)
