@@ -11,6 +11,7 @@
   "description": "",
   "dependencies": {
     "@cloudflare/workers-types": "^4.20250614.0",
-    "itty-router": "^4.0.23"
+    "itty-router": "^4.0.23",
+    "midtrans-client": "^1.4.3"
   }
 }

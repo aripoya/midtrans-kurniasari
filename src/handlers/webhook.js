@@ -3,7 +3,9 @@ import crypto from 'node:crypto';
 
 export async function handleMidtransWebhook(request, env) {
     try {
+        console.log('[WEBHOOK] Received webhook notification');
         const body = await request.text();
+        console.log('[WEBHOOK] Request body:', body);
         const notification = JSON.parse(body);
         
         // Verify webhook signature
@@ -52,21 +54,32 @@ export async function handleMidtransWebhook(request, env) {
 
         // Update order status in database
         if (env.DB) {
+            console.log(`[WEBHOOK] Updating order ${orderId} status to ${paymentStatus}`);
             try {
                 await env.DB.prepare(`
                     UPDATE orders 
                     SET payment_status = ?, 
+                        status = ?,
                         payment_response = ?,
                         updated_at = ?
                     WHERE id = ?
                 `).bind(
+                    paymentStatus,
                     paymentStatus,
                     JSON.stringify(notification),
                     new Date().toISOString(),
                     orderId
                 ).run();
 
-                console.log(`Order ${orderId} status updated to: ${paymentStatus}`);
+                console.log(`[WEBHOOK] Order ${orderId} status successfully updated to: ${paymentStatus}`);
+                
+                // Verify the update by reading back from the database
+                try {
+                    const updatedOrder = await env.DB.prepare('SELECT id, payment_status, status FROM orders WHERE id = ?').bind(orderId).first();
+                    console.log('[WEBHOOK] Verification - Updated order in DB:', updatedOrder);
+                } catch (verifyError) {
+                    console.error('[WEBHOOK] Error verifying order update:', verifyError);
+                }
             } catch (dbError) {
                 console.error('Database update error:', dbError);
             }

@@ -29,10 +29,36 @@ export const orderService = {
     try {
       // DEBUG: Log the baseURL from the apiClient instance right before making the call.
       console.log('[DEBUG] orderService.createOrder is using apiClient with baseURL:', apiClient.defaults.baseURL);
-      const response = await apiClient.post('/api/orders', orderData);
+      
+      // Make sure all items have valid prices (greater than 0)
+      const validItems = orderData.items.filter(item => Number(item.price) > 0);
+      
+      // If any items were filtered out, log a warning
+      if (validItems.length !== orderData.items.length) {
+        console.warn('[WARNING] Some items had invalid prices and were removed:', 
+          orderData.items.filter(item => Number(item.price) <= 0));
+      }
+      
+      // Update the order data with only valid items
+      const validatedOrderData = {
+        ...orderData,
+        items: validItems
+      };
+      
+      console.log('[DEBUG] Sending validated order data:', validatedOrderData);
+      const response = await apiClient.post('/api/orders', validatedOrderData);
       return response.data;
     } catch (error) {
       console.error('❌ Error creating order:', error);
+
+      // Extract detailed error message from response if available
+      let errorMessage = 'Failed to create order';
+      if (error.response) {
+        console.error('[DEBUG] Error response data:', error.response.data);
+        if (error.response.data && error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
 
       // DEBUG: If the request fails, log the full config object from the error.
       if (error.config) {
@@ -45,7 +71,11 @@ export const orderService = {
         });
       }
 
-      throw error;
+      // Create a more informative error object
+      const enhancedError = new Error(errorMessage);
+      enhancedError.originalError = error;
+      enhancedError.responseData = error.response?.data;
+      throw enhancedError;
     }
   },
   

@@ -16,19 +16,40 @@ const corsHeaders = {
 };
 
 // Handle CORS preflight requests
-router.options('*', () => {
+router.options('*', (request) => {
+    console.log('Handling OPTIONS request for path:', request.url);
     return new Response(null, {
         status: 200,
         headers: corsHeaders
     });
 });
 
-// Health check endpoint - simplified for debugging
-router.get('/', () => {
-    console.log('Handling root endpoint request - simplified');
-    return new Response('OK', {
+// Health check endpoint with route information
+router.get('/', (request) => {
+    console.log('Handling root endpoint request');
+    const routes = [
+        'GET    /api/products',
+        'POST   /api/orders',
+        'GET    /api/orders',
+        'GET    /api/orders/:id',
+        'POST   /api/webhook/midtrans',
+        'GET    /api/transaction/:orderId/status',
+        'GET    /api/debug/midtrans',
+        'GET    /api/config',
+        'GET    /api/debug/database'
+    ];
+    
+    return new Response(JSON.stringify({
+        status: 'OK',
+        message: 'Order Management API is running',
+        timestamp: new Date().toISOString(),
+        routes: routes
+    }, null, 2), {
         status: 200,
-        headers: corsHeaders
+        headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+        }
     });
 });
 
@@ -98,6 +119,50 @@ router.get('/api/transaction/:orderId/status', async (request, env) => {
 });
 
 // Configuration endpoint (for debugging)
+// Debug endpoint to check Midtrans configuration
+router.get('/api/debug/midtrans', (request, env) => {
+    console.log('Handling /debug/midtrans endpoint request');
+    try {
+        const serverKey = env.MIDTRANS_SERVER_KEY;
+        const clientKey = env.MIDTRANS_CLIENT_KEY;
+        const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
+        
+        // Create a test auth header
+        const testAuth = btoa(`${serverKey}:`);
+        
+        const config = {
+            serverKey: serverKey ? `${serverKey.substring(0, 10)}...${serverKey.substring(serverKey.length - 5)}` : 'Not set',
+            clientKey: clientKey ? `${clientKey.substring(0, 10)}...${clientKey.substring(clientKey.length - 5)}` : 'Not set',
+            isProduction,
+            authHeader: testAuth ? `${testAuth.substring(0, 10)}...` : 'Not generated',
+            envVars: {
+                MIDTRANS_SERVER_KEY: serverKey ? 'Set' : 'Not set',
+                MIDTRANS_CLIENT_KEY: clientKey ? 'Set' : 'Not set',
+                MIDTRANS_IS_PRODUCTION: isProduction ? 'true' : 'false'
+            },
+            timestamp: new Date().toISOString()
+        };
+        
+        console.log('Midtrans Debug Info:', JSON.stringify(config, null, 2));
+        
+        return new Response(JSON.stringify(config, null, 2), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+        
+    } catch (error) {
+        console.error('Error in /debug/midtrans:', error);
+        return new Response(JSON.stringify({
+            error: 'Failed to get Midtrans config',
+            details: error.message,
+            stack: error.stack
+        }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+    }
+});
+
 router.get('/api/config', (request, env) => {
     console.log('Handling /api/config endpoint request');
     try {

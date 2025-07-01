@@ -103,7 +103,7 @@ function OrdersPage() {
                     <VStack align="stretch" spacing={2}>
                       <HStack justify="space-between">
                         <Text fontWeight="bold">ID: {order.id}</Text>
-                        {getStatusBadge(order.status)}
+                        {getStatusBadge(order.payment_status || order.status)}
                       </HStack>
                       <HStack justify="space-between">
                         <Text>{order.customer_name}</Text>
@@ -146,7 +146,7 @@ function OrdersPage() {
                       <Td>{order.id}</Td>
                       <Td>{order.customer_name}</Td>
                       <Td>Rp {order.total_amount?.toLocaleString('id-ID')}</Td>
-                      <Td>{getStatusBadge(order.status)}</Td>
+                      <Td>{getStatusBadge(order.payment_status || order.status)}</Td>
                       <Td>{new Date(order.created_at).toLocaleDateString('id-ID')}</Td>
                       <Td>
                         <Button

@@ -19,20 +19,49 @@ function OrderDetailPage() {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const toast = useToast();
+  // Setting stepper orientation based on screen size - pindah ke awal komponen
+  const stepperOrientation = useBreakpointValue({ base: 'vertical', md: 'horizontal' });
 
   useEffect(() => {
     fetchOrder();
   }, [id]);
+  
+  // Debug: Log struktur items jika order ada
+  useEffect(() => {
+    if (order && order.items) {
+      console.log('🧩 Detail struktur items array:', order.items);
+      console.log('🧩 Sample item 0:', order.items[0]);
+      // Cek properti yang ada di item pertama
+      if (order.items[0]) {
+        console.log('🔑 Keys in first item:', Object.keys(order.items[0]));
+      }
+    }
+  }, [order]);
 
   const fetchOrder = async () => {
     try {
+      console.log('🔄 Fetching order details for ID:', id);
       setLoading(true);
       setError(null);
       const data = await orderService.getOrderById(id);
-      setOrder(data.order || null);
+      console.log('📦 Order API Response:', data);
+      
+      if (data.success && data.order) {
+        console.log('✅ Order found:', data.order);
+        setOrder(data.order);
+      } else {
+        console.error('⚠️ Order not found in response:', data);
+        setError(`Pesanan tidak ditemukan. Response: ${JSON.stringify(data)}`);
+      }
     } catch (error) {
-      console.error('Error fetching order details:', error);
-      setError('Gagal memuat detail pesanan. Silakan coba lagi nanti.');
+      console.error('❌ Error fetching order details:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText
+      });
+      setError(`Gagal memuat detail pesanan: ${error.message}. Silakan coba lagi nanti.`);
     } finally {
       setLoading(false);
     }
@@ -129,17 +158,18 @@ function OrderDetailPage() {
     ];
 
     if (order) {
-      // Set step status berdasarkan status pesanan
-      if (order.status === 'settlement' || order.status === 'capture') {
+      // Set step status berdasarkan status pembayaran
+      const paymentStatus = order.payment_status || order.status;
+      if (paymentStatus === 'settlement' || paymentStatus === 'capture' || paymentStatus === 'paid') {
         steps[1].status = 'complete';
         steps[1].description = 'Pembayaran selesai';
         steps[2].status = 'current';
         steps[2].description = 'Sedang diproses';
-      } else if (order.status === 'cancel' || order.status === 'deny' || order.status === 'expire') {
+      } else if (paymentStatus === 'cancel' || paymentStatus === 'deny' || paymentStatus === 'expire' || paymentStatus === 'failed') {
         steps[1].status = 'error';
-        steps[1].description = order.status === 'expire' ? 'Pembayaran kedaluwarsa' : 'Pembayaran gagal/ditolak';
+        steps[1].description = paymentStatus === 'expire' ? 'Pembayaran kedaluwarsa' : 'Pembayaran gagal/ditolak';
         steps[2].description = 'Tidak dapat diproses';
-      } else if (order.status === 'refund' || order.status === 'partial_refund') {
+      } else if (paymentStatus === 'refund' || paymentStatus === 'partial_refund' || paymentStatus === 'refunded') {
         steps[1].status = 'complete';
         steps[1].description = 'Pembayaran dikembalikan';
         steps[2].status = 'error';
@@ -200,8 +230,6 @@ function OrderDetailPage() {
     );
   }
 
-  // Setting stepper orientation based on screen size
-  const stepperOrientation = useBreakpointValue({ base: 'vertical', md: 'horizontal' });
   // Get payment steps based on order status
   const steps = getPaymentSteps();
   
@@ -324,11 +352,11 @@ function OrderDetailPage() {
                     </Box>
                     <Box p={3} bg="gray.50" borderRadius="md">
                       <Text fontWeight="bold" fontSize="sm" color="gray.500">Email</Text>
-                      <Text mt={1} wordBreak="break-all">{order.email}</Text>
+                      <Text mt={1} wordBreak="break-all">{order.customer_email}</Text>
                     </Box>
                     <Box p={3} bg="gray.50" borderRadius="md">
                       <Text fontWeight="bold" fontSize="sm" color="gray.500">Telepon</Text>
-                      <Text mt={1}>{order.phone}</Text>
+                      <Text mt={1}>{order.customer_phone}</Text>
                     </Box>
                   </VStack>
                 </Box>
@@ -340,11 +368,11 @@ function OrderDetailPage() {
                     </Tr>
                     <Tr>
                       <Th>Email</Th>
-                      <Td>{order.email}</Td>
+                      <Td>{order.customer_email}</Td>
                     </Tr>
                     <Tr>
                       <Th>Telepon</Th>
-                      <Td>{order.phone}</Td>
+                      <Td>{order.customer_phone}</Td>
                     </Tr>
                   </Tbody>
                 </Table>
@@ -359,11 +387,11 @@ function OrderDetailPage() {
                   <VStack spacing={4} align="stretch" mb={5}>
                     {order.items?.map((item, index) => (
                       <Box key={index} p={4} borderWidth="1px" borderRadius="md" shadow="sm">
-                        <Text fontWeight="bold" fontSize="md" mb={2}>{item.name}</Text>
+                        <Text fontWeight="bold" fontSize="md" mb={2}>{item.product_name}</Text>
                         <Grid templateColumns="repeat(2, 1fr)" gap={2}>
                           <Box>
                             <Text fontSize="xs" color="gray.500">Harga Satuan</Text>
-                            <Text>Rp {item.price?.toLocaleString('id-ID')}</Text>
+                            <Text>Rp {item.product_price?.toLocaleString('id-ID')}</Text>
                           </Box>
                           <Box>
                             <Text fontSize="xs" color="gray.500">Jumlah</Text>
@@ -371,7 +399,7 @@ function OrderDetailPage() {
                           </Box>
                           <Box gridColumn="span 2">
                             <Text fontSize="xs" color="gray.500">Subtotal</Text>
-                            <Text fontWeight="bold">Rp {(item.price * item.quantity)?.toLocaleString('id-ID')}</Text>
+                            <Text fontWeight="bold">Rp {item.subtotal?.toLocaleString('id-ID')}</Text>
                           </Box>
                         </Grid>
                       </Box>
@@ -395,10 +423,10 @@ function OrderDetailPage() {
                   <Tbody>
                     {order.items?.map((item, index) => (
                       <Tr key={index}>
-                        <Td>{item.name}</Td>
-                        <Td>Rp {item.price?.toLocaleString('id-ID')}</Td>
+                        <Td>{item.product_name}</Td>
+                        <Td>Rp {item.product_price?.toLocaleString('id-ID')}</Td>
                         <Td>{item.quantity}</Td>
-                        <Td>Rp {(item.price * item.quantity)?.toLocaleString('id-ID')}</Td>
+                        <Td>Rp {item.subtotal?.toLocaleString('id-ID')}</Td>
                       </Tr>
                     ))}
                     <Tr>

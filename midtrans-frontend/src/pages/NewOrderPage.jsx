@@ -7,17 +7,18 @@ import {
   Table, Thead, Tbody, Tr, Th, Td, TableContainer, IconButton,
   useBreakpointValue, Stack, Divider, Flex
 } from '@chakra-ui/react';
-import Select from 'react-select';
+import CreatableSelect from 'react-select/creatable';
 import { DeleteIcon } from '@chakra-ui/icons';
 import { orderService } from '../api/orderService';
 import { productService } from '../api/productService';
+import { loadMidtransScript } from '../utils/midtransHelper';
 
 function NewOrderPage() {
   const isMobile = useBreakpointValue({ base: true, md: false });
   const navigate = useNavigate();
   const toast = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [items, setItems] = useState([{ productId: '', name: '', price: '', quantity: 1 }]);
+  const [items, setItems] = useState([{ productId: '', name: '', price: '', quantity: 1, isCustom: false }]);
   const [products, setProducts] = useState([]);
   
   const [formData, setFormData] = useState({
@@ -46,17 +47,27 @@ function NewOrderPage() {
     if (errors[name]) setErrors({ ...errors, [name]: '' });
   };
 
-  const handleProductSelect = (index, selectedOption) => {
-    const selectedProduct = products.find(p => p.id === selectedOption.value);
-    if (selectedProduct) {
-      const newItems = [...items];
-      newItems[index] = { ...newItems[index], productId: selectedProduct.id, name: selectedProduct.name, price: selectedProduct.price };
-      setItems(newItems);
-      const newErrors = { ...errors };
-      delete newErrors[`items[${index}].name`];
-      delete newErrors[`items[${index}].price`];
-      setErrors(newErrors);
+  const handleProductChange = (index, selectedOption) => {
+    const newItems = [...items];
+    if (!selectedOption) {
+      // Item cleared
+      newItems[index] = { productId: '', name: '', price: '', quantity: 1, isCustom: false };
+    } else if (selectedOption.__isNew__) {
+      // Handle new, custom product
+      newItems[index] = { ...newItems[index], productId: null, name: selectedOption.value, price: '', isCustom: true };
+    } else {
+      // Handle existing product
+      const selectedProduct = products.find(p => p.id === selectedOption.value);
+      if (selectedProduct) {
+        newItems[index] = { ...newItems[index], productId: selectedProduct.id, name: selectedProduct.name, price: selectedProduct.price, isCustom: false };
+      }
     }
+    setItems(newItems);
+
+    const newErrors = { ...errors };
+    delete newErrors[`items[${index}].name`];
+    delete newErrors[`items[${index}].price`];
+    setErrors(newErrors);
   };
 
   const handleItemChange = (index, field, value) => {
@@ -71,7 +82,7 @@ function NewOrderPage() {
   };
 
   const addItem = () => {
-    setItems(prev => [...prev, { name: '', price: '', quantity: 1 }]);
+    setItems(prev => [...prev, { productId: '', name: '', price: '', quantity: 1, isCustom: false }]);
   };
 
   const removeItem = (index) => {
@@ -98,7 +109,13 @@ function NewOrderPage() {
     else if (!formData.email.match(/^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/)) newErrors.email = 'Format email tidak valid';
     if (!formData.phone) newErrors.phone = 'Nomor telepon wajib diisi';
     items.forEach((item, index) => {
-      if (!item.name) newErrors[`items[${index}].name`] = 'Pilih produk terlebih dahulu';
+      if (!item.name) {
+        newErrors[`items[${index}].name`] = 'Pilih produk atau masukkan nama item';
+      }
+      // All items must have a price. For custom items, it must be entered manually.
+      if (!item.price || Number(item.price) <= 0) {
+        newErrors[`items[${index}].price`] = 'Harga wajib diisi dan lebih besar dari 0';
+      }
     });
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -149,25 +166,91 @@ function NewOrderPage() {
       // Use orderService instead of direct fetch to localhost
       const response = await orderService.createOrder(orderData);
       console.log('✅ API response:', response);
-      console.log('✅ API response:', response);
+      
+      // Check if we have a valid response
+      if (!response) {
+        throw new Error('Tidak menerima respons yang valid dari server');
+      }
       
       toast({
         title: "Order berhasil dibuat",
-        description: "Anda akan diarahkan ke halaman pembayaran",
+        description: "Sedang memuat halaman pembayaran...",
         status: "success",
         duration: 3000,
         isClosable: true,
       });
-      
-      // Redirect to payment page or order details
-      if (response && response.payment_link) {
-        // Midtrans redirect
-        console.log('🔄 Redirecting to payment page:', response.payment_link);
-        window.location.href = response.payment_link;
-      } else {
-        // Fallback to order details
-        console.log('🔄 Redirecting to order details:', response.order_id);
-        navigate(`/orders/${response.order_id}`);
+
+      // Handle Midtrans Snap token
+      if (response.token) {
+        console.log('🔑 Midtrans token received, opening payment popup...');
+        try {
+          // Load Midtrans script if not already loaded
+          await loadMidtransScript();
+          
+          if (window.snap) {
+            // Open Midtrans popup
+            window.snap.pay(response.token, {
+              onSuccess: function(result) {
+                console.log('Payment success:', result);
+                navigate(`/orders/${response.order_id || response.id}`);
+              },
+              onPending: function(result) {
+                console.log('Payment pending:', result);
+                navigate(`/orders/${response.order_id || response.id}`);
+              },
+              onError: function(result) {
+                console.error('Payment error:', result);
+                toast({
+                  title: "Pembayaran Gagal",
+                  description: "Terjadi kesalahan saat memproses pembayaran",
+                  status: "error",
+                  duration: 5000,
+                  isClosable: true,
+                });
+                navigate(`/orders/${response.order_id || response.id}`);
+              },
+              onClose: function() {
+                console.log('Payment popup closed without completing payment');
+                toast({
+                  title: "Pembayaran Dibatalkan",
+                  description: "Anda menutup halaman pembayaran",
+                  status: "warning",
+                  duration: 5000,
+                  isClosable: true,
+                });
+                navigate(`/orders/${response.order_id || response.id}`);
+              }
+            });
+          } else {
+            throw new Error('Midtrans Snap script not loaded');
+          }
+        } catch (error) {
+          console.error('Error opening Midtrans popup:', error);
+          toast({
+            title: "Gagal memuat halaman pembayaran",
+            description: error.message || "Silakan coba lagi nanti",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+          navigate(`/orders/${response.order_id || response.id}`);
+        }
+      } 
+      // Fallback to redirect URL if token is not available but redirect_url is
+      else if (response.redirect_url) {
+        console.log('🔄 Redirecting to payment page:', response.redirect_url);
+        window.location.href = response.redirect_url;
+      } 
+      // Fallback to order details if no payment options available
+      else if (response.id || response.order_id) {
+        const orderId = response.id || response.order_id;
+        console.log('ℹ️ No payment token, redirecting to order details:', orderId);
+        navigate(`/orders/${orderId}`);
+      } 
+      // Fallback to orders list if no order ID is available
+      else {
+        console.warn('No order ID or payment method found in response, redirecting to orders list');
+        navigate('/orders');
       }
       
     } catch (error) {
@@ -218,6 +301,8 @@ function NewOrderPage() {
             <Card>
               <CardBody>
                 <Heading as="h2" size={{ base: "sm", md: "md" }} mb={{ base: 3, md: 4 }}>Items Pesanan</Heading>
+                
+                {/* Mobile View */}
                 {isMobile ? (
                   <VStack spacing={4} align="stretch" w="full">
                     {items.map((item, index) => (
@@ -226,53 +311,46 @@ function NewOrderPage() {
                           <VStack spacing={3} align="stretch">
                             <FormControl isRequired isInvalid={errors[`items[${index}].name`]}>
                               <FormLabel fontSize="sm">Produk</FormLabel>
-                              <Select
-                                placeholder="Cari & pilih produk..."
+                              <CreatableSelect
+                                isClearable
+                                placeholder="Cari atau buat produk..."
                                 options={products.map(p => ({ value: p.id, label: p.name }))}
-                                onChange={(selectedOption) => handleProductSelect(index, selectedOption)}
-                                value={item.productId ? { value: item.productId, label: item.name } : null}
+                                onChange={(option) => handleProductChange(index, option)}
+                                onCreateOption={(inputValue) => handleProductChange(index, { value: inputValue, label: inputValue, __isNew__: true })}
+                                value={item.name ? { value: item.productId || item.name, label: item.name } : null}
                                 menuPortalTarget={document.body}
-                                styles={{
-                                  menuPortal: base => ({ ...base, zIndex: 9999 }),
-                                  control: (base) => ({ ...base, minHeight: '38px' })
-                                }}
+                                styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
                               />
                               <FormErrorMessage>{errors[`items[${index}].name`]}</FormErrorMessage>
                             </FormControl>
-                            
-                            <HStack justify="space-between">
-                              <FormLabel fontSize="sm" mb={0}>Harga:</FormLabel>
-                              <Text fontWeight="medium">Rp {Number(item.price).toLocaleString('id-ID')}</Text>
-                            </HStack>
-                            
+
+                            <FormControl isRequired isInvalid={errors[`items[${index}].price`]}>
+                               <FormLabel fontSize="sm">Harga</FormLabel>
+                               <NumberInput 
+                                value={item.price}
+                                onChange={(val) => handleItemChange(index, 'price', val)}
+                                isDisabled={!item.isCustom && item.productId}
+                               > 
+                                 <NumberInputField placeholder="Harga produk" />
+                               </NumberInput>
+                               <FormErrorMessage>{errors[`items[${index}].price`]}</FormErrorMessage>
+                            </FormControl>
+
                             <HStack justify="space-between" align="center">
                               <FormLabel fontSize="sm" mb={0}>Jumlah:</FormLabel>
-                              <NumberInput 
-                                size="sm" 
-                                maxW="100px" 
-                                min={1} 
-                                defaultValue={1} 
-                                value={item.quantity} 
-                                onChange={(valueString) => handleItemChange(index, 'quantity', valueString)}
-                              >
+                              <NumberInput size="sm" maxW="100px" min={1} value={item.quantity} onChange={(val) => handleItemChange(index, 'quantity', val)}>
                                 <NumberInputField />
                               </NumberInput>
                             </HStack>
-                            
+
                             <Divider />
-                            
+
                             <HStack justify="space-between">
                               <Text fontWeight="bold">Subtotal:</Text>
                               <Text fontWeight="bold">Rp {(Number(item.price) * Number(item.quantity)).toLocaleString('id-ID')}</Text>
                             </HStack>
-                            
-                            <Button 
-                              leftIcon={<DeleteIcon />} 
-                              colorScheme="red" 
-                              size="sm" 
-                              onClick={() => removeItem(index)}
-                              mt={1}
-                            >
+
+                            <Button leftIcon={<DeleteIcon />} colorScheme="red" size="sm" onClick={() => removeItem(index)} mt={1}>
                               Hapus
                             </Button>
                           </VStack>
@@ -281,12 +359,13 @@ function NewOrderPage() {
                     ))}
                   </VStack>
                 ) : (
+                  /* Desktop View */
                   <TableContainer>
                     <Table variant="simple">
                       <Thead>
                         <Tr>
-                          <Th>Produk</Th>
-                          <Th isNumeric>Harga</Th>
+                          <Th minW="300px">Produk</Th>
+                          <Th minW="150px">Harga</Th>
                           <Th isNumeric>Jumlah</Th>
                           <Th isNumeric>Subtotal</Th>
                           <Th>Aksi</Th>
@@ -297,20 +376,32 @@ function NewOrderPage() {
                           <Tr key={index}>
                             <Td>
                               <FormControl isRequired isInvalid={errors[`items[${index}].name`]}>
-                                <Select
-                                  placeholder="Cari & pilih produk..."
+                                <CreatableSelect
+                                  isClearable
+                                  placeholder="Cari atau buat produk..."
                                   options={products.map(p => ({ value: p.id, label: p.name }))}
-                                  onChange={(selectedOption) => handleProductSelect(index, selectedOption)}
-                                  value={item.productId ? { value: item.productId, label: item.name } : null}
+                                  onChange={(option) => handleProductChange(index, option)}
+                                  onCreateOption={(inputValue) => handleProductChange(index, { value: inputValue, label: inputValue, __isNew__: true })}
+                                  value={item.name ? { value: item.productId || item.name, label: item.name } : null}
                                   menuPortalTarget={document.body}
-                                  styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
                                 />
                                 <FormErrorMessage>{errors[`items[${index}].name`]}</FormErrorMessage>
                               </FormControl>
                             </Td>
-                            <Td isNumeric>Rp {Number(item.price).toLocaleString('id-ID')}</Td>
+                            <Td>
+                               <FormControl isRequired isInvalid={errors[`items[${index}].price`]}>
+                                 <NumberInput 
+                                  value={item.price} 
+                                  onChange={(val) => handleItemChange(index, 'price', val)} 
+                                  isDisabled={!item.isCustom && item.productId}
+                                 > 
+                                   <NumberInputField placeholder="Harga" />
+                                 </NumberInput>
+                                <FormErrorMessage>{errors[`items[${index}].price`]}</FormErrorMessage>
+                               </FormControl>
+                            </Td>
                             <Td isNumeric>
-                              <NumberInput size="sm" maxW={20} min={1} defaultValue={1} value={item.quantity} onChange={(valueString) => handleItemChange(index, 'quantity', valueString)}>
+                              <NumberInput size="sm" maxW="80px" min={1} value={item.quantity} onChange={(val) => handleItemChange(index, 'quantity', val)}>
                                 <NumberInputField />
                               </NumberInput>
                             </Td>
@@ -324,29 +415,12 @@ function NewOrderPage() {
                     </Table>
                   </TableContainer>
                 )}
-                <Flex 
-                  direction={{ base: "column", sm: "row" }} 
-                  w="full" 
-                  mt={4} 
-                  alignItems={{ base: "stretch", sm: "center" }}
-                  justifyContent={{ base: "center", sm: "flex-end" }}
-                  gap={3}
-                >
-                  <Button 
-                    onClick={addItem} 
-                    colorScheme="teal" 
-                    size="sm" 
-                    w={{ base: "full", sm: "auto" }}
-                  >
+
+                <Flex direction={{ base: "column", sm: "row" }} w="full" mt={4} alignItems={{ base: "stretch", sm: "center" }} justifyContent={{ base: "center", sm: "flex-end" }} gap={3}>
+                  <Button onClick={addItem} colorScheme="teal" size="sm" w={{ base: "full", sm: "auto" }}>
                     + Tambah Item
                   </Button>
-                  <Box 
-                    p={{ base: 3, md: 4 }} 
-                    bg="gray.50" 
-                    borderRadius="md"
-                    w={{ base: "full", sm: "auto" }}
-                    textAlign="center"
-                  >
+                  <Box p={{ base: 3, md: 4 }} bg="gray.50" borderRadius="md" w={{ base: "full", sm: "auto" }} textAlign="center">
                     <Heading size={{ base: "sm", md: "md" }}>Total: Rp {calculateTotal().toLocaleString('id-ID')}</Heading>
                   </Box>
                 </Flex>
