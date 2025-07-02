@@ -75,6 +75,10 @@ export async function createOrder(request, env) {
       phone: customerPhone || ''
     };
 
+    const requestOrigin = request.headers.get('origin');
+    const finishUrl = `${requestOrigin || 'https://kurniasari-midtrans-frontend.pages.dev'}/orders/${orderId}`;
+    console.log(`[DEBUG] Using finish URL for Midtrans callback: ${finishUrl}. Request origin: ${requestOrigin}`);
+
     const midtransPayload = {
       transaction_details: { 
         order_id: orderId, 
@@ -88,7 +92,7 @@ export async function createOrder(request, env) {
         quantity: Number(item.quantity)
       })),
       callbacks: {
-        finish: `${request.headers.get('origin') || 'https://kurniasari-midtrans-frontend.pages.dev'}/orders/${orderId}`,
+        finish: finishUrl,
       }
     };
     
@@ -141,7 +145,7 @@ export async function createOrder(request, env) {
     // Statement for inserting into 'orders' table
     dbStatements.push(
       env.DB.prepare(
-        `INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_status, status, created_at)
+        `INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_status, shipping_status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
       ).bind(orderId, customer_name, email, customerPhone, totalAmount, midtransData.token, midtransData.redirect_url, 'pending', 'pending')
     );

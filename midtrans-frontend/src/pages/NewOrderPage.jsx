@@ -129,135 +129,69 @@ function NewOrderPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('🔍 Form submit triggered');
     
     if (!validateForm()) {
-      console.log('❌ Form validation failed', errors);
-      toast({
-        title: "Formulir tidak valid",
-        description: "Mohon periksa kembali data yang dimasukkan",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
+      toast({ title: "Formulir tidak valid", description: "Mohon periksa kembali data yang dimasukkan", status: "error", duration: 5000, isClosable: true });
       return;
     }
     
-    console.log('✅ Form validation passed');
     setIsLoading(true);
     
     try {
-      // Prepare order data
-      const orderData = {
+      const orderPayload = {
         customer_name: formData.customer_name,
         email: formData.email,
         phone: formData.phone,
-        items: items.map(item => ({
-          id: item.productId, // Fix: Include product ID in the payload
-          name: item.name,
-          price: Number(item.price),
-          quantity: Number(item.quantity)
-        }))
+        items: items.map(item => ({ id: item.productId, name: item.name, price: Number(item.price), quantity: Number(item.quantity) }))
       };
       
-      console.log('📦 Sending order data:', orderData);
-      console.log('🔄 Using configured API client via orderService');
+      const response = await orderService.createOrder(orderPayload);
       
-      // Use orderService instead of direct fetch to localhost
-      const response = await orderService.createOrder(orderData);
-      console.log('✅ API response:', response);
-      
-      // Check if we have a valid response
-      if (!response) {
-        throw new Error('Tidak menerima respons yang valid dari server');
+      if (!response || !response.orderId) {
+        throw new Error('Gagal membuat pesanan: tidak ada ID pesanan yang diterima dari server.');
       }
       
-      toast({
-        title: "Order berhasil dibuat",
-        description: "Sedang memuat halaman pembayaran...",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
+      toast({ title: "Order berhasil dibuat", description: "Sedang memuat halaman pembayaran...", status: "success", duration: 3000, isClosable: true });
 
-      // Handle Midtrans Snap token
       if (response.token) {
-        console.log('🔑 Midtrans token received, opening payment popup...');
-        try {
-          // Load Midtrans script if not already loaded
-          await loadMidtransScript();
-          
-          if (window.snap) {
-            // Open Midtrans popup
-            window.snap.pay(response.token, {
-              onSuccess: function(result) {
-                console.log('Payment success:', result);
-                navigate(`/orders/${response.order_id || response.id}`);
-              },
-              onPending: function(result) {
-                console.log('Payment pending:', result);
-                navigate(`/orders/${response.order_id || response.id}`);
-              },
-              onError: function(result) {
-                console.error('Payment error:', result);
-                toast({
-                  title: "Pembayaran Gagal",
-                  description: "Terjadi kesalahan saat memproses pembayaran",
-                  status: "error",
-                  duration: 5000,
-                  isClosable: true,
-                });
-                navigate(`/orders/${response.order_id || response.id}`);
-              },
-              onClose: function() {
-                console.log('Payment popup closed without completing payment');
-                toast({
-                  title: "Pembayaran Dibatalkan",
-                  description: "Anda menutup halaman pembayaran",
-                  status: "warning",
-                  duration: 5000,
-                  isClosable: true,
-                });
-                navigate(`/orders/${response.order_id || response.id}`);
-              }
-            });
-          } else {
-            throw new Error('Midtrans Snap script not loaded');
-          }
-        } catch (error) {
-          console.error('Error opening Midtrans popup:', error);
-          toast({
-            title: "Gagal memuat halaman pembayaran",
-            description: error.message || "Silakan coba lagi nanti",
-            status: "error",
-            duration: 5000,
-            isClosable: true,
+        await loadMidtransScript();
+        
+        if (window.snap) {
+          window.snap.pay(response.token, {
+            onSuccess: (result) => {
+              toast({ title: 'Pembayaran Berhasil', description: 'Status pembayaran telah diperbarui.', status: 'success', duration: 5000, isClosable: true });
+              navigate(`/orders/${response.orderId}`);
+            },
+            onPending: (result) => {
+              toast({ title: 'Menunggu Pembayaran', description: 'Selesaikan pembayaran Anda.', status: 'info', duration: 5000, isClosable: true });
+              navigate(`/orders/${response.orderId}`);
+            },
+            onError: (result) => {
+              toast({ title: "Pembayaran Gagal", description: "Terjadi kesalahan saat memproses pembayaran.", status: "error", duration: 5000, isClosable: true });
+              navigate(`/orders/${response.orderId}`);
+            },
+            onClose: () => {
+              toast({ title: "Pembayaran Dibatalkan", description: "Anda menutup halaman pembayaran.", status: "warning", duration: 5000, isClosable: true });
+              navigate(`/orders/${response.orderId}`);
+            }
           });
-          navigate(`/orders/${response.order_id || response.id}`);
+        } else {
+          throw new Error('Midtrans Snap script tidak termuat');
         }
-      } 
-      // Fallback to redirect URL if token is not available but redirect_url is
-      else if (response.redirect_url) {
-        console.log('🔄 Redirecting to payment page:', response.redirect_url);
+      } else if (response.redirect_url) {
+        // Fallback to redirect URL if Snap token is not available
         window.location.href = response.redirect_url;
-      } 
-      // Fallback to order details if no payment options available
-      else if (response.id || response.order_id) {
-        const orderId = response.id || response.order_id;
-        console.log('ℹ️ No payment token, redirecting to order details:', orderId);
-        navigate(`/orders/${orderId}`);
-      } 
-      // Fallback to orders list if no order ID is available
-      else {
-        console.warn('No order ID or payment method found in response, redirecting to orders list');
-        navigate('/orders');
+      } else {
+        // If no payment options are available, go directly to the order details page
+        toast({ title: 'Pesanan Dibuat', description: 'Tidak ada opsi pembayaran yang tersedia, melihat detail pesanan.', status: 'info', duration: 3000, isClosable: true });
+        navigate(`/orders/${response.orderId}`);
       }
       
     } catch (error) {
       console.error('❌ Error creating order:', error);
       toast({
         title: "Gagal membuat pesanan",
-        description: error.message || "Terjadi kesalahan saat membuat pesanan",
+        description: error.message || "Terjadi kesalahan saat membuat pesanan.",
         status: "error",
         duration: 5000,
         isClosable: true,
