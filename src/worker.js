@@ -1,6 +1,6 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
-import { createOrder, getOrders, getOrderById } from './handlers/orders.js';
+import { createOrder, getOrders, getOrderById, updateOrderStatus } from './handlers/orders.js';
 import { getProducts, createProduct, updateProduct, deleteProduct } from './handlers/products.js';
 import { handleMidtransWebhook, checkTransactionStatus, updateOrderStatusFromMidtrans } from './handlers/webhook.js';
 
@@ -65,6 +65,10 @@ router.get('/api/orders', (request, env) => {
 router.get('/api/orders/:id', (request, env) => {
     request.corsHeaders = corsHeaders;
     return getOrderById(request, env);
+});
+router.patch('/api/orders/:id/status', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return updateOrderStatus(request, env);
 });
 
 // Product management endpoints

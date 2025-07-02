@@ -172,6 +172,9 @@ export async function getOrders(request, env) {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
   };
 
   try {
@@ -199,6 +202,9 @@ export async function getOrderById(request, env) {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
   };
 
   try {
@@ -226,5 +232,50 @@ export async function getOrderById(request, env) {
   } catch (error) {
     console.error('Get Order By ID Error:', error.message, error.stack);
     return new Response(JSON.stringify({ success: false, error: 'Failed to fetch order' }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+  }
+}
+
+export async function updateOrderStatus(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'PATCH, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id/status
+    const { status } = await request.json();
+
+    if (!orderId || !status) {
+      return new Response(JSON.stringify({ success: false, error: 'Order ID and status are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    const allowedStatuses = ['di kemas', 'siap kirim', 'siap ambil', 'sedang dikirim', 'Sudah Di Terima', 'Sudah Di Ambil'];
+    if (!allowedStatuses.includes(status)) {
+      return new Response(JSON.stringify({ success: false, error: 'Invalid status value' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (!env.DB) {
+      throw new Error("Database binding not found.");
+    }
+
+    const updateResult = await env.DB.prepare(
+      'UPDATE orders SET shipping_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(status, orderId).run();
+
+    if (updateResult.meta.changes === 0) {
+        return new Response(JSON.stringify({ success: false, error: 'Order not found or status unchanged' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    return new Response(JSON.stringify({ success: true, message: 'Order status updated successfully' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+  } catch (error) {
+    console.error('Update Order Status Error:', error.message, error.stack);
+    return new Response(JSON.stringify({ success: false, error: 'Failed to update order status' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 }

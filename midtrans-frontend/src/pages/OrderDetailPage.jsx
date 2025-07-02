@@ -8,9 +8,10 @@ import {
   Icon, Flex, Image, Grid, GridItem, Step, StepDescription,
   StepIcon, StepIndicator, StepNumber, StepSeparator,
   StepStatus, StepTitle, Stepper, useBreakpointValue,
-  Tag, Container
+  Tag, Container, Select, FormControl, FormLabel
 } from '@chakra-ui/react';
 import { orderService } from '../api/orderService';
+import { updateOrderStatus } from '../api/api';
 
 function OrderDetailPage() {
   const { id } = useParams();
@@ -21,10 +22,19 @@ function OrderDetailPage() {
   const toast = useToast();
   // Setting stepper orientation based on screen size - pindah ke awal komponen
   const stepperOrientation = useBreakpointValue({ base: 'vertical', md: 'horizontal' });
+  const stepperSize = useBreakpointValue({ base: 'sm', md: 'md' });
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   useEffect(() => {
     fetchOrder();
   }, [id]);
+
+  useEffect(() => {
+    if (order && order.shipping_status) {
+      setSelectedStatus(order.shipping_status);
+    }
+  }, [order]);
   
   // Debug: Log struktur items jika order ada
   useEffect(() => {
@@ -48,7 +58,23 @@ function OrderDetailPage() {
       
       if (data.success && data.order) {
         console.log('✅ Order found:', data.order);
-        setOrder(data.order);
+        let finalOrder = data.order;
+        // If payment_response exists, parse it to populate derived fields for consistent UI
+        if (finalOrder.payment_response) {
+          try {
+            const paymentDetails = JSON.parse(finalOrder.payment_response);
+            finalOrder = {
+              ...finalOrder,
+              payment_method: paymentDetails.payment_type || finalOrder.payment_method,
+              payment_time: paymentDetails.settlement_time || finalOrder.payment_time,
+              status: paymentDetails.transaction_status || finalOrder.status, // Midtrans status
+            };
+            console.log('📦 Order after parsing payment_response:', finalOrder);
+          } catch (e) {
+            console.error("Failed to parse payment_response on initial load:", e);
+          }
+        }
+        setOrder(finalOrder);
       } else {
         console.error('⚠️ Order not found in response:', data);
         setError(`Pesanan tidak ditemukan. Response: ${JSON.stringify(data)}`);
@@ -79,37 +105,34 @@ function OrderDetailPage() {
 
       console.log(`[UI] Comparing statuses: Current='${currentInternalStatus}', New='${newInternalStatus}'`);
 
-      if (newInternalStatus && newInternalStatus !== currentInternalStatus) {
-        console.log('[UI] Status has changed. Updating local state...');
-        setOrder(prevOrder => {
-          const updatedOrder = {
-            ...prevOrder,
-            status: newInternalStatus, // Use the new status from the API
-            payment_status: newInternalStatus,
-            payment_response: JSON.stringify(newStatus),
-            payment_time: newStatus.settlement_time || prevOrder.payment_time,
-            payment_method: newStatus.payment_type || prevOrder.payment_method,
-          };
-          console.log('[UI] New local order state:', updatedOrder);
-          return updatedOrder;
-        });
+      // Explicitly map fields from the API response to our component's state.
+      // This is the correct way to handle potential discrepancies in property names.
+      setOrder(prevOrder => {
+        const updatedOrder = {
+          ...prevOrder,
+          payment_status: newStatus.payment_status, // e.g., 'paid'
+          status: newStatus.transaction_status, // e.g., 'settlement'
+          payment_method: newStatus.payment_type, // e.g., 'qris'
+          payment_time: newStatus.settlement_time, // e.g., '2025-07-02 09:59:53'
+          payment_response: JSON.stringify(newStatus), // for debugging
+        };
+        console.log('[UI] Manually mapped and updated order state:', updatedOrder);
+        return updatedOrder;
+      });
 
+      // Provide feedback to the user based on whether the status text actually changed.
+      if (newInternalStatus && newInternalStatus !== currentInternalStatus) {
         toast({
           title: 'Status berhasil diperbarui',
-          description: `Status pembayaran sekarang: ${newInternalStatus} (Midtrans: ${newStatus.transaction_status})`,
+          description: `Status pembayaran sekarang: ${newInternalStatus}.`,
           status: 'success',
           duration: 3000,
           isClosable: true,
         });
-
-        console.log('[UI] Dispatching order-updated event.');
-        window.dispatchEvent(new CustomEvent('order-updated'));
-
       } else {
-        console.log('[UI] Status has not changed.');
         toast({
-          title: 'Status tidak berubah',
-          description: 'Status pembayaran saat ini sudah yang terbaru.',
+          title: 'Status sudah yang terbaru',
+          description: `Status pembayaran sudah ${newInternalStatus}.`,
           status: 'info',
           duration: 3000,
           isClosable: true,
@@ -126,6 +149,43 @@ function OrderDetailPage() {
       });
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleStatusUpdate = async () => {
+    if (!selectedStatus || selectedStatus === order.shipping_status) {
+      toast({
+        title: 'Tidak ada perubahan',
+        description: 'Status yang dipilih sama dengan status saat ini.',
+        status: 'info',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setIsUpdatingStatus(true);
+    try {
+      await updateOrderStatus(id, selectedStatus);
+      toast({
+        title: 'Status Berhasil Diupdate',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      // Refresh order data to show the latest status
+      await fetchOrder(); 
+    } catch (err) {
+      console.error('Failed to update status:', err);
+      toast({
+        title: 'Gagal Mengupdate Status',
+        description: err.response?.data?.error || err.message,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
@@ -173,55 +233,57 @@ function OrderDetailPage() {
         );
     }
   };
-  
+
   const getPaymentSteps = () => {
     const steps = [
-      { label: 'Pemesanan', description: 'Pesanan dibuat', status: 'complete' },
-      { label: 'Pembayaran', description: 'Menunggu pembayaran', status: 'incomplete' },
-      { label: 'Pengiriman', description: 'Menunggu pengiriman', status: 'incomplete' }
+      { title: 'Pemesanan', description: 'Pesanan dibuat' },
+      { title: 'Pembayaran', description: 'Menunggu pembayaran' },
+      { title: 'Pengiriman', description: 'Pesanan sedang diproses' },
+      { title: 'Selesai', description: 'Pesanan telah diterima' },
     ];
 
-    if (order) {
-      // Set step status berdasarkan status pembayaran
-      const paymentStatus = order.payment_status || order.status;
-      if (paymentStatus === 'settlement' || paymentStatus === 'capture' || paymentStatus === 'paid') {
-        steps[1].status = 'complete';
-        steps[1].description = 'Pembayaran selesai';
-        steps[2].status = 'current';
-        steps[2].description = 'Sedang diproses';
-      } else if (paymentStatus === 'cancel' || paymentStatus === 'deny' || paymentStatus === 'expire' || paymentStatus === 'failed') {
-        steps[1].status = 'error';
-        steps[1].description = paymentStatus === 'expire' ? 'Pembayaran kedaluwarsa' : 'Pembayaran gagal/ditolak';
-        steps[2].description = 'Tidak dapat diproses';
-      } else if (paymentStatus === 'refund' || paymentStatus === 'partial_refund' || paymentStatus === 'refunded') {
-        steps[1].status = 'complete';
-        steps[1].description = 'Pembayaran dikembalikan';
-        steps[2].status = 'error';
-        steps[2].description = 'Pengiriman dibatalkan';
+    let activeStep = 0;
+    if (!order) return { steps, activeStep };
+
+    const paymentStatus = order.payment_status || order.status;
+
+    // 1. Payment Status Logic
+    if (paymentStatus === 'pending') {
+      activeStep = 1;
+    } else if (['paid', 'settlement', 'capture'].includes(paymentStatus)) {
+      activeStep = 2; // Default to step 2 after payment
+      steps[1].description = 'Pembayaran berhasil';
+    } else if (['cancel', 'deny', 'expire', 'failed'].includes(paymentStatus)) {
+      activeStep = 1; // Stuck at payment step
+      steps[1].description = 'Pembayaran Gagal';
+      return { steps, activeStep }; // Stop further evaluation if payment failed
+    }
+
+    // 2. Shipping Status Logic (only if payment is successful)
+    if (activeStep >= 2) {
+      const shippingStatus = order.shipping_status;
+      if (['di kemas', 'siap kirim', 'siap ambil'].includes(shippingStatus)) {
+        activeStep = 2;
+        steps[2].description = `Status: ${shippingStatus}`;
+      } else if (shippingStatus === 'sedang dikirim') {
+        activeStep = 2;
+        steps[2].description = 'Pesanan dalam perjalanan';
+      } else if (['Sudah Di Terima', 'Sudah Di Ambil'].includes(shippingStatus)) {
+        activeStep = 4; // Set to 4 to mark the last step (index 3) as complete
+        steps[2].description = 'Pesanan telah dikirim';
+        steps[3].description = `Status: ${shippingStatus}`;
       }
     }
-    
-    return steps;
+
+    return { steps, activeStep };
   };
 
   const getPaymentIcon = (method) => {
     if (!method) return null;
-    
-    const method_lower = method.toLowerCase();
-    
-    if (method_lower.includes('credit') || method_lower.includes('card')) {
-      return <Tag colorScheme="purple" size="md">Credit Card</Tag>
-    } else if (method_lower.includes('gopay')) {
-      return <Tag colorScheme="green" size="md">GoPay</Tag>
-    } else if (method_lower.includes('bank') || method_lower.includes('transfer')) {
-      return <Tag colorScheme="blue" size="md">Bank Transfer</Tag>
-    } else if (method_lower.includes('qris')) {
-      return <Tag colorScheme="orange" size="md">QRIS</Tag>
-    } else if (method_lower.includes('alfamart') || method_lower.includes('indomaret')) {
-      return <Tag colorScheme="red" size="md">{method}</Tag>
-    }
-    
-    return <Tag size="md">{method}</Tag>;
+    const methodLower = method.toLowerCase();
+    if (methodLower.includes('qris')) return <Tag colorScheme="orange">QRIS</Tag>;
+    if (methodLower.includes('card')) return <Tag colorScheme="purple">Credit Card</Tag>;
+    return <Tag>{method}</Tag>;
   };
 
   if (loading) {
@@ -242,6 +304,8 @@ function OrderDetailPage() {
     );
   }
 
+  const { steps, activeStep } = getPaymentSteps();
+
   if (!order) {
     return (
       <Alert status="warning">
@@ -254,9 +318,6 @@ function OrderDetailPage() {
     );
   }
 
-  // Get payment steps based on order status
-  const steps = getPaymentSteps();
-  
   return (
     <Container maxW="container.xl" p={4}>
       <Card mb={8} overflow="hidden">
@@ -306,29 +367,54 @@ function OrderDetailPage() {
         <CardBody pt={6}>
           {/* Timeline Status Pesanan */}
           <Box mb={8}>
-            <Stepper
-              index={order.status === 'settlement' || order.status === 'capture' ? 2 : 1}
-              orientation={stepperOrientation}
-              colorScheme="teal"
-              size="lg"
-            >
+            <Stepper index={activeStep} orientation={stepperOrientation} colorScheme="green" size={stepperSize}>
               {steps.map((step, index) => (
                 <Step key={index}>
                   <StepIndicator>
-                    <StepStatus 
+                    <StepStatus
                       complete={<StepIcon />}
                       incomplete={<StepNumber />}
                       active={<StepNumber />}
                     />
                   </StepIndicator>
                   <Box flexShrink='0'>
-                    <StepTitle>{step.label}</StepTitle>
+                    <StepTitle>{step.title}</StepTitle>
                     <StepDescription>{step.description}</StepDescription>
                   </Box>
                   <StepSeparator />
                 </Step>
               ))}
             </Stepper>
+
+            {/* --- Admin: Update Shipping Status --- */}
+            <Card variant="outline" w="100%">
+              <CardBody>
+                <FormControl>
+                  <FormLabel htmlFor="shipping-status">Update Status Pengiriman</FormLabel>
+                  <HStack>
+                    <Select 
+                      id="shipping-status"
+                      value={selectedStatus}
+                      onChange={(e) => setSelectedStatus(e.target.value)}
+                    >
+                      <option value="di kemas">Di Kemas</option>
+                      <option value="siap kirim">Siap Kirim</option>
+                      <option value="siap ambil">Siap Ambil</option>
+                      <option value="sedang dikirim">Sedang Dikirim</option>
+                      <option value="Sudah Di Terima">Sudah Di Terima</option>
+                      <option value="Sudah Di Ambil">Sudah Di Ambil</option>
+                    </Select>
+                    <Button
+                      onClick={handleStatusUpdate}
+                      isLoading={isUpdatingStatus}
+                      colorScheme="blue"
+                    >
+                      Update
+                    </Button>
+                  </HStack>
+                </FormControl>
+              </CardBody>
+            </Card>
           </Box>
 
           <VStack spacing={6} align="stretch">
@@ -337,7 +423,7 @@ function OrderDetailPage() {
                 <StatGroup flexDirection={{ base: 'column', md: 'row' }} gap={{ base: 4, md: 0 }}>
                   <Stat>
                     <StatLabel>Status Pembayaran</StatLabel>
-                    <StatNumber>{getStatusBadge(order.status)}</StatNumber>
+                    <StatNumber>{getStatusBadge(order.payment_status)}</StatNumber>
                   </Stat>
                   
                   <Stat>
@@ -491,7 +577,7 @@ function OrderDetailPage() {
                       </Box>
                       <Box p={3} bg="gray.50" borderRadius="md">
                         <Text fontWeight="bold" fontSize="sm" color="gray.500">Status Terakhir</Text>
-                        <Box mt={1}>{getStatusBadge(order.status)}</Box>
+                        <Box mt={1}>{getStatusBadge(order.payment_status)}</Box>
                       </Box>
                       {order.payment_method && (
                         <Box p={3} bg="gray.50" borderRadius="md">
@@ -517,7 +603,7 @@ function OrderDetailPage() {
                       </Tr>
                       <Tr>
                         <Th>Status Terakhir</Th>
-                        <Td>{getStatusBadge(order.status)}</Td>
+                        <Td>{getStatusBadge(order.payment_status)}</Td>
                       </Tr>
                       {order.payment_method && (
                         <Tr>

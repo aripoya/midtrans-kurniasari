@@ -28,4 +28,9 @@ apiClient.interceptors.request.use(
   }
 );
 
+
+export const updateOrderStatus = (orderId, status) => {
+  return apiClient.patch(`/api/orders/${orderId}/status`, { status });
+};
+
 export default apiClient;
