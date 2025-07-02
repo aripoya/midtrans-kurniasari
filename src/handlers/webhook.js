@@ -1,109 +1,110 @@
 // Enhanced webhook handler for production Midtrans integration
 import crypto from 'node:crypto';
 
+// Centralized function to update order status from a Midtrans notification/status object
+export async function updateOrderStatusFromMidtrans(notification, env) {
+    console.log('[Webhook Handler] Received notification for update:', JSON.stringify(notification, null, 2));
+    const { order_id: orderId, transaction_status: transactionStatus, fraud_status: fraudStatus } = notification;
+
+    let paymentStatus = 'pending';
+    if (transactionStatus === 'capture') {
+        if (fraudStatus === 'challenge') {
+            paymentStatus = 'challenge';
+        } else if (fraudStatus === 'accept') {
+            paymentStatus = 'paid';
+        }
+    } else if (transactionStatus === 'settlement') {
+        paymentStatus = 'paid';
+    } else if (['cancel', 'deny', 'expire'].includes(transactionStatus)) {
+        paymentStatus = 'failed';
+    } else if (transactionStatus === 'pending') {
+        paymentStatus = 'pending';
+    } else if (transactionStatus === 'refund' || transactionStatus === 'partial_refund') {
+        paymentStatus = 'refunded';
+    }
+
+    console.log(`[Webhook Handler] Determined internal payment status: '${paymentStatus}' for order: ${orderId}`);
+
+    if (env.DB) {
+        try {
+            console.log(`[Webhook Handler] Attempting to update database for order ${orderId}...`);
+            // NOTE: The 'status' and 'payment_response' columns were removed from this query
+            // because they do not exist in the current D1 production database schema.
+            const info = await env.DB.prepare(`
+                UPDATE orders 
+                SET payment_status = ?,
+                    updated_at = ?
+                WHERE id = ?
+            `).bind(
+                paymentStatus,
+                new Date().toISOString(),
+                orderId
+            ).run();
+
+            console.log('[Webhook Handler] Database update result:', JSON.stringify(info, null, 2));
+
+            if (info.success && info.meta.rows_written > 0) {
+                 console.log(`[Webhook Handler] Successfully updated ${info.meta.rows_written} row(s) for order ${orderId}.`);
+            } else if (info.success) {
+                 console.warn(`[Webhook Handler] DB update for order ${orderId} reported success, but no rows were written. This might happen if the status was already correct.`, info);
+            } else {
+                 console.error(`[Webhook Handler] DB update for order ${orderId} failed.`, info);
+            }
+
+            if (paymentStatus === 'paid') {
+                await handleSuccessfulPayment(orderId, notification, env);
+            } else if (paymentStatus === 'failed') {
+                await handleFailedPayment(orderId, notification, env);
+            }
+
+            return { success: true, payment_status: paymentStatus, transaction_status: transactionStatus };
+        } catch (dbError) {
+            console.error(`[Webhook Handler] FATAL: Database update failed for order ${orderId}:`, dbError);
+            return { success: false, error: dbError.message, payment_status: paymentStatus, transaction_status: transactionStatus };
+        }
+    } else {
+        console.error('[Webhook Handler] FATAL: DB environment not available!');
+        return { success: false, error: 'Database connection not available', payment_status: paymentStatus, transaction_status: transactionStatus };
+    }
+}
+
 export async function handleMidtransWebhook(request, env) {
     try {
         console.log('[WEBHOOK] Received webhook notification');
-        const body = await request.text();
-        console.log('[WEBHOOK] Request body:', body);
-        const notification = JSON.parse(body);
-        
+        const notification = await request.json();
+        console.log('[WEBHOOK] Request body:', notification);
+
         // Verify webhook signature
         const serverKey = env.MIDTRANS_SERVER_KEY;
         if (!serverKey) {
-            console.error('Midtrans server key not configured');
+            console.error('[WEBHOOK] Midtrans server key not configured');
             return new Response('Server key not configured', { status: 500 });
         }
 
-        // Create signature hash
         const signatureKey = notification.order_id + notification.status_code + notification.gross_amount + serverKey;
         const signature = crypto.createHash('sha512').update(signatureKey).digest('hex');
 
         if (signature !== notification.signature_key) {
-            console.error('Invalid webhook signature');
+            console.error('[WEBHOOK] Invalid webhook signature');
             return new Response('Invalid signature', { status: 401 });
         }
 
-        // Process notification based on transaction status
-        const orderId = notification.order_id;
-        const transactionStatus = notification.transaction_status;
-        const fraudStatus = notification.fraud_status;
+        // Process notification using the new reusable function
+        const updateResult = await updateOrderStatusFromMidtrans(notification, env);
 
-        let paymentStatus = 'pending';
-
-        // Determine payment status based on Midtrans response
-        if (transactionStatus === 'capture') {
-            if (fraudStatus === 'challenge') {
-                paymentStatus = 'challenge';
-            } else if (fraudStatus === 'accept') {
-                paymentStatus = 'paid';
-            }
-        } else if (transactionStatus === 'settlement') {
-            paymentStatus = 'paid';
-        } else if (transactionStatus === 'cancel' || 
-                   transactionStatus === 'deny' || 
-                   transactionStatus === 'expire') {
-            paymentStatus = 'failed';
-        } else if (transactionStatus === 'pending') {
-            paymentStatus = 'pending';
-        } else if (transactionStatus === 'refund') {
-            paymentStatus = 'refunded';
-        } else if (transactionStatus === 'partial_refund') {
-            paymentStatus = 'partial_refund';
+        if (updateResult.success) {
+            console.log(`[WEBHOOK] Successfully processed webhook for order ${notification.order_id}. Status: ${updateResult.paymentStatus}`);
+            return new Response('OK', { status: 200 });
+        } else {
+            console.error(`[WEBHOOK] Failed to process webhook for order ${notification.order_id}:`, updateResult.error);
+            return new Response('Webhook processing failed', { status: 500 });
         }
-
-        // Update order status in database
-        if (env.DB) {
-            console.log(`[WEBHOOK] Updating order ${orderId} status to ${paymentStatus}`);
-            try {
-                await env.DB.prepare(`
-                    UPDATE orders 
-                    SET payment_status = ?, 
-                        status = ?,
-                        payment_response = ?,
-                        updated_at = ?
-                    WHERE id = ?
-                `).bind(
-                    paymentStatus,
-                    paymentStatus,
-                    JSON.stringify(notification),
-                    new Date().toISOString(),
-                    orderId
-                ).run();
-
-                console.log(`[WEBHOOK] Order ${orderId} status successfully updated to: ${paymentStatus}`);
-                
-                // Verify the update by reading back from the database
-                try {
-                    const updatedOrder = await env.DB.prepare('SELECT id, payment_status, status FROM orders WHERE id = ?').bind(orderId).first();
-                    console.log('[WEBHOOK] Verification - Updated order in DB:', updatedOrder);
-                } catch (verifyError) {
-                    console.error('[WEBHOOK] Error verifying order update:', verifyError);
-                }
-            } catch (dbError) {
-                console.error('Database update error:', dbError);
-            }
-        }
-
-        // Optional: Send notification email or trigger other actions
-        if (paymentStatus === 'paid') {
-            await handleSuccessfulPayment(orderId, notification, env);
-        } else if (paymentStatus === 'failed') {
-            await handleFailedPayment(orderId, notification, env);
-        }
-
-        // Log the webhook for debugging
-        console.log('Webhook processed:', {
-            orderId,
-            transactionStatus,
-            paymentStatus,
-            timestamp: new Date().toISOString()
-        });
-
-        return new Response('OK', { status: 200 });
 
     } catch (error) {
-        console.error('Webhook processing error:', error);
+        console.error('[WEBHOOK] Webhook processing error:', error);
+        if (error instanceof SyntaxError) {
+             return new Response('Invalid JSON body', { status: 400 });
+        }
         return new Response('Internal Server Error', { status: 500 });
     }
 }

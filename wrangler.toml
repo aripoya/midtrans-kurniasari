@@ -10,7 +10,7 @@ compatibility_flags = ["nodejs_compat"]
 # D1 Database binding for local development.
 # `wrangler dev` will automatically create a local SQLite file in the .wrangler/ directory.
 [[d1_databases]]
-binding = "DB_DEV"  # Changed from DB to DB_DEV to avoid conflicts
+binding = "DB"      # Standardized to 'DB' for consistency across environments
 database_name = "order-management-local-db"
 # The database_id is just a placeholder for local development and is not used by the file-based DB.
 database_id = "00000000-0000-0000-0000-000000000000"

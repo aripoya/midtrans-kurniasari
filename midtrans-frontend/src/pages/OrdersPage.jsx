@@ -15,8 +15,23 @@ function OrdersPage() {
   const toast = useToast();
 
   useEffect(() => {
+    // Fetch orders when the component mounts
     fetchOrders();
-  }, []);
+
+    // This function will be called when an order is updated on the detail page
+    const handleOrderUpdated = () => {
+      console.log('An order was updated, refreshing the list...');
+      fetchOrders();
+    };
+
+    // Listen for the custom event dispatched from the detail page
+    window.addEventListener('order-updated', handleOrderUpdated);
+
+    // Clean up the listener when the component is unmounted
+    return () => {
+      window.removeEventListener('order-updated', handleOrderUpdated);
+    };
+  }, []); // The empty dependency array ensures this effect runs only once on mount
 
   const fetchOrders = async (offset = 0) => {
     try {
@@ -52,6 +67,7 @@ function OrdersPage() {
     switch (status) {
       case 'pending':
         return <Badge colorScheme="yellow">Menunggu Pembayaran</Badge>;
+      case 'paid':
       case 'settlement':
       case 'capture':
         return <Badge colorScheme="green">Dibayar</Badge>;

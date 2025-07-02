@@ -70,35 +70,58 @@ function OrderDetailPage() {
   const refreshStatus = async () => {
     try {
       setRefreshing(true);
-      const status = await orderService.checkTransactionStatus(id);
+      const newStatus = await orderService.checkTransactionStatus(id);
+      console.log('[UI] Received new status from backend:', JSON.stringify(newStatus, null, 2));
       
-      if (status.success && status.transaction_status) {
+      // The backend now sends our internal `payment_status`
+      const currentInternalStatus = order.payment_status;
+      const newInternalStatus = newStatus.payment_status;
+
+      console.log(`[UI] Comparing statuses: Current='${currentInternalStatus}', New='${newInternalStatus}'`);
+
+      if (newInternalStatus && newInternalStatus !== currentInternalStatus) {
+        console.log('[UI] Status has changed. Updating local state...');
+        setOrder(prevOrder => {
+          const updatedOrder = {
+            ...prevOrder,
+            status: newInternalStatus, // Use the new status from the API
+            payment_status: newInternalStatus,
+            payment_response: JSON.stringify(newStatus),
+            payment_time: newStatus.settlement_time || prevOrder.payment_time,
+            payment_method: newStatus.payment_type || prevOrder.payment_method,
+          };
+          console.log('[UI] New local order state:', updatedOrder);
+          return updatedOrder;
+        });
+
         toast({
           title: 'Status berhasil diperbarui',
-          description: 'Status pembayaran telah diperbarui',
+          description: `Status pembayaran sekarang: ${newInternalStatus} (Midtrans: ${newStatus.transaction_status})`,
           status: 'success',
           duration: 3000,
           isClosable: true,
         });
 
-        // Refresh order data
-        fetchOrder();
+        console.log('[UI] Dispatching order-updated event.');
+        window.dispatchEvent(new CustomEvent('order-updated'));
+
       } else {
+        console.log('[UI] Status has not changed.');
         toast({
           title: 'Status tidak berubah',
-          description: 'Tidak ada perubahan status pembayaran',
+          description: 'Status pembayaran saat ini sudah yang terbaru.',
           status: 'info',
           duration: 3000,
           isClosable: true,
         });
       }
     } catch (error) {
-      console.error('Error refreshing status:', error);
+      console.error('[UI] Error refreshing status:', error);
       toast({
         title: 'Gagal memperbarui status',
-        description: 'Terjadi kesalahan saat memperbarui status',
+        description: error.response?.data?.error || error.message,
         status: 'error',
-        duration: 3000,
+        duration: 5000,
         isClosable: true,
       });
     } finally {
@@ -114,6 +137,7 @@ function OrderDetailPage() {
             ⏱️ Menunggu Pembayaran
           </Badge>
         );
+      case 'paid':
       case 'settlement':
       case 'capture':
         return (
