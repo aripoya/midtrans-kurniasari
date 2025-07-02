@@ -14,7 +14,7 @@ import { productService } from '../api/productService';
 import { loadMidtransScript } from '../utils/midtransHelper';
 
 function NewOrderPage() {
-  const isMobile = useBreakpointValue({ base: true, md: false });
+  const isMobile = useBreakpointValue({ base: true, lg: false });
   const navigate = useNavigate();
   const toast = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -202,10 +202,10 @@ function NewOrderPage() {
   };
 
   return (
-    <Box p={{ base: 2, md: 5 }}>
+    <Box p={{ base: 4, md: 6, lg: 8 }}>
       <form onSubmit={handleSubmit}>
-        <Heading size={{ base: "md", md: "lg" }} mb={{ base: 4, md: 6 }}>Buat Pesanan Baru</Heading>
-        <Grid templateColumns={{ base: "1fr", md: "1fr 2fr" }} gap={{ base: 4, md: 6 }}>
+        <Heading size={{ base: "lg", md: "xl" }} mb={{ base: 4, md: 6 }}>Buat Pesanan Baru</Heading>
+        <Grid templateColumns={{ base: "1fr", lg: "2fr 3fr" }} gap={{ base: 4, md: 6 }}>
           <GridItem>
             <Card>
               <CardBody>
