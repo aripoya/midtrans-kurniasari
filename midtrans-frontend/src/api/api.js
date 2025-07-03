@@ -33,4 +33,14 @@ export const updateOrderStatus = (orderId, status) => {
   return apiClient.patch(`/api/orders/${orderId}/status`, { status });
 };
 
+// New service to refresh payment status from Midtrans
+export const refreshOrderStatus = (orderId) => {
+  return apiClient.post(`/api/orders/${orderId}/refresh-status`);
+};
+
+// New service for customers to mark an order as received
+export const markOrderAsReceived = (orderId) => {
+  return apiClient.post(`/api/orders/${orderId}/mark-received`);
+};
+
 export default apiClient;

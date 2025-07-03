@@ -19,6 +19,7 @@ database_id = "00000000-0000-0000-0000-000000000000"
 # Used when running `wrangler deploy --env production`
 [env.production]
 name = "order-management-app-production"
+compatibility_flags = ["nodejs_compat"]
 
 [env.production.vars]
 MIDTRANS_IS_PRODUCTION = "true"

@@ -82,6 +82,26 @@ function OrdersPage() {
         return <Badge>Tidak Diketahui</Badge>;
     }
   };
+  
+  const getShippingStatusBadge = (status) => {
+    switch (status) {
+      case 'di kemas':
+        return <Badge colorScheme="blue">Dikemas</Badge>;
+      case 'siap kirim':
+        return <Badge colorScheme="cyan">Siap Kirim</Badge>;
+      case 'siap ambil':
+        return <Badge colorScheme="teal">Siap Ambil</Badge>;
+      case 'sedang dikirim':
+        return <Badge colorScheme="orange">Sedang Dikirim</Badge>;
+      case 'received':
+      case 'Sudah Di Terima':
+        return <Badge colorScheme="green">Sudah Diterima</Badge>;
+      case 'Sudah Di Ambil':
+        return <Badge colorScheme="green">Sudah Diambil</Badge>;
+      default:
+        return <Badge colorScheme="gray">Diproses</Badge>;
+    }
+  };
 
   return (
     <Box>
@@ -119,11 +139,18 @@ function OrdersPage() {
                     <VStack align="stretch" spacing={2}>
                       <HStack justify="space-between">
                         <Text fontWeight="bold">ID: {order.id}</Text>
-                        {getStatusBadge(order.payment_status || order.status)}
-                      </HStack>
-                      <HStack justify="space-between">
-                        <Text>{order.customer_name}</Text>
                         <Text fontWeight="medium">Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
+                      </HStack>
+                      <Text>{order.customer_name}</Text>
+                      <HStack justify="space-between">
+                        <Box>
+                          <Text fontSize="xs" color="gray.500">Status Pembayaran:</Text>
+                          {getStatusBadge(order.payment_status || order.status)}
+                        </Box>
+                        <Box>
+                          <Text fontSize="xs" color="gray.500">Status Pesanan:</Text>
+                          {getShippingStatusBadge(order.shipping_status)}
+                        </Box>
                       </HStack>
                       <Text color="gray.600" fontSize="sm">
                         {new Date(order.created_at).toLocaleDateString('id-ID')}
@@ -151,7 +178,8 @@ function OrdersPage() {
                     <Th>ID</Th>
                     <Th>Nama Pelanggan</Th>
                     <Th>Total</Th>
-                    <Th>Status</Th>
+                    <Th>Status Pembayaran</Th>
+                    <Th>Status Pesanan</Th>
                     <Th>Tanggal</Th>
                     <Th>Aksi</Th>
                   </Tr>
@@ -163,6 +191,7 @@ function OrdersPage() {
                       <Td>{order.customer_name}</Td>
                       <Td>Rp {order.total_amount?.toLocaleString('id-ID')}</Td>
                       <Td>{getStatusBadge(order.payment_status || order.status)}</Td>
+                      <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
                       <Td>{new Date(order.created_at).toLocaleDateString('id-ID')}</Td>
                       <Td>
                         <Button

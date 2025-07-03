@@ -5,7 +5,7 @@ import {
   VStack, HStack, Text, NumberInput, NumberInputField,
   FormErrorMessage, useToast, Card, CardBody, Grid, GridItem,
   Table, Thead, Tbody, Tr, Th, Td, TableContainer, IconButton,
-  useBreakpointValue, Stack, Divider, Flex
+  useBreakpointValue, Stack, Divider, Flex, Textarea
 } from '@chakra-ui/react';
 import CreatableSelect from 'react-select/creatable';
 import { DeleteIcon } from '@chakra-ui/icons';
@@ -24,7 +24,8 @@ function NewOrderPage() {
   const [formData, setFormData] = useState({
     customer_name: '',
     email: '',
-    phone: ''
+    phone: '',
+    customer_address: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -142,6 +143,7 @@ function NewOrderPage() {
         customer_name: formData.customer_name,
         email: formData.email,
         phone: formData.phone,
+        customer_address: formData.customer_address,
         items: items.map(item => ({ id: item.productId, name: item.name, price: Number(item.price), quantity: Number(item.quantity) }))
       };
       
@@ -223,8 +225,17 @@ function NewOrderPage() {
                   </FormControl>
                   <FormControl isRequired isInvalid={errors.phone}>
                     <FormLabel>Nomor Telepon</FormLabel>
-                    <Input name="phone" value={formData.phone} onChange={handleFormChange} />
+                    <Input type="tel" name="phone" value={formData.phone} onChange={handleFormChange} />
                     <FormErrorMessage>{errors.phone}</FormErrorMessage>
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Alamat Pengiriman</FormLabel>
+                    <Textarea
+                      name="customer_address"
+                      value={formData.customer_address}
+                      onChange={handleFormChange}
+                      placeholder="Masukkan alamat lengkap untuk pengiriman"
+                    />
                   </FormControl>
                 </VStack>
               </CardBody>

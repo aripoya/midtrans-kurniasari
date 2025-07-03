@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 // Simple order ID generator
 function generateOrderId() {
   return `ORDER-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
@@ -21,7 +23,7 @@ export async function createOrder(request, env) {
     }
 
     const orderData = await request.json();
-    const { customer_name, email, phone, items } = orderData;
+    const { customer_name, email, phone, items, customer_address } = orderData;
     const customerPhone = phone || null;
 
     if (!customer_name || !email || !items || !Array.isArray(items) || items.length === 0) {
@@ -104,7 +106,7 @@ export async function createOrder(request, env) {
     
     // Create basic auth header
     const authString = `${serverKey}:`;
-    const authHeader = `Basic ${btoa(authString)}`;
+    const authHeader = `Basic ${Buffer.from(authString).toString('base64')}`;
     
     // Make request to Midtrans
     let midtransData;
@@ -141,16 +143,25 @@ export async function createOrder(request, env) {
       throw new Error(`Failed to process payment: ${error.message}`);
     }
 
-    const dbStatements = [];
-    // Statement for inserting into 'orders' table
-    dbStatements.push(
-      env.DB.prepare(
-        `INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_status, shipping_status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
-      ).bind(orderId, customer_name, email, customerPhone, totalAmount, midtransData.token, midtransData.redirect_url, 'pending', 'pending')
-    );
+    // Insert the order into the database, now including the address
+    await env.DB.prepare(`
+      INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_response, shipping_status, customer_address)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+        orderId,
+        customer_name,
+        email,
+        customerPhone,
+        totalAmount,
+        midtransData.token,
+        midtransData.redirect_url,
+        JSON.stringify(midtransData), // Storing the full response for reference
+        'pending', // Initial shipping status
+        customer_address || null // Add the address here
+      ).run();
 
     // Statements for inserting into 'order_items' table
+    const dbStatements = [];
     for (const item of processedItems) {
       const subtotal = Number(item.price) * Number(item.quantity);
       dbStatements.push(
@@ -161,7 +172,10 @@ export async function createOrder(request, env) {
       );
     }
 
-    await env.DB.batch(dbStatements);
+    // Batch execute item insertion statements
+    if (dbStatements.length > 0) {
+      await env.DB.batch(dbStatements);
+    }
 
     return new Response(JSON.stringify({ success: true, orderId: orderId, ...midtransData }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
 
@@ -236,6 +250,126 @@ export async function getOrderById(request, env) {
   } catch (error) {
     console.error('Get Order By ID Error:', error.message, error.stack);
     return new Response(JSON.stringify({ success: false, error: 'Failed to fetch order' }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+  }
+}
+
+async function updateOrderStatusFromMidtrans(orderId, env) {
+  const serverKey = env.MIDTRANS_SERVER_KEY;
+  const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
+  
+  if (!serverKey) {
+    return { success: false, error: 'Midtrans server key not configured.' };
+  }
+
+  const midtransUrl = isProduction
+    ? `https://api.midtrans.com/v2/${orderId}/status`
+    : `https://api.sandbox.midtrans.com/v2/${orderId}/status`;
+
+  const authString = `${serverKey}:`;
+  const authHeader = `Basic ${Buffer.from(authString).toString('base64')}`;
+
+  try {
+    const midtransResponse = await fetch(midtransUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': authHeader,
+      },
+    });
+
+    if (!midtransResponse.ok) {
+      const errorData = await midtransResponse.json();
+      console.error('Midtrans status check failed:', errorData);
+      return { success: false, error: `Midtrans API error: ${errorData.status_message || 'Unknown error'}` };
+    }
+
+    const statusData = await midtransResponse.json();
+    
+    const paymentStatus = statusData.transaction_status;
+    const paymentResponse = JSON.stringify(statusData);
+
+    const updateResult = await env.DB.prepare(
+      `UPDATE orders 
+       SET payment_status = ?, payment_response = ?, updated_at = ?
+       WHERE id = ?`
+    ).bind(paymentStatus, paymentResponse, new Date().toISOString(), orderId).run();
+
+    if (updateResult.meta.changes > 0) {
+      return { success: true, payment_status: paymentStatus, message: 'Status updated successfully.' };
+    } else {
+      return { success: false, error: 'Order not found or status unchanged.' };
+    }
+
+  } catch (error) {
+    console.error('Error in updateOrderStatusFromMidtrans:', error);
+    return { success: false, error: `Internal server error: ${error.message}` };
+  }
+}
+
+// New function to allow a customer to refresh their order status
+export async function refreshOrderStatus(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  try {
+    const url = new URL(request.url);
+    const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id/refresh-status
+
+    if (!orderId) {
+      return new Response(JSON.stringify({ success: false, error: 'Order ID is required' }), { status: 400, headers: corsHeaders });
+    }
+
+    // We now directly call updateOrderStatusFromMidtrans which will fetch status from Midtrans
+    // and update our database with the latest info
+    const updateResult = await updateOrderStatusFromMidtrans(orderId, env);
+
+    if (updateResult.success) {
+      return new Response(JSON.stringify({ success: true, ...updateResult }), { status: 200, headers: corsHeaders });
+    } else {
+      return new Response(JSON.stringify({ success: false, error: 'Failed to update order status', details: updateResult.error }), { status: 500, headers: corsHeaders });
+    }
+
+  } catch (error) {
+    console.error('Refresh Order Status Error:', error.message, error.stack);
+    return new Response(JSON.stringify({ success: false, error: 'Failed to refresh order status' }), { status: 500, headers: corsHeaders });
+  }
+}
+
+// New function to allow a customer to mark their order as received
+export async function markOrderAsReceived(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  try {
+    const url = new URL(request.url);
+    const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id/mark-received
+
+    if (!orderId) {
+      return new Response(JSON.stringify({ success: false, error: 'Order ID is required' }), { status: 400, headers: corsHeaders });
+    }
+
+    const info = await env.DB.prepare(`
+      UPDATE orders
+      SET shipping_status = 'received',
+          updated_at = ?
+      WHERE id = ?
+    `).bind(new Date().toISOString(), orderId).run();
+
+    if (info.success && info.meta.rows_written > 0) {
+      return new Response(JSON.stringify({ success: true, message: 'Order marked as received' }), { status: 200, headers: corsHeaders });
+    } else {
+      return new Response(JSON.stringify({ success: false, error: 'Failed to update order or order not found' }), { status: 404, headers: corsHeaders });
+    }
+
+  } catch (error) {
+    console.error('Mark as Received Error:', error.message, error.stack);
+    return new Response(JSON.stringify({ success: false, error: 'Failed to mark order as received' }), { status: 500, headers: corsHeaders });
   }
 }
 

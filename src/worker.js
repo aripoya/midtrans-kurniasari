@@ -1,8 +1,8 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
-import { createOrder, getOrders, getOrderById, updateOrderStatus } from './handlers/orders.js';
+import { createOrder, getOrders, getOrderById, updateOrderStatus, refreshOrderStatus, markOrderAsReceived } from './handlers/orders.js';
 import { getProducts, createProduct, updateProduct, deleteProduct } from './handlers/products.js';
-import { handleMidtransWebhook, checkTransactionStatus, updateOrderStatusFromMidtrans } from './handlers/webhook.js';
+
 
 console.log('Initializing router');
 const router = Router();
@@ -71,6 +71,17 @@ router.patch('/api/orders/:id/status', (request, env) => {
     return updateOrderStatus(request, env);
 });
 
+// Customer-facing status update endpoints
+router.post('/api/orders/:id/refresh-status', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return refreshOrderStatus(request, env);
+});
+
+router.post('/api/orders/:id/mark-received', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return markOrderAsReceived(request, env);
+});
+
 // Product management endpoints
 router.get('/api/products', (request, env) => {
     request.corsHeaders = corsHeaders;
@@ -87,50 +98,6 @@ router.put('/api/products/:id', (request, env) => {
 router.delete('/api/products/:id', (request, env) => {
     request.corsHeaders = corsHeaders;
     return deleteProduct(request, env);
-});
-
-// Payment webhook endpoint
-router.post('/api/webhook/midtrans', handleMidtransWebhook);
-
-// Transaction status check endpoint
-router.get('/api/transaction/:orderId/status', async (request, env) => {
-  const { orderId } = request.params;
-  console.log(`[API] Received status check request for orderId: ${orderId}`);
-
-  try {
-    console.log(`[API] Fetching latest status from Midtrans for ${orderId}...`);
-    const midtransResponse = await checkTransactionStatus(orderId, env);
-    console.log(`[API] Midtrans response for ${orderId}:`, JSON.stringify(midtransResponse, null, 2));
-    
-    console.log(`[API] Updating local database with new status for ${orderId}...`);
-    const updateResult = await updateOrderStatusFromMidtrans(midtransResponse, env);
-    console.log(`[API] Database update result for ${orderId}:`, JSON.stringify(updateResult, null, 2));
-    
-    if (updateResult.success) {
-      const responsePayload = { 
-        ...midtransResponse,
-        // Pass the determined internal status to the frontend
-        payment_status: updateResult.payment_status 
-      };
-      console.log(`[API] Sending success response to client for ${orderId}:`, JSON.stringify(responsePayload, null, 2));
-      return new Response(JSON.stringify(responsePayload), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      });
-    } else {
-      console.error(`[API] Failed to update database for ${orderId}. Reason:`, updateResult.error);
-      return new Response(JSON.stringify({ error: 'Failed to update database status.', details: updateResult.error }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      });
-    }
-  } catch (error) {
-    console.error(`[API] Error checking transaction status for ${orderId}:`, error);
-    return new Response(JSON.stringify({ error: 'Failed to check transaction status', success: false, details: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
-    });
-  }
 });
 
 // Configuration endpoint (for debugging)
