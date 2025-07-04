@@ -295,6 +295,18 @@ async function updateOrderStatusFromMidtrans(orderId, env) {
     ).bind(paymentStatus, paymentResponse, new Date().toISOString(), orderId).run();
 
     if (updateResult.meta.changes > 0) {
+      return { success: true, payment_status: paymentStatus, message: 'Status updated successfully.' };
+    } else {
+      return { success: false, error: 'Order not found or status unchanged.' };
+    }
+  } catch (error) {
+    console.error('Error in updateOrderStatusFromMidtrans:', error);
+    return { success: false, error: `Internal server error: ${error.message}` };
+  }
+}
+
+// New function to allow a customer to refresh their order status
+export async function refreshOrderStatus(request, env) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -325,40 +337,7 @@ async function updateOrderStatusFromMidtrans(orderId, env) {
   }
 }
 
-// New function to allow a customer to mark their order as received
-export async function markOrderAsReceived(request, env) {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  };
-
-  try {
-    const url = new URL(request.url);
-    const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id/mark-received
-
-    if (!orderId) {
-      return new Response(JSON.stringify({ success: false, error: 'Order ID is required' }), { status: 400, headers: corsHeaders });
-    }
-
-    const info = await env.DB.prepare(`
-      UPDATE orders
-      SET shipping_status = 'received',
-          updated_at = ?
-      WHERE id = ?
-    `).bind(new Date().toISOString(), orderId).run();
-
-    if (info.success && info.meta.rows_written > 0) {
-      return new Response(JSON.stringify({ success: true, message: 'Order marked as received' }), { status: 200, headers: corsHeaders });
-    } else {
-      return new Response(JSON.stringify({ success: false, error: 'Failed to update order or order not found' }), { status: 404, headers: corsHeaders });
-    }
-
-  } catch (error) {
-    console.error('Mark as Received Error:', error.message, error.stack);
-    return new Response(JSON.stringify({ success: false, error: 'Failed to mark order as received' }), { status: 500, headers: corsHeaders });
-  }
-}
+// markOrderAsReceived moved to received.js file
 
 // Admin endpoint to get enhanced order list with more details
 export async function getAdminOrders(request, env) {
