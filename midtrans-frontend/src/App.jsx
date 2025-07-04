@@ -37,15 +37,13 @@ function App() {
               }
             />
             
-            {/* Protected Routes */}
+            {/* Public Routes - No Authentication Required */}
             <Route
               path="/orders"
               element={
-                <ProtectedRoute>
-                  <Layout>
-                    <OrdersPage />
-                  </Layout>
-                </ProtectedRoute>
+                <PublicLayout>
+                  <OrdersPage />
+                </PublicLayout>
               }
             />
             <Route
