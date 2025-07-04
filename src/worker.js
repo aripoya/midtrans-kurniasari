@@ -1,6 +1,7 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
-import { createOrder, getOrders, getOrderById, updateOrderStatus, refreshOrderStatus, markOrderAsReceived, getAdminOrders } from './handlers/orders.js';
+import { createOrder, getOrders, getOrderById, updateOrderStatus, refreshOrderStatus, getAdminOrders } from './handlers/orders.js';
+import { markOrderAsReceived } from './handlers/received.js';
 import { getProducts, createProduct, updateProduct, deleteProduct } from './handlers/products.js';
 
 
@@ -73,6 +74,16 @@ router.patch('/api/orders/:id/status', (request, env) => {
 });
 
 // Customer-facing status update endpoints
+router.post('/api/orders/:id/received', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return markOrderAsReceived(request, env);
+});
+
+// Backward compatibility for existing clients
+router.post('/api/orders/:id/mark-received', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return markOrderAsReceived(request, env);
+});
 router.post('/api/orders/:id/refresh-status', (request, env) => {
     request.corsHeaders = corsHeaders;
     return refreshOrderStatus(request, env);

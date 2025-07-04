@@ -295,19 +295,6 @@ async function updateOrderStatusFromMidtrans(orderId, env) {
     ).bind(paymentStatus, paymentResponse, new Date().toISOString(), orderId).run();
 
     if (updateResult.meta.changes > 0) {
-      return { success: true, payment_status: paymentStatus, message: 'Status updated successfully.' };
-    } else {
-      return { success: false, error: 'Order not found or status unchanged.' };
-    }
-
-  } catch (error) {
-    console.error('Error in updateOrderStatusFromMidtrans:', error);
-    return { success: false, error: `Internal server error: ${error.message}` };
-  }
-}
-
-// New function to allow a customer to refresh their order status
-export async function refreshOrderStatus(request, env) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
