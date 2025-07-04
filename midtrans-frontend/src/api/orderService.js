@@ -1,5 +1,15 @@
 import apiClient from './api';
 
+// Helper function to get admin token from localStorage
+const getAdminToken = () => {
+  return localStorage.getItem('adminToken');
+};
+
+// Helper to check if we're in an admin context
+const isAdminContext = () => {
+  return window.location.pathname.includes('/admin');
+};
+
 // Order service functions
 export const orderService = {
   // Get all orders with pagination
@@ -16,7 +26,17 @@ export const orderService = {
   // Get a single order by ID
   async getOrderById(orderId) {
     try {
-      const response = await apiClient.get(`/api/orders/${orderId}`);
+      // Check if we're in admin context to add admin token
+      const config = {};
+      
+      if (isAdminContext() && getAdminToken()) {
+        config.headers = {
+          Authorization: `Bearer ${getAdminToken()}`
+        };
+        console.log('[orderService] Adding admin token to request');
+      }
+      
+      const response = await apiClient.get(`/api/orders/${orderId}`, config);
       return response.data;
     } catch (error) {
       console.error(`Error fetching order ${orderId}:`, error);
