@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
-import AdminLayout from '../../components/AdminLayout';
 import {
   Box, Heading, Text, VStack, HStack, Badge, Button,
   Table, Tbody, Tr, Td, Th, Thead, Divider, Spinner,
@@ -189,12 +188,11 @@ function AdminOrderDetailPage() {
   const isPaid = ['paid', 'settlement', 'capture'].includes(order.payment_status);
 
   return (
-    <AdminLayout>
-      <Box p={4}>
-        <HStack mb={6} justify="space-between">
-          <Heading size="lg">
-            Detail Pesanan #{order.id.substring(0, 8)}
-          </Heading>
+    <Box p={4} maxW="1200px" mx="auto">
+      <HStack mb={6} justify="space-between">
+        <Heading size="lg">
+          Detail Pesanan #{order.id.substring(0, 8)}
+        </Heading>
         <Button 
           as={RouterLink} 
           to="/admin/orders" 
@@ -400,8 +398,7 @@ function AdminOrderDetailPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
-      </Box>
-    </AdminLayout>
+    </Box>
   );
 }
 
