@@ -73,6 +73,28 @@ export const adminApi = {
     }
   },
 
+  // Hapus pesanan (delete order)
+  deleteOrder: async (orderId) => {
+    try {
+      const response = await axios.delete(
+        `${API_BASE_URL}/api/orders/${orderId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${getAdminToken()}`
+          }
+        }
+      );
+      return { success: true, data: response.data, error: null };
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      return {
+        success: false,
+        data: null,
+        error: error.response?.data?.error || error.message || 'Error saat menghapus pesanan'
+      };
+    }
+  },
+
   // Login admin (simulado para demo, en producción debería conectar con backend)
   login: async (username, password) => {
     try {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link as RouterLink } from 'react-router-dom';
+import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box, Heading, Text, VStack, HStack, Badge, Button,
   Table, Tbody, Tr, Td, Th, Thead, Divider, Spinner,
@@ -28,8 +28,10 @@ function AdminOrderDetailPage() {
   const [isDeletingNote, setIsDeletingNote] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const fetchOrder = async () => {
     try {
@@ -237,6 +239,39 @@ function AdminOrderDetailPage() {
   const handleCancelEdit = () => {
     setAdminNote(savedAdminNote);
     setIsEditingNote(false);
+  };
+
+  // Fungsi untuk menghapus pesanan
+  const handleDeleteOrder = async () => {
+    try {
+      setIsDeleting(true);
+      const response = await adminApi.deleteOrder(id);
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Gagal menghapus pesanan');
+      }
+      
+      toast({
+        title: "Pesanan berhasil dihapus",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      
+      // Redirect ke halaman admin orders setelah berhasil hapus
+      navigate('/admin/orders');
+    } catch (err) {
+      toast({
+        title: "Gagal menghapus pesanan",
+        description: err.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsDeleting(false);
+      onClose(); // Tutup modal
+    }
   };
 
   const getPaymentStatusBadge = (status) => {
@@ -541,10 +576,16 @@ function AdminOrderDetailPage() {
             <Text>Apakah Anda yakin ingin membatalkan pesanan ini? Tindakan ini tidak dapat dibatalkan.</Text>
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="red" mr={3}>
+            <Button 
+              colorScheme="red" 
+              mr={3} 
+              onClick={handleDeleteOrder}
+              isLoading={isDeleting}
+              loadingText="Menghapus..."
+            >
               Ya, Batalkan
             </Button>
-            <Button variant="ghost" onClick={onClose}>Batal</Button>
+            <Button variant="ghost" onClick={onClose} isDisabled={isDeleting}>Batal</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
