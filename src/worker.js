@@ -1,6 +1,6 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
-import { createOrder, getOrders, getOrderById, updateOrderStatus, refreshOrderStatus, getAdminOrders } from './handlers/orders.js';
+import { createOrder, getOrders, getOrderById, updateOrderStatus, refreshOrderStatus, getAdminOrders, deleteOrder } from './handlers/orders.js';
 import { markOrderAsReceived } from './handlers/received.js';
 import { getProducts, createProduct, updateProduct, deleteProduct } from './handlers/products.js';
 
@@ -33,6 +33,7 @@ router.get('/', (request) => {
         'POST   /api/orders',
         'GET    /api/orders',
         'GET    /api/orders/:id',
+        'DELETE /api/orders/:id',
         'POST   /api/webhook/midtrans',
         'GET    /api/transaction/:orderId/status',
         'GET    /api/debug/midtrans',
@@ -65,8 +66,12 @@ router.get('/api/orders', (request, env) => {
     return getOrders(request, env);
 });
 router.get('/api/orders/:id', (request, env) => {
-    request.corsHeaders = corsHeaders;
+    console.log('Get Order by ID:', request.params.id);
     return getOrderById(request, env);
+});
+router.delete('/api/orders/:id', (request, env) => {
+    console.log('Delete Order by ID:', request.params.id);
+    return deleteOrder(request, env);
 });
 router.patch('/api/orders/:id/status', (request, env) => {
     request.corsHeaders = corsHeaders;

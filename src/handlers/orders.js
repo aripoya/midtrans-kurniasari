@@ -339,6 +339,75 @@ export async function refreshOrderStatus(request, env) {
 
 // markOrderAsReceived moved to received.js file
 
+// Function to delete an order by ID
+export async function deleteOrder(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  // Handle OPTIONS request for CORS preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    // Extract order ID from URL path
+    const url = new URL(request.url);
+    const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id
+
+    if (!orderId) {
+      return new Response(JSON.stringify({ success: false, error: 'Order ID is required' }), 
+        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+    }
+
+    if (!env.DB) {
+      throw new Error('Database binding not found');
+    }
+
+    // Check if order exists before attempting to delete
+    const existingOrder = await env.DB.prepare(
+      `SELECT id FROM orders WHERE id = ?`
+    ).bind(orderId).first();
+
+    if (!existingOrder) {
+      return new Response(JSON.stringify({ success: false, error: 'Order not found' }), 
+        { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+    }
+
+    // Delete order items first to maintain referential integrity
+    await env.DB.prepare(
+      `DELETE FROM order_items WHERE order_id = ?`
+    ).bind(orderId).run();
+
+    // Then delete the order
+    const result = await env.DB.prepare(
+      `DELETE FROM orders WHERE id = ?`
+    ).bind(orderId).run();
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: 'Order successfully deleted',
+      orderId: orderId
+    }), { 
+      status: 200, 
+      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    });
+
+  } catch (error) {
+    console.error('Delete Order Error:', error.message, error.stack);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Failed to delete order',
+      details: error.message 
+    }), { 
+      status: 500, 
+      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    });
+  }
+}
+
 // Admin endpoint to get enhanced order list with more details
 export async function getAdminOrders(request, env) {
   const corsHeaders = {
