@@ -153,7 +153,7 @@ function OrdersPage() {
                         </Box>
                       </HStack>
                       <Text color="gray.600" fontSize="sm">
-                        {new Date(order.created_at).toLocaleDateString('id-ID')}
+                        {new Date(order.created_at).getDate().toString().padStart(2, '0')}-{(new Date(order.created_at).getMonth() + 1).toString().padStart(2, '0')}-{new Date(order.created_at).getFullYear()}
                       </Text>
                       <Button
                         as={RouterLink}
@@ -192,7 +192,7 @@ function OrdersPage() {
                       <Td>Rp {order.total_amount?.toLocaleString('id-ID')}</Td>
                       <Td>{getStatusBadge(order.payment_status || order.status)}</Td>
                       <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
-                      <Td>{new Date(order.created_at).toLocaleDateString('id-ID')}</Td>
+                      <Td>{new Date(order.created_at).getDate().toString().padStart(2, '0')}-{(new Date(order.created_at).getMonth() + 1).toString().padStart(2, '0')}-{new Date(order.created_at).getFullYear()}</Td>
                       <Td>
                         <Button
                           as={RouterLink}

@@ -368,9 +368,9 @@ function AdminOrderDetailPage() {
                   </HStack>
                   <Text mt={2}><strong>Metode:</strong> <Tag>{order.payment_method || 'N/A'}</Tag></Text>
                   {order.payment_time && (
-                    <Text><strong>Waktu Pembayaran:</strong> {new Date(order.payment_time).toLocaleString()}</Text>
+                    <Text><strong>Waktu Pembayaran:</strong> {order.payment_time ? `${new Date(order.payment_time).getDate().toString().padStart(2, '0')}-${(new Date(order.payment_time).getMonth() + 1).toString().padStart(2, '0')}-${new Date(order.payment_time).getFullYear()}` : '-'}</Text>
                   )}
-                  <Text><strong>Dibuat:</strong> {new Date(order.created_at).toLocaleString()}</Text>
+                  <Text><strong>Dibuat:</strong> {order.created_at ? `${new Date(order.created_at).getDate().toString().padStart(2, '0')}-${(new Date(order.created_at).getMonth() + 1).toString().padStart(2, '0')}-${new Date(order.created_at).getFullYear()}` : '-'}</Text>
                 </GridItem>
               </Grid>
 

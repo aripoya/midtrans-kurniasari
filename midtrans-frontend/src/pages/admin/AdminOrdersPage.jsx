@@ -214,7 +214,7 @@ function AdminOrdersPage() {
                         <Stack spacing={3}>
                           <Flex justify="space-between">
                             <Text fontWeight="bold">#{order.id.substring(0, 8)}</Text>
-                            <Text>{new Date(order.created_at).toLocaleDateString()}</Text>
+                            <Text>{new Date(order.created_at).getDate().toString().padStart(2, '0')}-{(new Date(order.created_at).getMonth() + 1).toString().padStart(2, '0')}-{new Date(order.created_at).getFullYear()}</Text>
                           </Flex>
                           <Text><strong>Pelanggan:</strong> {order.customer_name}</Text>
                           <Text><strong>Total:</strong> Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
@@ -264,7 +264,7 @@ function AdminOrdersPage() {
                       filteredOrders.map(order => (
                         <Tr key={order.id}>
                           <Td>#{order.id.substring(0, 8)}</Td>
-                          <Td>{new Date(order.created_at).toLocaleDateString()}</Td>
+                          <Td>{new Date(order.created_at).getDate().toString().padStart(2, '0')}-{(new Date(order.created_at).getMonth() + 1).toString().padStart(2, '0')}-{new Date(order.created_at).getFullYear()}</Td>
                           <Td>{order.customer_name}</Td>
                           <Td>Rp {order.total_amount?.toLocaleString('id-ID')}</Td>
                           <Td>{getPaymentStatusBadge(order.payment_status)}</Td>
