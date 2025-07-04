@@ -22,6 +22,10 @@ function AdminOrderDetailPage() {
   const [error, setError] = useState(null);
   const [shippingStatus, setShippingStatus] = useState('');
   const [adminNote, setAdminNote] = useState('');
+  const [savedAdminNote, setSavedAdminNote] = useState('');
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [isSavingNote, setIsSavingNote] = useState(false);
+  const [isDeletingNote, setIsDeletingNote] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -55,6 +59,11 @@ function AdminOrderDetailPage() {
         }
         setOrder(finalOrder);
         setShippingStatus(finalOrder.shipping_status || '');
+      // Cek jika ada catatan admin yang tersimpan
+      if (finalOrder.admin_note) {
+        setSavedAdminNote(finalOrder.admin_note);
+        setAdminNote(finalOrder.admin_note);
+      }
       } else {
         console.error('[AdminOrderDetailPage] Order not found or API returned error');
         setError(`Pesanan tidak ditemukan.`);
@@ -116,6 +125,9 @@ function AdminOrderDetailPage() {
         shipping_status: shippingStatus
       }));
       
+      // Update saved admin note
+      setSavedAdminNote(adminNote);
+      
       toast({
         title: "Status pesanan diperbarui",
         description: `Status berhasil diubah menjadi: ${shippingStatus}`,
@@ -123,9 +135,6 @@ function AdminOrderDetailPage() {
         duration: 3000,
         isClosable: true,
       });
-      
-      // Reset admin note after successful update
-      setAdminNote('');
     } catch (err) {
       toast({
         title: "Gagal memperbarui status",
@@ -137,6 +146,97 @@ function AdminOrderDetailPage() {
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  // Fungsi untuk menyimpan catatan admin secara terpisah
+  const handleSaveNote = async () => {
+    setIsSavingNote(true);
+    try {
+      const response = await adminApi.updateOrderStatus(id, order.shipping_status, adminNote);
+      
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      
+      // Update saved admin note
+      setSavedAdminNote(adminNote);
+      setIsEditingNote(false);
+      
+      // Update order state
+      setOrder(prev => ({
+        ...prev,
+        admin_note: adminNote
+      }));
+      
+      toast({
+        title: "Catatan berhasil disimpan",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (err) {
+      toast({
+        title: "Gagal menyimpan catatan",
+        description: err.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  // Fungsi untuk menghapus catatan admin
+  const handleDeleteNote = async () => {
+    setIsDeletingNote(true);
+    try {
+      const response = await adminApi.updateOrderStatus(id, order.shipping_status, '');
+      
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      
+      // Reset notes
+      setAdminNote('');
+      setSavedAdminNote('');
+      setIsEditingNote(false);
+      
+      // Update order state
+      setOrder(prev => ({
+        ...prev,
+        admin_note: ''
+      }));
+      
+      toast({
+        title: "Catatan berhasil dihapus",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (err) {
+      toast({
+        title: "Gagal menghapus catatan",
+        description: err.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsDeletingNote(false);
+    }
+  };
+
+  // Fungsi untuk beralih ke mode edit
+  const handleEditNote = () => {
+    setAdminNote(savedAdminNote);
+    setIsEditingNote(true);
+  };
+
+  // Fungsi untuk membatalkan edit
+  const handleCancelEdit = () => {
+    setAdminNote(savedAdminNote);
+    setIsEditingNote(false);
   };
 
   const getPaymentStatusBadge = (status) => {
@@ -320,11 +420,60 @@ function AdminOrderDetailPage() {
 
                 <FormControl>
                   <FormLabel>Catatan Admin</FormLabel>
-                  <Textarea 
-                    value={adminNote}
-                    onChange={e => setAdminNote(e.target.value)}
-                    placeholder="Tambahkan catatan terkait pesanan (opsional)"
-                  />
+                  {isEditingNote ? (
+                    <>
+                      <Textarea 
+                        value={adminNote}
+                        onChange={e => setAdminNote(e.target.value)}
+                        placeholder="Tambahkan catatan terkait pesanan (opsional)"
+                      />
+                      <HStack mt={2} spacing={2}>
+                        <Button 
+                          colorScheme="green" 
+                          onClick={handleSaveNote}
+                          isLoading={isSavingNote}
+                          size="sm"
+                        >
+                          Simpan Catatan
+                        </Button>
+                        <Button 
+                          onClick={handleCancelEdit}
+                          size="sm"
+                        >
+                          Batal
+                        </Button>
+                      </HStack>
+                    </>
+                  ) : (
+                    <>
+                      <Box p={3} borderWidth="1px" borderRadius="md" minHeight="100px" bg="gray.50">
+                        {savedAdminNote ? (
+                          <Text>{savedAdminNote}</Text>
+                        ) : (
+                          <Text color="gray.500" fontStyle="italic">Belum ada catatan</Text>
+                        )}
+                      </Box>
+                      <HStack mt={2} spacing={2}>
+                        <Button 
+                          colorScheme="blue" 
+                          onClick={handleEditNote}
+                          size="sm"
+                        >
+                          Edit Catatan
+                        </Button>
+                        {savedAdminNote && (
+                          <Button 
+                            colorScheme="red" 
+                            onClick={handleDeleteNote}
+                            isLoading={isDeletingNote}
+                            size="sm"
+                          >
+                            Hapus Catatan
+                          </Button>
+                        )}
+                      </HStack>
+                    </>
+                  )}
                 </FormControl>
 
                 <Button 
@@ -332,6 +481,7 @@ function AdminOrderDetailPage() {
                   onClick={handleUpdateStatus}
                   isLoading={isUpdating}
                   isDisabled={order.shipping_status === shippingStatus}
+                  mt={4}
                 >
                   Perbarui Status Pesanan
                 </Button>
