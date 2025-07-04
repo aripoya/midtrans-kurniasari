@@ -4,11 +4,11 @@ import { useNavigate } from 'react-router-dom';
 // Buat context untuk autentikasi
 const AuthContext = createContext();
 
-// Credentials yang valid (hard-coded untuk saat ini)
+// Credentials khusus untuk admin
 // Dalam aplikasi production, ini seharusnya diverifikasi melalui API
 const VALID_CREDENTIALS = {
   username: 'admin',
-  password: 'kurniasari123'
+  password: 'admin123'
 };
 
 export function AuthProvider({ children }) {

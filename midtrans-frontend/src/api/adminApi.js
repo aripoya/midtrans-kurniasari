@@ -77,7 +77,7 @@ export const adminApi = {
   login: async (username, password) => {
     try {
       // En una implementación real, este sería un endpoint de backend
-      if (username === 'admin' && password === 'kurniasari123') {
+      if (username === 'admin' && password === 'admin123') {
         // Token simulado - en producción sería generado por el backend
         const mockToken = 'admin-jwt-token-' + Date.now();
         localStorage.setItem('adminToken', mockToken);
