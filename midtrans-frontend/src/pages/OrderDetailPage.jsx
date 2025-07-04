@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link as RouterLink } from 'react-router-dom';
+import { useParams, Link as RouterLink, useLocation } from 'react-router-dom';
 import {
   Box, Heading, Text, VStack, HStack, Badge, Button,
   Table, Tbody, Tr, Td, Th, Thead, Divider, Spinner,
@@ -11,9 +11,13 @@ import {
 } from '@chakra-ui/react';
 import { orderService } from '../api/orderService';
 import { refreshOrderStatus, markOrderAsReceived } from '../api/api';
+import { useAuth } from '../auth/AuthContext';
+import axios from 'axios';
 
 function OrderDetailPage() {
   const { id } = useParams();
+  const location = useLocation();
+  const auth = useAuth();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,12 +26,28 @@ function OrderDetailPage() {
   const toast = useToast();
   const stepperOrientation = useBreakpointValue({ base: 'vertical', md: 'horizontal' });
   const stepperSize = useBreakpointValue({ base: 'sm', md: 'md' });
+  
+  // Check if this is a public order page (ID starts with ORDER-)
+  const isPublicOrderPage = id && id.startsWith('ORDER-');
 
   const fetchOrder = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await orderService.getOrderById(id);
+      
+      // Different fetch approach based on public vs protected route
+      let data;
+      
+      if (isPublicOrderPage) {
+        // For public pages, use direct axios call without auth headers
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://pesanan.kurniasari.co.id';
+        const response = await axios.get(`${apiUrl}/api/orders/${id}`);
+        data = response.data;
+      } else {
+        // For protected pages, use orderService which includes auth
+        data = await orderService.getOrderById(id);
+      }
+      
       if (data.success && data.order) {
         let finalOrder = data.order;
         if (finalOrder.payment_response) {
@@ -54,14 +74,59 @@ function OrderDetailPage() {
     }
   };
 
+  // Special effect to ensure public order pages never show admin UI
+  useEffect(() => {
+    if (isPublicOrderPage) {
+      // Find and remove admin UI elements if present
+      // This ensures clean UI regardless of how the page was accessed
+      const adminHeader = document.querySelector('.admin-header');
+      const logoutBtn = document.querySelector('.logout-btn');
+      
+      if (adminHeader) adminHeader.style.display = 'none';
+      if (logoutBtn) logoutBtn.style.display = 'none';
+      
+      // Force public layout by removing any admin elements
+      document.querySelectorAll('.admin-element').forEach(el => {
+        el.style.display = 'none';
+      });
+    }
+  }, [isPublicOrderPage, location.pathname]);
+
   useEffect(() => {
     fetchOrder();
   }, [id]);
 
+  useEffect(() => {
+    // Auto-refresh status jika ada parameter dari redirect pembayaran
+    const searchParams = new URLSearchParams(location.search);
+    const shouldRefresh = searchParams.get('refresh') === 'payment' || 
+                         searchParams.get('status_code') || 
+                         searchParams.get('transaction_status');
+    
+    if (shouldRefresh && order && !loading) {
+      console.log('Auto-refreshing payment status after redirect from payment');
+      setTimeout(() => {
+        handleRefreshStatus();
+      }, 1000); // Delay 1 detik agar UI tidak terlalu cepat
+    }
+  }, [order, location.search, loading]);
+
   const handleRefreshStatus = async () => {
     setIsRefreshing(true);
     try {
-      const { data } = await refreshOrderStatus(id);
+      let data;
+      
+      if (isPublicOrderPage) {
+        // For public pages, use direct axios call
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://pesanan.kurniasari.co.id';
+        const response = await axios.post(`${apiUrl}/api/orders/${id}/refresh-status`);
+        data = response.data;
+      } else {
+        // For protected pages, use the service with auth
+        const response = await refreshOrderStatus(id);
+        data = response.data;
+      }
+      
       if (data.success) {
         await fetchOrder(); // Refetch to get all updated data
         toast({
@@ -90,22 +155,34 @@ function OrderDetailPage() {
   const handleMarkAsReceived = async () => {
     setIsMarkingAsReceived(true);
     try {
-      const { data } = await markOrderAsReceived(id);
+      let data;
+      
+      if (isPublicOrderPage) {
+        // For public pages, use direct axios call
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://pesanan.kurniasari.co.id';
+        const response = await axios.post(`${apiUrl}/api/orders/${id}/received`);
+        data = response.data;
+      } else {
+        // For protected pages, use the service with auth
+        const response = await markOrderAsReceived(id);
+        data = response.data;
+      }
+      
       if (data.success) {
-        setOrder(prevOrder => ({ ...prevOrder, shipping_status: 'received' }));
+        await fetchOrder(); // Refetch to get all updated data
         toast({
           title: "Pesanan Diterima",
-          description: "Terima kasih telah mengonfirmasi penerimaan pesanan Anda.",
+          description: "Status pesanan berhasil diperbarui menjadi 'Sudah Diterima'.",
           status: "success",
           duration: 5000,
           isClosable: true,
         });
       } else {
-        throw new Error(data.error || 'Gagal menandai pesanan sebagai diterima.');
+        throw new Error(data.error || 'Gagal memperbarui status pesanan.');
       }
     } catch (err) {
       toast({
-        title: "Gagal Konfirmasi",
+        title: "Gagal Memperbarui",
         description: err.message,
         status: "error",
         duration: 5000,

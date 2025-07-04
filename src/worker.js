@@ -1,6 +1,6 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
-import { createOrder, getOrders, getOrderById, updateOrderStatus, refreshOrderStatus, markOrderAsReceived } from './handlers/orders.js';
+import { createOrder, getOrders, getOrderById, updateOrderStatus, refreshOrderStatus, markOrderAsReceived, getAdminOrders } from './handlers/orders.js';
 import { getProducts, createProduct, updateProduct, deleteProduct } from './handlers/products.js';
 
 
@@ -12,7 +12,7 @@ console.log('Router initialized successfully');
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cache-Control, X-Requested-With',
 };
 
 // Handle CORS preflight requests
@@ -36,7 +36,8 @@ router.get('/', (request) => {
         'GET    /api/transaction/:orderId/status',
         'GET    /api/debug/midtrans',
         'GET    /api/config',
-        'GET    /api/debug/database'
+        'GET    /api/debug/database',
+        'GET    /api/admin/orders'
     ];
     
     return new Response(JSON.stringify({
@@ -80,6 +81,12 @@ router.post('/api/orders/:id/refresh-status', (request, env) => {
 router.post('/api/orders/:id/mark-received', (request, env) => {
     request.corsHeaders = corsHeaders;
     return markOrderAsReceived(request, env);
+});
+
+// Admin endpoints
+router.get('/api/admin/orders', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return getAdminOrders(request, env);
 });
 
 // Product management endpoints

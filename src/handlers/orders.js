@@ -373,6 +373,139 @@ export async function markOrderAsReceived(request, env) {
   }
 }
 
+// Admin endpoint to get enhanced order list with more details
+export async function getAdminOrders(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  // Handle OPTIONS request for CORS preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    // TODO: Add real admin authentication here
+    // For now, we'll just implement the basic endpoint functionality
+    
+    // Get pagination parameters from URL query
+    const url = new URL(request.url);
+    const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+    const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+    
+    console.log(`Getting admin orders with offset=${offset}, limit=${limit}`);
+    
+    if (!env.DB) {
+      throw new Error('Database binding not found');
+    }
+
+    // First check if GROUP_CONCAT is available in this D1 instance
+    try {
+      await env.DB.prepare('SELECT GROUP_CONCAT(1,2) as test').first();
+      console.log('GROUP_CONCAT is available in D1');
+    } catch (sqlError) {
+      console.error('GROUP_CONCAT test failed:', sqlError);
+      // Fall back to simpler query without GROUP_CONCAT
+    }
+
+    console.log('Running admin orders query...');
+    
+    // Get all orders first (without items to avoid GROUP_CONCAT issues)
+    const orders = await env.DB.prepare(`
+      SELECT * 
+      FROM orders
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    `).bind(limit, offset).all();
+
+    console.log('Orders query returned:', {
+      success: !!orders,
+      resultsExist: !!orders?.results,
+      count: orders?.results?.length || 0
+    });
+
+    if (!orders || !orders.results) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Failed to fetch orders', 
+        details: 'No results from database query' 
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    // Process each order and fetch items separately (safer than GROUP_CONCAT)
+    const processedOrders = await Promise.all(orders.results.map(async order => {
+      try {
+        // Get items for this specific order
+        const orderItems = await env.DB.prepare(`
+          SELECT product_id, product_name, price, quantity 
+          FROM order_items 
+          WHERE order_id = ?
+        `).bind(order.id).all();
+        
+        const items = orderItems?.results || [];
+        
+        // Parse payment_response if it exists
+        let paymentDetails = null;
+        if (order.payment_response) {
+          try {
+            paymentDetails = JSON.parse(order.payment_response);
+          } catch (e) {
+            console.error(`Error parsing payment response for order ${order.id}:`, e);
+          }
+        }
+
+        return {
+          ...order,
+          items,
+          payment_details: paymentDetails,
+          total_amount: items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0)
+        };
+      } catch (itemError) {
+        console.error(`Error processing items for order ${order.id}:`, itemError);
+        return {
+          ...order,
+          items: [],
+          error: 'Failed to fetch items for this order'
+        };
+      }
+    }));
+
+    // Count total orders for pagination
+    const countResult = await env.DB.prepare('SELECT COUNT(*) as total FROM orders').first();
+    const total = countResult ? countResult.total : 0;
+
+    return new Response(JSON.stringify({
+      success: true,
+      orders: processedOrders,
+      pagination: {
+        total,
+        offset,
+        limit,
+        has_more: offset + limit < total
+      }
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+
+  } catch (error) {
+    console.error('Admin Get Orders Error:', error.message, error.stack);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Failed to fetch admin orders',
+      details: error.message 
+    }), { 
+      status: 500, 
+      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    });
+  }
+}
+
 export async function updateOrderStatus(request, env) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -393,7 +526,7 @@ export async function updateOrderStatus(request, env) {
       return new Response(JSON.stringify({ success: false, error: 'Order ID and status are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const allowedStatuses = ['di kemas', 'siap kirim', 'siap ambil', 'sedang dikirim', 'Sudah Di Terima', 'Sudah Di Ambil'];
+    const allowedStatuses = ['dikemas', 'siap kirim', 'sedang dikirim', 'received'];
     if (!allowedStatuses.includes(status)) {
       return new Response(JSON.stringify({ success: false, error: 'Invalid status value' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
