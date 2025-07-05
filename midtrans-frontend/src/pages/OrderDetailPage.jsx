@@ -466,7 +466,24 @@ function OrderDetailPage() {
                 <Text><strong>Status:</strong> {getStatusBadge(order.payment_status)}</Text>
                 <Text><strong>Metode:</strong> <Tag>{order.payment_method || 'N/A'}</Tag></Text>
                 {isPublicOrderPage && (
-                  <Text mt={4}><strong>Status Pengiriman:</strong> {getShippingStatusBadge()}</Text>
+                  <>
+                    <Text mt={4}><strong>Status Pengiriman:</strong> {getShippingStatusBadge()}</Text>
+                    {order.shipping_area && (
+                      <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
+                    )}
+                    {order.shipping_area === 'luar-kota' && (
+                      <>
+                        {order.courier_service && (
+                          <Text><strong>Jasa Kurir:</strong> {order.courier_service}</Text>
+                        )}
+                        {order.tracking_number ? (
+                          <Text><strong>No. Resi:</strong> {order.tracking_number}</Text>
+                        ) : (
+                          <Text><strong>No. Resi:</strong> <i>Dalam Proses Request No Resi</i></Text>
+                        )}
+                      </>
+                    )}
+                  </>
                 )}
               </GridItem>
             </Grid>
