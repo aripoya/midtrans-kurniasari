@@ -585,3 +585,113 @@ export async function updateOrderStatus(request, env) {
     return new Response(JSON.stringify({ success: false, error: 'Failed to update order status' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 }
+
+/**
+ * Update order details termasuk status pengiriman, area pengiriman, dan metode pengambilan
+ */
+export async function updateOrderDetails(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'PATCH, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id/details
+    const data = await request.json();
+    const { status, admin_note, shipping_area, pickup_method } = data;
+
+    if (!orderId || !status) {
+      return new Response(JSON.stringify({ success: false, error: 'Order ID and status are required' }), 
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    const allowedStatuses = ['dikemas', 'siap kirim', 'sedang dikirim', 'received'];
+    if (!allowedStatuses.includes(status)) {
+      return new Response(JSON.stringify({ success: false, error: 'Invalid status value' }), 
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
+    // Validasi area pengiriman
+    const allowedShippingAreas = ['dalam-kota', 'luar-kota'];
+    if (shipping_area && !allowedShippingAreas.includes(shipping_area)) {
+      return new Response(JSON.stringify({ success: false, error: 'Invalid shipping area value' }), 
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
+    // Validasi metode pengambilan (hanya untuk dalam kota)
+    if (shipping_area === 'dalam-kota') {
+      const allowedPickupMethods = ['sendiri', 'ojek-online'];
+      if (pickup_method && !allowedPickupMethods.includes(pickup_method)) {
+        return new Response(JSON.stringify({ success: false, error: 'Invalid pickup method value' }), 
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    }
+
+    if (!env.DB) {
+      throw new Error("Database binding not found.");
+    }
+    
+    // Cek apakah perlu menambahkan kolom baru di tabel orders
+    try {
+      // Coba cek dulu apakah kolom sudah ada
+      await env.DB.prepare("SELECT shipping_area, pickup_method FROM orders LIMIT 1").first();
+    } catch (e) {
+      if (e.message.includes('no such column')) {
+        // Kolom belum ada, tambahkan kolom baru
+        console.log('Adding new columns to orders table: shipping_area, pickup_method');
+        await env.DB.prepare('ALTER TABLE orders ADD COLUMN shipping_area TEXT DEFAULT NULL').run();
+        await env.DB.prepare('ALTER TABLE orders ADD COLUMN pickup_method TEXT DEFAULT NULL').run();
+        console.log('Columns added successfully');
+      } else {
+        throw e; // Re-throw jika error bukan karena kolom tidak ada
+      }
+    }
+
+    // Update data pesanan
+    let updateQuery = `
+      UPDATE orders SET 
+        shipping_status = ?, 
+        admin_note = ?,
+        shipping_area = ?,
+        pickup_method = ?,
+        updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `;
+    
+    const updateResult = await env.DB.prepare(updateQuery)
+      .bind(
+        status, 
+        admin_note || null, 
+        shipping_area || null, 
+        pickup_method || null, 
+        orderId
+      ).run();
+
+    if (updateResult.meta.changes === 0) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Order not found or details unchanged' 
+      }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: 'Order details updated successfully',
+      data: { status, shipping_area, pickup_method }
+    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+  } catch (error) {
+    console.error('Update Order Details Error:', error.message, error.stack);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Failed to update order details',
+      details: error.message 
+    }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+}

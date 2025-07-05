@@ -263,7 +263,15 @@ function AdminOrderDetailPage() {
   const handleUpdateStatus = async () => {
     setIsUpdating(true);
     try {
-      const response = await adminApi.updateOrderStatus(id, shippingStatus, adminNote);
+      // Buat objek data dengan semua informasi pengiriman
+      const shippingData = {
+        status: shippingStatus,
+        admin_note: adminNote,
+        shipping_area: shippingArea,
+        pickup_method: shippingArea === 'dalam-kota' ? pickupMethod : null
+      };
+      
+      const response = await adminApi.updateOrderDetails(id, shippingData);
       
       if (response.error) {
         throw new Error(response.error);
@@ -272,14 +280,16 @@ function AdminOrderDetailPage() {
       // Update local state
       setOrder(prev => ({
         ...prev,
-        shipping_status: shippingStatus
+        shipping_status: shippingStatus,
+        shipping_area: shippingArea,
+        pickup_method: shippingArea === 'dalam-kota' ? pickupMethod : null
       }));
       
       // Update saved admin note
       setSavedAdminNote(adminNote);
       
       toast({
-        title: "Status pesanan diperbarui",
+        title: "Informasi pesanan diperbarui",
         description: `Status berhasil diubah menjadi: ${shippingStatus}`,
         status: "success",
         duration: 3000,
@@ -287,7 +297,7 @@ function AdminOrderDetailPage() {
       });
     } catch (err) {
       toast({
-        title: "Gagal memperbarui status",
+        title: "Gagal memperbarui informasi pesanan",
         description: err.message,
         status: "error",
         duration: 5000,

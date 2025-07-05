@@ -293,7 +293,7 @@ function OrderDetailPage() {
     const steps = [
       { title: 'Pemesanan', description: 'Pesanan dibuat' },
       { title: 'Pembayaran', description: 'Menunggu pembayaran' },
-      { title: 'Pengiriman', description: 'Pesanan diproses' },
+      { title: 'Pengiriman', description: order?.shipping_status || 'Pesanan diproses' },
       { title: 'Selesai', description: 'Pesanan diterima' },
     ];
 
@@ -354,11 +354,57 @@ function OrderDetailPage() {
               {steps.map((step, index) => (
                 <Step key={index}>
                   <StepIndicator>
-                    <StepStatus complete={<StepIcon />} incomplete={<StepNumber />} active={<StepNumber />} />
+                    {index === 2 && order?.shipping_status ? (
+                      <Box position="relative" width="100%" height="100%" borderRadius="50%" overflow="hidden">
+                        {/* Progress lingkaran hijau berdasarkan status pengiriman */}
+                        <Box 
+                          position="absolute" 
+                          top="0" 
+                          left="0" 
+                          width="100%" 
+                          height="100%" 
+                          bgColor="green.500" 
+                          transition="all 0.3s ease-in-out"
+                          clipPath={
+                            order.shipping_status === "dikemas" ? "polygon(0 0, 25% 0, 25% 100%, 0 100%)" :
+                            (order.shipping_status === "siap diambil" || order.shipping_status === "siap dikirim") ? "polygon(0 0, 50% 0, 50% 100%, 0 100%)" :
+                            order.shipping_status === "sedang dikirim" ? "circle(50%)" :
+                            "circle(0%)"
+                          }
+                        />
+                        <StepStatus 
+                          position="relative" 
+                          zIndex="1"
+                          complete={<StepIcon />} 
+                          incomplete={<StepNumber />} 
+                          active={<StepNumber />} 
+                        />
+                      </Box>
+                    ) : (
+                      <StepStatus complete={<StepIcon />} incomplete={<StepNumber />} active={<StepNumber />} />
+                    )}
                   </StepIndicator>
                   <Box flexShrink='0'>
                     <StepTitle>{step.title}</StepTitle>
-                    <StepDescription>{step.description}</StepDescription>
+                    {index === 2 && order?.shipping_status ? (
+                      <StepDescription>
+                        <Tag 
+                          colorScheme="yellow" 
+                          variant="solid" 
+                          borderRadius="full"
+                          px={2}
+                          py={0.5}
+                        >
+                          {order.shipping_status === "dikemas" ? "Dikemas" :
+                           order.shipping_status === "siap diambil" ? "Siap Ambil" :
+                           order.shipping_status === "siap dikirim" ? "Siap Kirim" :
+                           order.shipping_status === "sedang dikirim" ? "Dalam Pengiriman" :
+                           step.description}
+                        </Tag>
+                      </StepDescription>
+                    ) : (
+                      <StepDescription>{step.description}</StepDescription>
+                    )}
                   </Box>
                   <StepSeparator />
                 </Step>

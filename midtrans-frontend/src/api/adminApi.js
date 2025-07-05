@@ -11,7 +11,7 @@ const getAdminToken = () => {
 
 // Admin API endpoints
 export const adminApi = {
-  // Actualiza el estado de envío de un pedido
+  // Update status pengiriman pesanan
   updateOrderStatus: async (orderId, status, adminNote = '') => {
     try {
       const response = await axios.patch(
@@ -31,7 +31,30 @@ export const adminApi = {
       console.error('Error updating order status:', error);
       return {
         data: null,
-        error: error.response?.data?.error || error.message || 'Error al actualizar el estado'
+        error: error.response?.data?.error || error.message || 'Error saat memperbarui status'
+      };
+    }
+  },
+
+  // Update detail pesanan termasuk status pengiriman, area pengiriman dan metode pengambilan
+  updateOrderDetails: async (orderId, shippingData) => {
+    try {
+      // shippingData berisi status, admin_note, shipping_area, dan pickup_method
+      const response = await axios.patch(
+        `${API_BASE_URL}/api/orders/${orderId}/details`,
+        shippingData,
+        {
+          headers: {
+            Authorization: `Bearer ${getAdminToken()}`
+          }
+        }
+      );
+      return { data: response.data, error: null };
+    } catch (error) {
+      console.error('Error updating order details:', error);
+      return {
+        data: null,
+        error: error.response?.data?.error || error.message || 'Error saat memperbarui detail pesanan'
       };
     }
   },

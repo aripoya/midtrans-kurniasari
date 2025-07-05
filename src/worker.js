@@ -1,6 +1,6 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
-import { createOrder, getOrders, getOrderById, updateOrderStatus, refreshOrderStatus, getAdminOrders, deleteOrder } from './handlers/orders.js';
+import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDetails, refreshOrderStatus, getAdminOrders, deleteOrder } from './handlers/orders.js';
 import { markOrderAsReceived } from './handlers/received.js';
 import { getProducts, createProduct, updateProduct, deleteProduct } from './handlers/products.js';
 import { handleRequest as handleShippingRequest } from './handlers/shipping.js';
@@ -77,6 +77,12 @@ router.delete('/api/orders/:id', (request, env) => {
 router.patch('/api/orders/:id/status', (request, env) => {
     request.corsHeaders = corsHeaders;
     return updateOrderStatus(request, env);
+});
+
+// Endpoint untuk update detail pesanan (area pengiriman & metode pengambilan)
+router.patch('/api/orders/:id/details', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return updateOrderDetails(request, env);
 });
 
 // Customer-facing status update endpoints
