@@ -90,6 +90,75 @@ export const adminApi = {
       return {
         success: false,
         data: null,
+        error: error.response?.data?.error || error.message || 'Error deleting order'
+      };
+    }
+  },
+  
+  // Upload gambar status pengiriman
+  uploadShippingImage: async (orderId, imageType, imageFile) => {
+    try {
+      // Validasi parameter
+      if (!orderId || !imageType || !imageFile) {
+        throw new Error('Missing required parameters');
+      }
+      
+      // Validasi tipe gambar
+      const validTypes = ['ready_for_pickup', 'picked_up', 'delivered'];
+      if (!validTypes.includes(imageType)) {
+        throw new Error(`Invalid image type. Must be one of: ${validTypes.join(', ')}`);
+      }
+      
+      // Validasi file gambar
+      const validMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (!validMimeTypes.includes(imageFile.type)) {
+        throw new Error(`Invalid file type. Must be one of: ${validMimeTypes.join(', ')}`);
+      }
+      
+      // Buat FormData untuk upload
+      const formData = new FormData();
+      formData.append('image', imageFile);
+      
+      const response = await axios.post(
+        `${API_BASE_URL}/api/shipping/images/${orderId}/${imageType}`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            Authorization: `Bearer ${getAdminToken()}`
+          }
+        }
+      );
+      
+      return { success: true, data: response.data, error: null };
+    } catch (error) {
+      console.error('Error uploading shipping image:', error);
+      return {
+        success: false,
+        data: null,
+        error: error.response?.data?.error || error.message || 'Error uploading image'
+      };
+    }
+  },
+  
+  // Mendapatkan gambar status pengiriman
+  getShippingImages: async (orderId) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/api/shipping/images/${orderId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${getAdminToken()}`
+          }
+        }
+      );
+      
+      return { success: true, data: response.data.data, error: null };
+    } catch (error) {
+      console.error('Error getting shipping images:', error);
+      return {
+        success: false,
+        data: null,
         error: error.response?.data?.error || error.message || 'Error saat menghapus pesanan'
       };
     }

@@ -1,16 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box, Heading, Text, VStack, HStack, Badge, Button,
   Table, Tbody, Tr, Td, Th, Thead, Divider, Spinner,
   Alert, AlertIcon, Card, CardBody, CardHeader, CardFooter,
   useToast, Flex, Grid, GridItem, Select, FormControl, 
-  FormLabel, Textarea, SimpleGrid, Stack, Tag,
+  FormLabel, Textarea, SimpleGrid, Stack, Tag, Image,
   useDisclosure, Modal, ModalOverlay, ModalContent,
   ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   Accordion, AccordionItem, AccordionButton, 
-  AccordionPanel, AccordionIcon
+  AccordionPanel, AccordionIcon, Input, IconButton,
+  Tabs, TabList, TabPanels, Tab, TabPanel
 } from '@chakra-ui/react';
+import { QRCodeSVG } from 'qrcode.react';
 import { orderService } from '../../api/orderService';
 import { refreshOrderStatus } from '../../api/api';
 import { adminApi } from '../../api/adminApi';
@@ -29,6 +31,18 @@ function AdminOrderDetailPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState({
+    readyForPickup: null,
+    pickedUp: null,
+    received: null
+  });
+  const [showQRCode, setShowQRCode] = useState(false);
+  const fileInputRefs = {
+    readyForPickup: useRef(null),
+    pickedUp: useRef(null),
+    received: useRef(null)
+  };
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
   const navigate = useNavigate();
@@ -188,6 +202,147 @@ function AdminOrderDetailPage() {
       setIsSavingNote(false);
     }
   };
+  
+  // Fungsi untuk menangani upload gambar
+  const handleImageUpload = async (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Validasi tipe file
+    const validMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validMimeTypes.includes(file.type)) {
+      toast({
+        title: "Format file tidak didukung",
+        description: "Gunakan format JPG, PNG, WebP, atau GIF",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    // Validasi ukuran file (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File terlalu besar",
+        description: "Ukuran maksimal file adalah 5MB",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    // Konversi type ke format yang digunakan API
+    const imageTypeMap = {
+      readyForPickup: 'ready_for_pickup',
+      pickedUp: 'picked_up',
+      received: 'delivered'
+    };
+    
+    // Tampilkan preview gambar
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setUploadedImages(prev => ({
+        ...prev,
+        [type]: e.target.result
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  // Fungsi untuk menyimpan semua foto ke backend
+  const handleSaveImages = async () => {
+    setIsUploading(true);
+    
+    try {
+      // Cek apakah ada foto yang perlu diupload
+      const imageTypes = ['readyForPickup', 'pickedUp', 'received'];
+      const apiTypeMap = {
+        readyForPickup: 'ready_for_pickup',
+        pickedUp: 'picked_up',
+        received: 'delivered'
+      };
+      
+      // Array untuk menampung semua promise upload
+      const uploadPromises = [];
+      
+      // Fungsi untuk mengkonversi Data URL ke File
+      const dataURLtoFile = (dataurl, filename) => {
+        const arr = dataurl.split(',');
+        const mime = arr[0].match(/:(.*?);/)[1];
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new File([u8arr], filename, {type: mime});
+      };
+      
+      // Untuk setiap jenis foto, upload jika ada
+      for (const type of imageTypes) {
+        if (uploadedImages[type]) {
+          // Cek apakah gambar sudah dalam format base64 (hasil dari FileReader)
+          if (uploadedImages[type].startsWith('data:')) {
+            const file = dataURLtoFile(
+              uploadedImages[type], 
+              `${type}_${new Date().getTime()}.jpg`
+            );
+            
+            uploadPromises.push(
+              adminApi.uploadShippingImage(id, apiTypeMap[type], file)
+            );
+          }
+        }
+      }
+      
+      // Jika tidak ada foto yang perlu diupload
+      if (uploadPromises.length === 0) {
+        toast({
+          title: "Tidak ada foto untuk disimpan",
+          status: "info",
+          duration: 3000,
+          isClosable: true,
+        });
+        setIsUploading(false);
+        return;
+      }
+      
+      // Jalankan semua upload secara paralel
+      const results = await Promise.all(uploadPromises);
+      
+      // Cek hasil upload
+      const failedUploads = results.filter(r => !r.success);
+      
+      if (failedUploads.length > 0) {
+        throw new Error(`${failedUploads.length} foto gagal diupload`);
+      }
+      
+      // Berhasil upload semua foto
+      toast({
+        title: "Foto berhasil disimpan",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      
+      // Refresh data order untuk mendapatkan URL gambar dari backend
+      fetchOrder();
+      
+    } catch (error) {
+      console.error('Error saving images:', error);
+      toast({
+        title: "Gagal menyimpan foto",
+        description: error.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   // Fungsi untuk menghapus catatan admin
   const handleDeleteNote = async () => {
@@ -292,142 +447,303 @@ function AdminOrderDetailPage() {
 
   const getShippingStatusBadge = (status) => {
     const statusMap = {
-      'dikemas': { scheme: 'blue', text: 'Dikemas' },
-      'siap kirim': { scheme: 'purple', text: 'Siap Kirim' },
-      'dikirim': { scheme: 'orange', text: 'Dalam Pengiriman' },
-      'sedang dikirim': { scheme: 'orange', text: 'Dalam Pengiriman' },
-      'received': { scheme: 'green', text: 'Diterima' }
+      "dikemas": { color: "blue", text: "Dikemas" },
+      "siap kirim": { color: "purple", text: "Siap Kirim" },
+      "dikirim": { color: "orange", text: "Dikirim" },
+      "sedang dikirim": { color: "orange", text: "Sedang Dikirim" },
+      "received": { color: "green", text: "Diterima" },
     };
 
-    const statusInfo = statusMap[status?.toLowerCase()] || { scheme: 'gray', text: status || 'Menunggu Diproses' };
-    return <Badge colorScheme={statusInfo.scheme}>{statusInfo.text}</Badge>;
+    const statusInfo = statusMap[status?.toLowerCase()] || { color: "gray", text: status || "Menunggu Diproses" };
+    
+    return <Badge colorScheme={statusInfo.color}>{statusInfo.text}</Badge>;
   };
 
-  if (loading) {
-    return (
-      <Flex justify="center" align="center" height="200px">
-        <Spinner size="xl" />
-      </Flex>
-    );
-  }
-
-  if (error || !order) {
-    return (
-      <Alert status="warning">
-        <AlertIcon />
-        {error || "Pesanan tidak ditemukan."}
-      </Alert>
-    );
-  }
-
-  const isPaid = ['paid', 'settlement', 'capture'].includes(order.payment_status);
-
+if (loading) {
   return (
-    <Box p={4} maxW="1200px" mx="auto">
-      <HStack mb={6} justify="space-between">
-        <Heading size="lg">
-          Detail Pesanan #{order.id.substring(0, 8)}
-        </Heading>
-        <Button 
-          as={RouterLink} 
-          to="/admin/orders" 
-          variant="outline"
-        >
-          Kembali ke Daftar
-        </Button>
-      </HStack>
+    <Flex justify="center" align="center" height="200px">
+      <Spinner size="xl" />
+    </Flex>
+  );
+}
 
-      <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
-        {/* Main order details */}
-        <GridItem colSpan={{ base: 1, lg: 2 }}>
-          <Card mb={6}>
-            <CardHeader>
-              <Heading size="md">Informasi Pesanan</Heading>
-            </CardHeader>
-            <CardBody>
-              <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={6}>
-                <GridItem>
-                  <Heading size="sm" mb={4}>Informasi Pelanggan</Heading>
-                  <Text><strong>Nama:</strong> {order.customer_name}</Text>
-                  <Text><strong>Email:</strong> {order.customer_email}</Text>
-                  <Text><strong>Telepon:</strong> {order.customer_phone}</Text>
-                  {order.customer_address && (
-                    <Text whiteSpace="pre-wrap"><strong>Alamat:</strong> {order.customer_address}</Text>
-                  )}
-                </GridItem>
-                <GridItem>
-                  <Heading size="sm" mb={4}>Detail Pembayaran</Heading>
-                  <Text><strong>Total:</strong> Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
-                  <HStack mt={2}>
-                    <Text><strong>Status Pembayaran:</strong></Text>
-                    {getPaymentStatusBadge(order.payment_status)}
-                  </HStack>
-                  <HStack mt={2}>
-                    <Text><strong>Status Pengiriman:</strong></Text>
-                    {getShippingStatusBadge(order.shipping_status)}
-                  </HStack>
-                  <Text mt={2}><strong>Metode:</strong> <Tag>{order.payment_method || 'N/A'}</Tag></Text>
-                  {order.payment_time && (
-                    <Text><strong>Waktu Pembayaran:</strong> {order.payment_time ? `${new Date(order.payment_time).getDate().toString().padStart(2, '0')}-${(new Date(order.payment_time).getMonth() + 1).toString().padStart(2, '0')}-${new Date(order.payment_time).getFullYear()}` : '-'}</Text>
-                  )}
-                  <Text><strong>Dibuat:</strong> {order.created_at ? `${new Date(order.created_at).getDate().toString().padStart(2, '0')}-${(new Date(order.created_at).getMonth() + 1).toString().padStart(2, '0')}-${new Date(order.created_at).getFullYear()}` : '-'}</Text>
-                </GridItem>
-              </Grid>
+if (error || !order) {
+  return (
+    <Alert status="warning">
+      <AlertIcon />
+      {error || "Pesanan tidak ditemukan."}
+    </Alert>
+  );
+}
 
-              <Divider my={6} />
+const isPaid = ['paid', 'settlement', 'capture'].includes(order.payment_status);
 
-              <Heading size="sm" mb={4}>Barang Pesanan</Heading>
-              <Box overflowX="auto">
-                <Table variant="simple">
-                  <Thead>
-                    <Tr>
-                      <Th>Produk</Th>
-                      <Th isNumeric>Jumlah</Th>
-                      <Th isNumeric>Harga</Th>
+return (
+  <Box p={4} maxW="1200px" mx="auto">
+    <HStack mb={6} justify="space-between">
+      <Heading size="lg">
+        Detail Pesanan #{order.id.substring(0, 8)}
+      </Heading>
+      <Button 
+        as={RouterLink} 
+        to="/admin/orders" 
+        variant="outline"
+      >
+        Kembali ke Daftar
+      </Button>
+    </HStack>
+
+    <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
+      {/* Main order details */}
+      <GridItem colSpan={{ base: 1, lg: 2 }}>
+        <Card mb={6}>
+          <CardHeader>
+            <Heading size="md">Informasi Pesanan</Heading>
+          </CardHeader>
+          <CardBody>
+            <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={6}>
+              <GridItem>
+                <Heading size="sm" mb={4}>Informasi Pelanggan</Heading>
+                <Text><strong>Nama:</strong> {order.customer_name}</Text>
+                <Text><strong>Email:</strong> {order.customer_email}</Text>
+                <Text><strong>Telepon:</strong> {order.customer_phone}</Text>
+                {order.customer_address && (
+                  <Text whiteSpace="pre-wrap"><strong>Alamat:</strong> {order.customer_address}</Text>
+                )}
+              </GridItem>
+              <GridItem>
+                <Heading size="sm" mb={4}>Detail Pembayaran</Heading>
+                <Text><strong>Total:</strong> Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
+                <HStack mt={2}>
+                  <Text><strong>Status Pembayaran:</strong></Text>
+                  {getPaymentStatusBadge(order.payment_status)}
+                </HStack>
+                <HStack mt={2}>
+                  <Text><strong>Status Pengiriman:</strong></Text>
+                  {getShippingStatusBadge(order.shipping_status)}
+                </HStack>
+                <Text mt={2}><strong>Metode:</strong> <Tag>{order.payment_method || 'N/A'}</Tag></Text>
+                {order.payment_time && (
+                  <Text><strong>Waktu Pembayaran:</strong> {order.payment_time ? `${new Date(order.payment_time).getDate().toString().padStart(2, '0')}-${(new Date(order.payment_time).getMonth() + 1).toString().padStart(2, '0')}-${new Date(order.payment_time).getFullYear()}` : '-'}</Text>
+                )}
+                <Text><strong>Dibuat:</strong> {order.created_at ? `${new Date(order.created_at).getDate().toString().padStart(2, '0')}-${(new Date(order.created_at).getMonth() + 1).toString().padStart(2, '0')}-${new Date(order.created_at).getFullYear()}` : '-'}</Text>
+              </GridItem>
+            </Grid>
+
+            <Divider my={6} />
+
+            <Heading size="sm" mb={4}>Barang Pesanan</Heading>
+            <Box overflowX="auto">
+              <Table variant="simple">
+                <Thead>
+                  <Tr>
+                    <Th>Produk</Th>
+                    <Th isNumeric>Jumlah</Th>
+                    <Th isNumeric>Harga</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {order.items && order.items.map((item, index) => (
+                    <Tr key={index}>
+                      <Td>{item.product_name}</Td>
+                      <Td isNumeric>{item.quantity}</Td>
+                      <Td isNumeric>Rp {item.product_price?.toLocaleString('id-ID')}</Td>
                     </Tr>
-                  </Thead>
-                  <Tbody>
-                    {order.items && order.items.map((item, index) => (
-                      <Tr key={index}>
-                        <Td>{item.product_name}</Td>
-                        <Td isNumeric>{item.quantity}</Td>
-                        <Td isNumeric>Rp {item.product_price?.toLocaleString('id-ID')}</Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </Box>
-            </CardBody>
-          </Card>
+                  ))}
+                </Tbody>
+              </Table>
+            </Box>
+          </CardBody>
+        </Card>
 
-          {/* Payment details accordion */}
-          {order.payment_response && (
-            <Card mb={6}>
-              <CardHeader p={0}>
-                <Accordion allowToggle>
-                  <AccordionItem border="none">
-                    <AccordionButton py={4} px={6}>
-                      <Box as="span" flex='1' textAlign='left'>
-                        <Heading size="md">Detail Teknis Pembayaran</Heading>
+        {/* Payment details accordion */}
+        {order.payment_response && (
+          <Card mb={6}>
+            <CardHeader p={0}>
+              <Accordion allowToggle defaultIndex={[0]} mt={4}>
+                <AccordionItem>
+                  <h2>
+                    <AccordionButton>
+                      <Box flex="1" textAlign="left">
+                        <Heading size="md">Detail Teknis Pengiriman</Heading>
                       </Box>
                       <AccordionIcon />
                     </AccordionButton>
-                    <AccordionPanel pb={4} px={6}>
-                      <Box 
-                        bg="gray.50" 
-                        p={3} 
-                        borderRadius="md" 
-                        fontFamily="monospace" 
-                        fontSize="sm" 
-                        overflowX="auto"
-                      >
-                        <pre>{JSON.stringify(JSON.parse(order.payment_response), null, 2)}</pre>
-                      </Box>
-                    </AccordionPanel>
-                  </AccordionItem>
-                </Accordion>
-              </CardHeader>
-            </Card>
+                  </h2>
+                  <AccordionPanel pb={4}>
+                    <Tabs variant="enclosed">
+                      <TabList>
+                        <Tab>Status Foto</Tab>
+                        <Tab>QR Code Pengambilan</Tab>
+                      </TabList>
+                      <TabPanels>
+                        <TabPanel>
+                          <VStack spacing={4} align="stretch">
+                            {/* Foto Siap Ambil */}
+                            <Box borderWidth="1px" borderRadius="lg" p={4}>
+                              <Heading size="sm" mb={2}>Siap Ambil</Heading>
+                              {uploadedImages.readyForPickup ? (
+                                <Box position="relative">
+                                  <Image 
+                                    src={uploadedImages.readyForPickup} 
+                                    alt="Siap Ambil" 
+                                    maxH="200px"
+                                    borderRadius="md" 
+                                  />
+                                  <Button 
+                                    size="xs" 
+                                    colorScheme="red" 
+                                    position="absolute" 
+                                    top="2" 
+                                    right="2"
+                                    onClick={() => {
+                                      setUploadedImages(prev => ({
+                                        ...prev,
+                                        readyForPickup: null
+                                      }));
+                                    }}
+                                  >
+                                    Hapus
+                                  </Button>
+                                </Box>
+                              ) : (
+                                <Button 
+                                  onClick={() => fileInputRefs.readyForPickup.current.click()}
+                                  isLoading={isUploading}
+                                >
+                                  Upload Foto
+                                </Button>
+                              )}
+                              <Input 
+                                type="file" 
+                                accept="image/*" 
+                                hidden 
+                                ref={fileInputRefs.readyForPickup} 
+                                onChange={(e) => handleImageUpload(e, 'readyForPickup')}
+                              />
+                            </Box>
+                            
+                            {/* Foto Sudah Diambil */}
+                            <Box borderWidth="1px" borderRadius="lg" p={4}>
+                              <Heading size="sm" mb={2}>Sudah Diambil</Heading>
+                              {uploadedImages.pickedUp ? (
+                                <Box position="relative">
+                                  <Image 
+                                    src={uploadedImages.pickedUp} 
+                                    alt="Sudah Diambil" 
+                                    maxH="200px"
+                                    borderRadius="md" 
+                                  />
+                                  <Button 
+                                    size="xs" 
+                                    colorScheme="red" 
+                                    position="absolute" 
+                                    top="2" 
+                                    right="2"
+                                    onClick={() => {
+                                      setUploadedImages(prev => ({
+                                        ...prev,
+                                        pickedUp: null
+                                      }));
+                                    }}
+                                  >
+                                    Hapus
+                                  </Button>
+                                </Box>
+                              ) : (
+                                <Button 
+                                  onClick={() => fileInputRefs.pickedUp.current.click()}
+                                  isLoading={isUploading}
+                                >
+                                  Upload Foto
+                                </Button>
+                              )}
+                              <Input 
+                                type="file" 
+                                accept="image/*" 
+                                hidden 
+                                ref={fileInputRefs.pickedUp} 
+                                onChange={(e) => handleImageUpload(e, 'pickedUp')}
+                              />
+                            </Box>
+                            
+                            {/* Foto Sudah Diterima */}
+                            <Box borderWidth="1px" borderRadius="lg" p={4}>
+                              <Heading size="sm" mb={2}>Sudah Diterima</Heading>
+                              {uploadedImages.received ? (
+                                <Box position="relative">
+                                  <Image 
+                                    src={uploadedImages.received} 
+                                    alt="Sudah Diterima" 
+                                    maxH="200px"
+                                    borderRadius="md" 
+                                  />
+                                  <Button 
+                                    size="xs" 
+                                    colorScheme="red" 
+                                    position="absolute" 
+                                    top="2" 
+                                    right="2"
+                                    onClick={() => {
+                                      setUploadedImages(prev => ({
+                                        ...prev,
+                                        received: null
+                                      }));
+                                    }}
+                                  >
+                                    Hapus
+                                  </Button>
+                                </Box>
+                              ) : (
+                                <Button 
+                                  onClick={() => fileInputRefs.received.current.click()}
+                                  isLoading={isUploading}
+                                >
+                                  Upload Foto
+                                </Button>
+                              )}
+                              <Input 
+                                type="file" 
+                                accept="image/*" 
+                                hidden 
+                                ref={fileInputRefs.received} 
+                                onChange={(e) => handleImageUpload(e, 'received')}
+                              />
+                            </Box>
+                            
+                            <Button 
+                              colorScheme="blue" 
+                              onClick={handleSaveImages}
+                              isLoading={isUploading}
+                            >
+                              Simpan Semua Foto
+                            </Button>
+                          </VStack>
+                        </TabPanel>
+                        <TabPanel>
+                          <VStack spacing={4} align="center">
+                            <Heading size="sm">QR Code Pengambilan</Heading>
+                            <Box p={4} borderWidth="1px" borderRadius="lg" bg="white">
+                              <QRCodeSVG 
+                                value={`https://tagihan.kurniasari.co.id/admin/orders/${order.id}`} 
+                                size={200}
+                                includeMargin={true}
+                                level="H"
+                              />
+                            </Box>
+                            <Text fontSize="sm">URL: https://tagihan.kurniasari.co.id/admin/orders/{order.id}</Text>
+                            <Button colorScheme="blue" onClick={() => window.print()}>
+                              Cetak QR Code
+                            </Button>
+                          </VStack>
+                        </TabPanel>
+                      </TabPanels>
+                    </Tabs>
+                  </AccordionPanel>
+                </AccordionItem>
+              </Accordion>
+            </CardHeader>
+          </Card>
           )}
         </GridItem>
 

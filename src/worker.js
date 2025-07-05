@@ -3,6 +3,7 @@ import { Router } from 'itty-router';
 import { createOrder, getOrders, getOrderById, updateOrderStatus, refreshOrderStatus, getAdminOrders, deleteOrder } from './handlers/orders.js';
 import { markOrderAsReceived } from './handlers/received.js';
 import { getProducts, createProduct, updateProduct, deleteProduct } from './handlers/products.js';
+import { handleRequest as handleShippingRequest } from './handlers/shipping.js';
 
 
 console.log('Initializing router');
@@ -121,6 +122,12 @@ router.put('/api/products/:id', (request, env) => {
 router.delete('/api/products/:id', (request, env) => {
     request.corsHeaders = corsHeaders;
     return deleteProduct(request, env);
+});
+
+// Shipping endpoints for image uploads and management
+router.all('/api/shipping/*', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return handleShippingRequest(request, env);
 });
 
 // Configuration endpoint (for debugging)

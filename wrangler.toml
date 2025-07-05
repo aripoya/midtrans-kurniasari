@@ -15,6 +15,11 @@ database_name = "order-management-local-db"
 # The database_id is just a placeholder for local development and is not used by the file-based DB.
 database_id = "00000000-0000-0000-0000-000000000000"
 
+# R2 Storage binding for local development
+[[r2_buckets]]
+binding = "SHIPPING_IMAGES" # Name this binding will have in your Worker
+bucket_name = "kurniasari-shipping-images"
+
 # --- Production Environment Configuration ---
 # Used when running `wrangler deploy --env production`
 [env.production]
@@ -30,3 +35,8 @@ APP_NAME = "Order Management System"
 binding = "DB"
 database_name = "order-management-prod"
 database_id = "f6cb67ec-b81a-4d0c-a1e4-33929af8d205"
+
+# Production R2 bucket binding
+[[env.production.r2_buckets]]
+binding = "SHIPPING_IMAGES"
+bucket_name = "kurniasari-shipping-images"
