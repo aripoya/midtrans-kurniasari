@@ -603,91 +603,234 @@ export async function updateOrderDetails(request, env) {
   try {
     const url = new URL(request.url);
     const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id/details
-    const data = await request.json();
-    const { status, admin_note, shipping_area, pickup_method } = data;
-
-    if (!orderId || !status) {
-      return new Response(JSON.stringify({ success: false, error: 'Order ID and status are required' }), 
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    
+    console.log(`[updateOrderDetails] Processing update for order: ${orderId}`);
+    
+    // Parse request body dengan safe error handling
+    let data;
+    try {
+      data = await request.json();
+      console.log(`[updateOrderDetails] Request data:`, JSON.stringify(data));
+    } catch (parseError) {
+      console.error(`[updateOrderDetails] Failed to parse request body:`, parseError);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Invalid request body format',
+        details: parseError.message
+      }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+    
+    const { status, admin_note, shipping_area, pickup_method, metode_pengiriman } = data;
 
-    const allowedStatuses = ['dikemas', 'siap kirim', 'sedang dikirim', 'received'];
-    if (!allowedStatuses.includes(status)) {
-      return new Response(JSON.stringify({ success: false, error: 'Invalid status value' }), 
+    // Validasi dasar
+    if (!orderId) {
+      console.error(`[updateOrderDetails] Missing order ID`);
+      return new Response(JSON.stringify({ success: false, error: 'Order ID is required' }), 
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
-    // Validasi area pengiriman
-    const allowedShippingAreas = ['dalam-kota', 'luar-kota'];
-    if (shipping_area && !allowedShippingAreas.includes(shipping_area)) {
-      return new Response(JSON.stringify({ success: false, error: 'Invalid shipping area value' }), 
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // Pastikan order ID ada di database
+    try {
+      const orderCheck = await env.DB.prepare(`SELECT id FROM orders WHERE id = ?`).bind(orderId).first();
+      if (!orderCheck) {
+        console.error(`[updateOrderDetails] Order not found: ${orderId}`);
+        return new Response(JSON.stringify({ success: false, error: 'Order not found' }), 
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+    } catch (dbError) {
+      console.error(`[updateOrderDetails] Error checking order existence:`, dbError);
+      throw dbError; // Re-throw untuk ditangkap di catch utama
     }
+
+    // Persiapkan query dan parameter update
+    let updateFields = [];
+    let updateParams = [];
     
-    // Validasi metode pengambilan (hanya untuk dalam kota)
-    if (shipping_area === 'dalam-kota') {
-      const allowedPickupMethods = ['sendiri', 'ojek-online'];
-      if (pickup_method && !allowedPickupMethods.includes(pickup_method)) {
-        return new Response(JSON.stringify({ success: false, error: 'Invalid pickup method value' }), 
+    // Hanya update field yang diberikan dalam request
+    if (status !== undefined) {
+      const allowedStatuses = ['dikemas', 'siap kirim', 'sedang dikirim', 'received'];
+      if (!allowedStatuses.includes(status)) {
+        console.error(`[updateOrderDetails] Invalid status: ${status}`);
+        return new Response(JSON.stringify({ success: false, error: `Invalid status value. Allowed values: ${allowedStatuses.join(', ')}` }), 
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
+      updateFields.push('shipping_status = ?');
+      updateParams.push(status);
+    }
+    
+    if (admin_note !== undefined) {
+      updateFields.push('admin_note = ?');
+      updateParams.push(admin_note || null); // Konversi string kosong ke null
+    }
+    
+    if (shipping_area !== undefined) {
+      const allowedShippingAreas = ['dalam-kota', 'luar-kota'];
+      if (shipping_area && !allowedShippingAreas.includes(shipping_area)) {
+        console.error(`[updateOrderDetails] Invalid shipping_area: ${shipping_area}`);
+        return new Response(JSON.stringify({ success: false, error: `Invalid shipping area value. Allowed values: ${allowedShippingAreas.join(', ')}` }), 
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      updateFields.push('shipping_area = ?');
+      updateParams.push(shipping_area || null);
+    }
+    
+    if (pickup_method !== undefined) {
+      // Validasi pickup_method hanya jika shipping_area adalah 'dalam-kota'
+      if (shipping_area === 'dalam-kota' || 
+         (shipping_area === undefined && data.shipping_area === 'dalam-kota')) {
+        const allowedPickupMethods = ['sendiri', 'ojek-online'];
+        if (pickup_method && !allowedPickupMethods.includes(pickup_method)) {
+          console.error(`[updateOrderDetails] Invalid pickup_method: ${pickup_method}`);
+          return new Response(JSON.stringify({ success: false, error: `Invalid pickup method value. Allowed values: ${allowedPickupMethods.join(', ')}` }), 
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+      }
+      updateFields.push('pickup_method = ?');
+      updateParams.push(pickup_method || null);
+    }
+    
+    // Validasi dan proses metode_pengiriman
+    if (metode_pengiriman !== undefined) {
+      const allowedDeliveryMethods = ['ojek-online', 'team-delivery'];
+      if (metode_pengiriman && !allowedDeliveryMethods.includes(metode_pengiriman)) {
+        console.error(`[updateOrderDetails] Invalid metode_pengiriman: ${metode_pengiriman}`);
+        return new Response(JSON.stringify({ success: false, error: `Invalid delivery method value. Allowed values: ${allowedDeliveryMethods.join(', ')}` }), 
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      updateFields.push('metode_pengiriman = ?');
+      updateParams.push(metode_pengiriman || null);
+    }
+    
+    // Tambahkan updated_at dan ID
+    updateFields.push('updated_at = CURRENT_TIMESTAMP');
+    updateParams.push(orderId); // Untuk WHERE clause
+    
+    // Jika tidak ada field yang diupdate
+    if (updateFields.length <= 1) { // Hanya updated_at
+      console.warn(`[updateOrderDetails] No fields to update for order: ${orderId}`);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'No fields provided to update' 
+      }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (!env.DB) {
+      console.error(`[updateOrderDetails] Database binding not found`);
       throw new Error("Database binding not found.");
     }
     
-    // Cek apakah perlu menambahkan kolom baru di tabel orders
+    // Cek apakah kolom shipping_area, pickup_method, dan admin_note ada di tabel
     try {
-      // Coba cek dulu apakah kolom sudah ada
-      await env.DB.prepare("SELECT shipping_area, pickup_method FROM orders LIMIT 1").first();
+      console.log(`[updateOrderDetails] Checking if columns exist in orders table`);
+      await env.DB.prepare("SELECT shipping_area, pickup_method, admin_note FROM orders LIMIT 1").first();
+      console.log(`[updateOrderDetails] All required columns exist, proceeding with update`);
     } catch (e) {
       if (e.message.includes('no such column')) {
         // Kolom belum ada, tambahkan kolom baru
-        console.log('Adding new columns to orders table: shipping_area, pickup_method');
-        await env.DB.prepare('ALTER TABLE orders ADD COLUMN shipping_area TEXT DEFAULT NULL').run();
-        await env.DB.prepare('ALTER TABLE orders ADD COLUMN pickup_method TEXT DEFAULT NULL').run();
-        console.log('Columns added successfully');
+        console.log(`[updateOrderDetails] Adding missing columns to orders table`);
+        try {
+          // Cek keberadaan kolom shipping_area
+          try {
+            await env.DB.prepare("SELECT shipping_area FROM orders LIMIT 1").first();
+            console.log(`[updateOrderDetails] Column shipping_area already exists`);
+          } catch (columnError) {
+            if (columnError.message.includes('no such column: shipping_area')) {
+              console.log(`[updateOrderDetails] Adding column shipping_area`);
+              await env.DB.prepare('ALTER TABLE orders ADD COLUMN shipping_area TEXT DEFAULT NULL').run();
+            } else {
+              throw columnError;
+            }
+          }
+          
+          // Cek keberadaan kolom pickup_method
+          try {
+            await env.DB.prepare("SELECT pickup_method FROM orders LIMIT 1").first();
+            console.log(`[updateOrderDetails] Column pickup_method already exists`);
+          } catch (columnError) {
+            if (columnError.message.includes('no such column: pickup_method')) {
+              console.log(`[updateOrderDetails] Adding column pickup_method`);
+              await env.DB.prepare('ALTER TABLE orders ADD COLUMN pickup_method TEXT DEFAULT NULL').run();
+            } else {
+              throw columnError;
+            }
+          }
+          
+          // Cek keberadaan kolom admin_note
+          try {
+            await env.DB.prepare("SELECT admin_note FROM orders LIMIT 1").first();
+            console.log(`[updateOrderDetails] Column admin_note already exists`);
+          } catch (columnError) {
+            if (columnError.message.includes('no such column: admin_note')) {
+              console.log(`[updateOrderDetails] Adding column admin_note`);
+              await env.DB.prepare('ALTER TABLE orders ADD COLUMN admin_note TEXT DEFAULT NULL').run();
+            } else {
+              throw columnError;
+            }
+          }
+          
+          // Cek keberadaan kolom metode_pengiriman
+          try {
+            await env.DB.prepare("SELECT metode_pengiriman FROM orders LIMIT 1").first();
+            console.log(`[updateOrderDetails] Column metode_pengiriman already exists`);
+          } catch (columnError) {
+            if (columnError.message.includes('no such column: metode_pengiriman')) {
+              console.log(`[updateOrderDetails] Adding column metode_pengiriman`);
+              await env.DB.prepare('ALTER TABLE orders ADD COLUMN metode_pengiriman TEXT DEFAULT NULL').run();
+            } else {
+              throw columnError;
+            }
+          }
+          
+          console.log(`[updateOrderDetails] All missing columns added successfully`);
+        } catch (alterError) {
+          console.error(`[updateOrderDetails] Error adding columns:`, alterError);
+          throw alterError; // Re-throw untuk ditangkap di catch utama
+        }
       } else {
+        console.error(`[updateOrderDetails] Error checking columns:`, e);
         throw e; // Re-throw jika error bukan karena kolom tidak ada
       }
     }
 
-    // Update data pesanan
-    let updateQuery = `
-      UPDATE orders SET 
-        shipping_status = ?, 
-        admin_note = ?,
-        shipping_area = ?,
-        pickup_method = ?,
-        updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `;
+    // Build query string
+    const updateQuery = `UPDATE orders SET ${updateFields.join(', ')} WHERE id = ?`;
+    console.log(`[updateOrderDetails] Update query: ${updateQuery}`);
+    console.log(`[updateOrderDetails] Update params:`, JSON.stringify(updateParams));
     
-    const updateResult = await env.DB.prepare(updateQuery)
-      .bind(
-        status, 
-        admin_note || null, 
-        shipping_area || null, 
-        pickup_method || null, 
-        orderId
-      ).run();
+    // Execute query
+    let updateResult;
+    try {
+      updateResult = await env.DB.prepare(updateQuery).bind(...updateParams).run();
+      console.log(`[updateOrderDetails] Update result:`, JSON.stringify(updateResult.meta));
+    } catch (dbError) {
+      console.error(`[updateOrderDetails] Database error during update:`, dbError);
+      throw dbError; // Re-throw untuk ditangkap di catch utama
+    }
 
-    if (updateResult.meta.changes === 0) {
+    // Check if update was successful
+    if (!updateResult || updateResult.meta.changes === 0) {
+      console.warn(`[updateOrderDetails] No rows updated for order: ${orderId}`);
       return new Response(JSON.stringify({ 
         success: false, 
         error: 'Order not found or details unchanged' 
       }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    console.log(`[updateOrderDetails] Successfully updated order: ${orderId}`);
     return new Response(JSON.stringify({ 
       success: true, 
       message: 'Order details updated successfully',
-      data: { status, shipping_area, pickup_method }
+      data: { 
+        orderId,
+        status: status || undefined, 
+        shipping_area: shipping_area || undefined, 
+        pickup_method: pickup_method || undefined,
+        admin_note: admin_note || undefined
+      }
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {
-    console.error('Update Order Details Error:', error.message, error.stack);
+    console.error(`[updateOrderDetails] Unhandled error:`, error.message, error.stack);
     return new Response(JSON.stringify({ 
       success: false, 
       error: 'Failed to update order details',

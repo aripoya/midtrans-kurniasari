@@ -39,19 +39,37 @@ export const adminApi = {
   // Update detail pesanan termasuk status pengiriman, area pengiriman dan metode pengambilan
   updateOrderDetails: async (orderId, shippingData) => {
     try {
+      // Debug logs untuk membantu troubleshooting
+      console.group('updateOrderDetails - Request Details');
+      console.log('Order ID:', orderId);
+      console.log('API URL:', `${API_BASE_URL}/api/orders/${orderId}/details`);
+      console.log('Request Payload:', JSON.stringify(shippingData, null, 2));
+      console.groupEnd();
+      
       // shippingData berisi status, admin_note, shipping_area, dan pickup_method
       const response = await axios.patch(
         `${API_BASE_URL}/api/orders/${orderId}/details`,
         shippingData,
         {
           headers: {
+            'Content-Type': 'application/json',
             Authorization: `Bearer ${getAdminToken()}`
           }
         }
       );
+      
+      // Debug log for response
+      console.log('updateOrderDetails - Response:', response.data);
+      
       return { data: response.data, error: null };
     } catch (error) {
+      console.group('updateOrderDetails - Error Details');
       console.error('Error updating order details:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      console.error('Error message:', error.message);
+      console.groupEnd();
+      
       return {
         data: null,
         error: error.response?.data?.error || error.message || 'Error saat memperbarui detail pesanan'

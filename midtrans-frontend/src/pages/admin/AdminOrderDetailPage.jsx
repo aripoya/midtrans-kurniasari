@@ -26,6 +26,7 @@ function AdminOrderDetailPage() {
   const [shippingStatus, setShippingStatus] = useState('');
   const [adminNote, setAdminNote] = useState('');
   const [savedAdminNote, setSavedAdminNote] = useState('');
+  const [metodePengiriman, setMetodePengiriman] = useState('');
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [isDeletingNote, setIsDeletingNote] = useState(false);
@@ -83,11 +84,27 @@ function AdminOrderDetailPage() {
         }
         setOrder(finalOrder);
         setShippingStatus(finalOrder.shipping_status || '');
-      // Cek jika ada catatan admin yang tersimpan
-      if (finalOrder.admin_note) {
-        setSavedAdminNote(finalOrder.admin_note);
-        setAdminNote(finalOrder.admin_note);
-      }
+        
+        // Set shipping area dan pickup method
+        if (finalOrder.shipping_area) {
+          setShippingArea(finalOrder.shipping_area);
+        }
+        
+        if (finalOrder.pickup_method) {
+          setPickupMethod(finalOrder.pickup_method);
+        }
+        
+        // Set metode pengiriman jika tersedia
+        if (finalOrder.metode_pengiriman) {
+          setMetodePengiriman(finalOrder.metode_pengiriman);
+          console.log('[AdminOrderDetailPage] Metode pengiriman loaded:', finalOrder.metode_pengiriman);
+        }
+        
+        // Cek jika ada catatan admin yang tersimpan
+        if (finalOrder.admin_note) {
+          setSavedAdminNote(finalOrder.admin_note);
+          setAdminNote(finalOrder.admin_note);
+        }
       } else {
         console.error('[AdminOrderDetailPage] Order not found or API returned error');
         setError(`Pesanan tidak ditemukan.`);
@@ -259,47 +276,98 @@ function AdminOrderDetailPage() {
       setIsRefreshing(false);
     }
   };
-
+  
   // Function for updating shipping status using adminApi
   const handleUpdateStatus = async () => {
     setIsUpdating(true);
     try {
-      // Buat objek data dengan semua informasi pengiriman
-      const shippingData = {
-        status: shippingStatus,
-        admin_note: adminNote,
-        shipping_area: shippingArea,
-        pickup_method: shippingArea === 'dalam-kota' ? pickupMethod : null
-      };
+      // Normalisasi nilai untuk memastikan sesuai dengan ekspektasi backend
+      // Backend mengharapkan nilai string yang valid atau null, bukan undefined
+      const normalizedStatus = shippingStatus?.trim() || null;
+      const normalizedAdminNote = adminNote?.trim() || null;
+      const normalizedShippingArea = shippingArea?.trim() || null;
+      const normalizedPickupMethod = pickupMethod?.trim() || null;
+      const normalizedMetodePengiriman = metodePengiriman?.trim() || null;
       
-      const response = await adminApi.updateOrderDetails(id, shippingData);
-      
-      if (response.error) {
-        throw new Error(response.error);
+      // Validasi status sebelum mengirim ke server
+      const allowedStatuses = ['dikemas', 'siap kirim', 'sedang dikirim', 'received'];
+      if (normalizedStatus && !allowedStatuses.includes(normalizedStatus)) {
+        throw new Error(`Status tidak valid. Nilai yang diperbolehkan: ${allowedStatuses.join(', ')}`);
       }
       
-      // Update local state
-      setOrder(prev => ({
-        ...prev,
-        shipping_status: shippingStatus,
-        shipping_area: shippingArea,
-        pickup_method: shippingArea === 'dalam-kota' ? pickupMethod : null
-      }));
+      // Validasi shipping area
+      const allowedShippingAreas = ['dalam-kota', 'luar-kota'];
+      if (normalizedShippingArea && !allowedShippingAreas.includes(normalizedShippingArea)) {
+        throw new Error(`Area pengiriman tidak valid. Nilai yang diperbolehkan: ${allowedShippingAreas.join(', ')}`);
+      }
       
-      // Update saved admin note
-      setSavedAdminNote(adminNote);
+      // Validasi pickup method jika shipping area adalah dalam-kota
+      if (normalizedShippingArea === 'dalam-kota') {
+        const allowedPickupMethods = ['sendiri', 'ojek-online'];
+        if (normalizedPickupMethod && !allowedPickupMethods.includes(normalizedPickupMethod)) {
+          throw new Error(`Metode pengambilan tidak valid. Nilai yang diperbolehkan: ${allowedPickupMethods.join(', ')}`);
+        }
+      }
       
+      // Buat objek data dengan nilai yang sudah dinormalisasi dan validasi
+      const shippingData = {};
+      
+      // Siapkan data yang akan dikirim ke server
+      if (normalizedStatus) shippingData.status = normalizedStatus;
+      if (normalizedAdminNote !== null) shippingData.admin_note = normalizedAdminNote;
+      if (normalizedShippingArea) shippingData.shipping_area = normalizedShippingArea;
+      if (normalizedShippingArea === 'dalam-kota' && normalizedPickupMethod) {
+        shippingData.pickup_method = normalizedPickupMethod;
+      }
+      if (normalizedMetodePengiriman) shippingData.metode_pengiriman = normalizedMetodePengiriman;
+      // Validasi apakah ada data yang akan diupdate
+      if (Object.keys(shippingData).length === 0) {
+        throw new Error('Tidak ada data yang diubah. Masukkan minimal satu field untuk diperbarui.');
+      }
+      
+      console.log('Mengirim data update ke server:', {
+        orderId: id,
+        shippingData
+      });
+      
+      const response = await adminApi.updateOrderDetails(id, shippingData);
+      console.group('handleUpdateStatus - Response Details');
+      console.log('Response dari server:', response);
+      console.log('Response data:', response.data);
+      console.log('Response error:', response.error);
+      console.groupEnd();
+      
+      if (response.error) {
+        console.error('Error response dari server:', response.error);
+        throw new Error(response.error);
+      }
+
+      // Update local state if successful
+      setOrder(prev => {
+        const updated = {
+          ...prev,
+          shipping_status: normalizedStatus || prev.shipping_status,
+          shipping_area: normalizedShippingArea || prev.shipping_area,
+          pickup_method: normalizedPickupMethod || prev.pickup_method
+        };
+        console.log('State order diperbarui:', updated);
+        return updated;
+      });
+      setSavedAdminNote(normalizedAdminNote || '');
+      
+      // Show success notification
       toast({
-        title: "Informasi pesanan diperbarui",
-        description: `Status berhasil diubah menjadi: ${shippingStatus}`,
+        title: "Status pesanan berhasil diperbarui",
+        description: `Data pesanan berhasil diperbarui`,
         status: "success",
         duration: 3000,
         isClosable: true,
       });
     } catch (err) {
+      console.error('Error saat memperbarui status pesanan:', err);
       toast({
         title: "Gagal memperbarui informasi pesanan",
-        description: err.message,
+        description: err.message || 'Terjadi kesalahan pada server',
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -1426,6 +1494,19 @@ return (
                     </Select>
                   </FormControl>
                 )}
+                
+                {/* Metode Pengiriman, tampilkan untuk semua tipe pengiriman */}
+                <FormControl mt={3}>
+                  <FormLabel>Metode Pengiriman</FormLabel>
+                  <Select
+                    value={metodePengiriman}
+                    onChange={(e) => setMetodePengiriman(e.target.value)}
+                    placeholder="Pilih metode pengiriman"
+                  >
+                    <option value="ojek-online">Ojek Online</option>
+                    <option value="team-delivery">Team Delivery</option>
+                  </Select>
+                </FormControl>
                 
                 {shippingArea === 'luar-kota' && (
                   <>
