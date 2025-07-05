@@ -52,6 +52,7 @@ function AdminOrderDetailPage() {
   const [pickupMethod, setPickupMethod] = useState('sendiri'); // Default: sendiri (sendiri | ojek-online)
   const [courierService, setCourierService] = useState(''); // TIKI, JNE, atau custom
   const [trackingNumber, setTrackingNumber] = useState(''); // Nomor Resi
+  const [trackingNumberError, setTrackingNumberError] = useState(''); // Error untuk validasi nomor resi
 
   const fetchOrder = async () => {
     try {
@@ -1274,26 +1275,76 @@ return (
                       <HStack spacing={4}>
                         <Checkbox 
                           isChecked={courierService === 'TIKI'}
-                          onChange={(e) => setCourierService(e.target.checked ? 'TIKI' : '')}
+                          onChange={(e) => {
+                            const newService = e.target.checked ? 'TIKI' : '';
+                            setCourierService(newService);
+                            
+                            // Reset error ketika layanan berubah
+                            if (trackingNumber) {
+                              if (newService === 'TIKI' && trackingNumber.length !== 16) {
+                                setTrackingNumberError('Nomor resi TIKI harus 16 digit');
+                              } else if (newService === 'JNE' && trackingNumber.length !== 15) {
+                                setTrackingNumberError('Nomor resi JNE harus 15 digit');
+                              } else {
+                                setTrackingNumberError('');
+                              }
+                            }
+                          }}
                         >
-                          TIKI
+                          TIKI (16 digit)
                         </Checkbox>
                         <Checkbox 
                           isChecked={courierService === 'JNE'}
-                          onChange={(e) => setCourierService(e.target.checked ? 'JNE' : '')}
+                          onChange={(e) => {
+                            const newService = e.target.checked ? 'JNE' : '';
+                            setCourierService(newService);
+                            
+                            // Reset error ketika layanan berubah
+                            if (trackingNumber) {
+                              if (newService === 'TIKI' && trackingNumber.length !== 16) {
+                                setTrackingNumberError('Nomor resi TIKI harus 16 digit');
+                              } else if (newService === 'JNE' && trackingNumber.length !== 15) {
+                                setTrackingNumberError('Nomor resi JNE harus 15 digit');
+                              } else {
+                                setTrackingNumberError('');
+                              }
+                            }
+                          }}
                         >
-                          JNE
+                          JNE (15 digit)
                         </Checkbox>
                       </HStack>
                     </FormControl>
                     
-                    <FormControl>
+                    <FormControl isInvalid={trackingNumberError !== ''}>
                       <FormLabel>Nomor Resi</FormLabel>
                       <Input
                         value={trackingNumber}
-                        onChange={(e) => setTrackingNumber(e.target.value)}
-                        placeholder="Masukkan nomor resi pengiriman"
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setTrackingNumber(value);
+                          
+                          // Hanya izinkan karakter angka
+                          if (value && !/^\d*$/.test(value)) {
+                            setTrackingNumberError('Nomor resi hanya boleh berisi angka');
+                            return;
+                          }
+                          
+                          // Validasi panjang berdasarkan jasa kurir
+                          if (courierService === 'TIKI' && value && value.length !== 16) {
+                            setTrackingNumberError('Nomor resi TIKI harus 16 digit');
+                          } else if (courierService === 'JNE' && value && value.length !== 15) {
+                            setTrackingNumberError('Nomor resi JNE harus 15 digit');
+                          } else {
+                            setTrackingNumberError('');
+                          }
+                        }}
+                        placeholder={`Masukkan nomor resi ${courierService === 'TIKI' ? 'TIKI (16 digit)' : courierService === 'JNE' ? 'JNE (15 digit)' : 'pengiriman'}`}
+                        maxLength={courierService === 'TIKI' ? 16 : courierService === 'JNE' ? 15 : undefined}
                       />
+                      {trackingNumberError && (
+                        <FormLabel color="red.500" fontSize="sm">{trackingNumberError}</FormLabel>
+                      )}
                     </FormControl>
                   </>
                 )}
