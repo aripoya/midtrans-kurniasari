@@ -16,6 +16,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { orderService } from '../../api/orderService';
 import { refreshOrderStatus } from '../../api/api';
 import { adminApi } from '../../api/adminApi';
+import html2canvas from 'html2canvas';
 
 function AdminOrderDetailPage() {
   const { id } = useParams();
@@ -946,7 +947,7 @@ return (
                         <TabPanel>
                           <VStack spacing={4} align="center">
                             <Heading size="sm">QR Code Pengambilan</Heading>
-                            <Box p={4} borderWidth="1px" borderRadius="lg" bg="white">
+                            <Box id="qr-code-container" p={4} borderWidth="1px" borderRadius="lg" bg="white">
                               <QRCodeSVG 
                                 value={`https://tagihan.kurniasari.co.id/admin/orders/${order.id}`} 
                                 size={200}
@@ -958,8 +959,9 @@ return (
                             <Text fontSize="sm">URL: https://tagihan.kurniasari.co.id/admin/orders/{order.id}</Text>
                             <Button colorScheme="blue" onClick={() => {
                               try {
-                                // Gunakan ref untuk mengakses QR code SVG
-                                if (!qrCodeRef.current) {
+                                // Gunakan element QR code container untuk screenshot
+                                const qrCodeContainer = document.getElementById('qr-code-container');
+                                if (!qrCodeContainer) {
                                   toast({
                                     title: "Gagal mengunduh QR Code",
                                     description: "QR Code tidak tersedia",
@@ -970,25 +972,14 @@ return (
                                   return;
                                 }
                                 
-                                // Buat canvas untuk render QR Code
-                                const canvas = document.createElement('canvas');
-                                canvas.width = 240; // 200 + margin
-                                canvas.height = 240;
-                                
-                                // Membuat gambar dari SVG untuk dirender ke Canvas
-                                const svgData = new XMLSerializer().serializeToString(qrCodeRef.current);
-                                const imgSrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
-                                
-                                const img = new Image();
-                                img.onload = () => {
-                                  // Render ke canvas
-                                  const ctx = canvas.getContext('2d');
-                                  ctx.fillStyle = 'white';
-                                  ctx.fillRect(0, 0, canvas.width, canvas.height);
-                                  ctx.drawImage(img, 20, 20, 200, 200);
-                                  
-                                  // Download sebagai PNG
+                                // Gunakan html2canvas untuk mengambil screenshot elemen
+                                html2canvas(qrCodeContainer, {
+                                  backgroundColor: "#ffffff",
+                                  scale: 2, // Scale untuk kualitas lebih baik
+                                  logging: false
+                                }).then(canvas => {
                                   try {
+                                    // Konversi canvas ke URL dan download
                                     const link = document.createElement('a');
                                     link.download = `QR-${order.id}.png`;
                                     link.href = canvas.toDataURL('image/png');
@@ -1012,20 +1003,16 @@ return (
                                       isClosable: true
                                     });
                                   }
-                                };
-                                
-                                img.onerror = (err) => {
-                                  console.error('Error loading QR code image:', err);
+                                }).catch(err => {
+                                  console.error('Error capturing QR code with html2canvas:', err);
                                   toast({
-                                    title: "Gagal memuat QR Code",
-                                    description: "Tidak dapat memuat gambar QR Code",
+                                    title: "Gagal mengambil gambar QR Code",
+                                    description: err.message,
                                     status: "error",
                                     duration: 3000,
                                     isClosable: true
                                   });
-                                };
-                                
-                                img.src = imgSrc;
+                                });
                               } catch (err) {
                                 console.error('Error creating QR code download:', err);
                                 toast({
