@@ -951,11 +951,33 @@ return (
                                 size={200}
                                 includeMargin={true}
                                 level="H"
+                                className="qr-code-svg"
                               />
                             </Box>
                             <Text fontSize="sm">URL: https://tagihan.kurniasari.co.id/admin/orders/{order.id}</Text>
-                            <Button colorScheme="blue" onClick={() => window.print()}>
-                              Cetak QR Code
+                            <Button colorScheme="blue" onClick={() => {
+                              // Buat canvas dari QR code SVG
+                              const svg = document.querySelector('.qr-code-svg');
+                              const canvas = document.createElement('canvas');
+                              const ctx = canvas.getContext('2d');
+                              const svgData = new XMLSerializer().serializeToString(svg);
+                              const img = new Image();
+                              
+                              img.onload = () => {
+                                canvas.width = img.width;
+                                canvas.height = img.height;
+                                ctx.drawImage(img, 0, 0);
+                                
+                                // Download sebagai PNG
+                                const link = document.createElement('a');
+                                link.download = `QR-${order.id}.png`;
+                                link.href = canvas.toDataURL('image/png');
+                                link.click();
+                              };
+                              
+                              img.src = `data:image/svg+xml;base64,${btoa(svgData)}`;
+                            }}>
+                              Download QR Code
                             </Button>
                           </VStack>
                         </TabPanel>
