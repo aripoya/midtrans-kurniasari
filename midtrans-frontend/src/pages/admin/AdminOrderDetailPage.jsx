@@ -43,6 +43,7 @@ function AdminOrderDetailPage() {
     pickedUp: useRef(null),
     received: useRef(null)
   };
+  const qrCodeRef = useRef(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
   const navigate = useNavigate();
@@ -951,31 +952,90 @@ return (
                                 size={200}
                                 includeMargin={true}
                                 level="H"
-                                className="qr-code-svg"
+                                ref={qrCodeRef}
                               />
                             </Box>
                             <Text fontSize="sm">URL: https://tagihan.kurniasari.co.id/admin/orders/{order.id}</Text>
                             <Button colorScheme="blue" onClick={() => {
-                              // Buat canvas dari QR code SVG
-                              const svg = document.querySelector('.qr-code-svg');
-                              const canvas = document.createElement('canvas');
-                              const ctx = canvas.getContext('2d');
-                              const svgData = new XMLSerializer().serializeToString(svg);
-                              const img = new Image();
-                              
-                              img.onload = () => {
-                                canvas.width = img.width;
-                                canvas.height = img.height;
-                                ctx.drawImage(img, 0, 0);
+                              try {
+                                // Gunakan ref untuk mengakses QR code SVG
+                                if (!qrCodeRef.current) {
+                                  toast({
+                                    title: "Gagal mengunduh QR Code",
+                                    description: "QR Code tidak tersedia",
+                                    status: "error",
+                                    duration: 3000,
+                                    isClosable: true
+                                  });
+                                  return;
+                                }
                                 
-                                // Download sebagai PNG
-                                const link = document.createElement('a');
-                                link.download = `QR-${order.id}.png`;
-                                link.href = canvas.toDataURL('image/png');
-                                link.click();
-                              };
-                              
-                              img.src = `data:image/svg+xml;base64,${btoa(svgData)}`;
+                                // Buat canvas untuk render QR Code
+                                const canvas = document.createElement('canvas');
+                                canvas.width = 240; // 200 + margin
+                                canvas.height = 240;
+                                
+                                // Membuat gambar dari SVG untuk dirender ke Canvas
+                                const svgData = new XMLSerializer().serializeToString(qrCodeRef.current);
+                                const imgSrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+                                
+                                const img = new Image();
+                                img.onload = () => {
+                                  // Render ke canvas
+                                  const ctx = canvas.getContext('2d');
+                                  ctx.fillStyle = 'white';
+                                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                  ctx.drawImage(img, 20, 20, 200, 200);
+                                  
+                                  // Download sebagai PNG
+                                  try {
+                                    const link = document.createElement('a');
+                                    link.download = `QR-${order.id}.png`;
+                                    link.href = canvas.toDataURL('image/png');
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                    
+                                    toast({
+                                      title: "QR Code berhasil diunduh",
+                                      status: "success",
+                                      duration: 2000,
+                                      isClosable: true
+                                    });
+                                  } catch (downloadErr) {
+                                    console.error('Error downloading QR code:', downloadErr);
+                                    toast({
+                                      title: "Gagal mengunduh QR Code",
+                                      description: downloadErr.message,
+                                      status: "error",
+                                      duration: 3000,
+                                      isClosable: true
+                                    });
+                                  }
+                                };
+                                
+                                img.onerror = (err) => {
+                                  console.error('Error loading QR code image:', err);
+                                  toast({
+                                    title: "Gagal memuat QR Code",
+                                    description: "Tidak dapat memuat gambar QR Code",
+                                    status: "error",
+                                    duration: 3000,
+                                    isClosable: true
+                                  });
+                                };
+                                
+                                img.src = imgSrc;
+                              } catch (err) {
+                                console.error('Error creating QR code download:', err);
+                                toast({
+                                  title: "Gagal mengunduh QR Code",
+                                  description: err.message,
+                                  status: "error",
+                                  duration: 3000,
+                                  isClosable: true
+                                });
+                              }
                             }}>
                               Download QR Code
                             </Button>
