@@ -1482,7 +1482,7 @@ return (
                   </Select>
                 </FormControl>
                 
-                {/* UI Tipe Pesanan - dua box berdampingan */}
+                {/* UI Tipe Pesanan */}
                 <Box mt={4}>
                   <Heading as="h3" size="md" mb={3}>Tipe Pesanan</Heading>
                   <SimpleGrid columns={2} spacing={4}>
@@ -1491,10 +1491,16 @@ return (
                       p={4}
                       borderWidth="1px"
                       borderRadius="lg"
-                      borderColor={shippingArea === 'dalam-kota' ? "green.500" : "gray.200"}
-                      bg={shippingArea === 'dalam-kota' ? "green.50" : "white"}
+                      borderColor={pickupMethod === 'sendiri' || pickupMethod === 'ojek-online-ambil' ? "green.500" : "gray.200"}
+                      bg={pickupMethod === 'sendiri' || pickupMethod === 'ojek-online-ambil' ? "green.50" : "white"}
                       cursor="pointer"
-                      onClick={() => setShippingArea('dalam-kota')}
+                      onClick={() => {
+                        // Set untuk Pesan Ambil
+                        setShippingArea('dalam-kota');
+                        if (pickupMethod !== 'sendiri' && pickupMethod !== 'ojek-online-ambil') {
+                          setPickupMethod('sendiri'); // Default ke 'sendiri' jika belum dipilih
+                        }
+                      }}
                       _hover={{ borderColor: "green.300" }}
                     >
                       <HStack spacing={3}>
@@ -1513,10 +1519,16 @@ return (
                       p={4}
                       borderWidth="1px"
                       borderRadius="lg"
-                      borderColor={shippingArea === 'luar-kota' ? "green.500" : "gray.200"}
-                      bg={shippingArea === 'luar-kota' ? "green.50" : "white"}
+                      borderColor={metodePengiriman === 'ojek-online' || metodePengiriman === 'team-delivery' ? "green.500" : "gray.200"}
+                      bg={metodePengiriman === 'ojek-online' || metodePengiriman === 'team-delivery' ? "green.50" : "white"}
                       cursor="pointer"
-                      onClick={() => setShippingArea('luar-kota')}
+                      onClick={() => {
+                        // Set untuk Pesan Kirim
+                        setShippingArea('dalam-kota'); // Tetap dalam kota untuk kedua opsi
+                        if (metodePengiriman !== 'ojek-online' && metodePengiriman !== 'team-delivery') {
+                          setMetodePengiriman('ojek-online'); // Default ke 'ojek-online' jika belum dipilih
+                        }
+                      }}
                       _hover={{ borderColor: "green.300" }}
                     >
                       <HStack spacing={3}>
@@ -1532,8 +1544,8 @@ return (
                   </SimpleGrid>
                 </Box>
                 
-                {/* Metode Pengambilan jika Pesan Ambil dipilih */}
-                {shippingArea === 'dalam-kota' && (
+                {/* Metode Ambil - muncul jika Pesan Ambil aktif */}
+                {(pickupMethod === 'sendiri' || pickupMethod === 'ojek-online-ambil') && (
                   <FormControl mt={4}>
                     <FormLabel>Metode Ambil</FormLabel>
                     <Select
@@ -1541,23 +1553,25 @@ return (
                       onChange={(e) => setPickupMethod(e.target.value)}
                     >
                       <option value="sendiri">Ambil Sendiri</option>
-                      <option value="ojek-online">Ojek Online</option>
+                      <option value="ojek-online-ambil">Ojek Online</option>
                     </Select>
                   </FormControl>
                 )}
                 
-                {/* Metode Pengiriman */}
-                <FormControl mt={4}>
-                  <FormLabel>Metode Kirim</FormLabel>
-                  <Select
-                    value={metodePengiriman}
-                    onChange={(e) => setMetodePengiriman(e.target.value)}
-                    placeholder="Pilih metode pengiriman"
-                  >
-                    <option value="ojek-online">Ojek Online</option>
-                    <option value="team-delivery">Team Delivery</option>
-                  </Select>
-                </FormControl>
+                {/* Metode Kirim - muncul jika Pesan Kirim aktif */}
+                {(metodePengiriman === 'ojek-online' || metodePengiriman === 'team-delivery') && (
+                  <FormControl mt={4}>
+                    <FormLabel>Metode Kirim</FormLabel>
+                    <Select
+                      value={metodePengiriman}
+                      onChange={(e) => setMetodePengiriman(e.target.value)}
+                      placeholder="Pilih metode pengiriman"
+                    >
+                      <option value="ojek-online">Ojek Online</option>
+                      <option value="team-delivery">Team Delivery</option>
+                    </Select>
+                  </FormControl>
+                )}
                 
                 {shippingArea === 'luar-kota' && (
                   <>
