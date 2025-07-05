@@ -9,6 +9,7 @@ import {
   StepStatus, StepTitle, Stepper, useBreakpointValue,
   Tag, Container, Link, Image
 } from '@chakra-ui/react';
+import { CheckIcon } from '@chakra-ui/icons';
 import { orderService } from '../api/orderService';
 import { refreshOrderStatus, markOrderAsReceived, getShippingImages } from '../api/api';
 import { useAuth } from '../auth/AuthContext';
@@ -407,7 +408,7 @@ function OrderDetailPage() {
                           zIndex="1"
                         >
                           {normalizeShippingStatus(order.shipping_status) === "dalam pengiriman" ? (
-                            <StepIcon color="white" boxSize="16px" />
+                            <CheckIcon color="white" boxSize="16px" />
                           ) : (
                             <StepNumber fontSize="md" fontWeight="bold" color="gray.700" />
                           )}
