@@ -49,6 +49,9 @@ function AdminOrderDetailPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const [shippingArea, setShippingArea] = useState('dalam-kota'); // Default: dalam-kota (dalam-kota | luar-kota)
+  const [pickupMethod, setPickupMethod] = useState('sendiri'); // Default: sendiri (sendiri | ojek-online)
+  const [courierService, setCourierService] = useState(''); // TIKI, JNE, atau custom
+  const [trackingNumber, setTrackingNumber] = useState(''); // Nomor Resi
 
   const fetchOrder = async () => {
     try {
@@ -765,16 +768,6 @@ return (
                   <Text><strong>Status Pengiriman:</strong></Text>
                   {getShippingStatusBadge(order.shipping_status)}
                 </HStack>
-                <FormControl mt={2}>
-                  <FormLabel><strong>Area Pengiriman:</strong></FormLabel>
-                  <Select 
-                    value={shippingArea} 
-                    onChange={(e) => setShippingArea(e.target.value)}
-                  >
-                    <option value="dalam-kota">Dalam Kota</option>
-                    <option value="luar-kota">Luar Kota</option>
-                  </Select>
-                </FormControl>
                 <Text mt={2}><strong>Metode:</strong> <Tag>{order.payment_method || 'N/A'}</Tag></Text>
                 {order.payment_time && (
                   <Text><strong>Waktu Pembayaran:</strong> {order.payment_time ? `${new Date(order.payment_time).getDate().toString().padStart(2, '0')}-${(new Date(order.payment_time).getMonth() + 1).toString().padStart(2, '0')}-${new Date(order.payment_time).getFullYear()}` : '-'}</Text>
@@ -1249,6 +1242,61 @@ return (
                     <option value="received">Diterima</option>
                   </Select>
                 </FormControl>
+
+                <FormControl>
+                  <FormLabel>Area Pengiriman</FormLabel>
+                  <Select 
+                    value={shippingArea} 
+                    onChange={(e) => setShippingArea(e.target.value)}
+                  >
+                    <option value="dalam-kota">Dalam Kota</option>
+                    <option value="luar-kota">Luar Kota</option>
+                  </Select>
+                </FormControl>
+                
+                {shippingArea === 'dalam-kota' && (
+                  <FormControl>
+                    <FormLabel>Metode Pengambilan</FormLabel>
+                    <Select
+                      value={pickupMethod}
+                      onChange={(e) => setPickupMethod(e.target.value)}
+                    >
+                      <option value="sendiri">Ambil Sendiri</option>
+                      <option value="ojek-online">Ojek Online</option>
+                    </Select>
+                  </FormControl>
+                )}
+                
+                {shippingArea === 'luar-kota' && (
+                  <>
+                    <FormControl>
+                      <FormLabel>Jasa Kurir</FormLabel>
+                      <HStack spacing={4}>
+                        <Checkbox 
+                          isChecked={courierService === 'TIKI'}
+                          onChange={(e) => setCourierService(e.target.checked ? 'TIKI' : '')}
+                        >
+                          TIKI
+                        </Checkbox>
+                        <Checkbox 
+                          isChecked={courierService === 'JNE'}
+                          onChange={(e) => setCourierService(e.target.checked ? 'JNE' : '')}
+                        >
+                          JNE
+                        </Checkbox>
+                      </HStack>
+                    </FormControl>
+                    
+                    <FormControl>
+                      <FormLabel>Nomor Resi</FormLabel>
+                      <Input
+                        value={trackingNumber}
+                        onChange={(e) => setTrackingNumber(e.target.value)}
+                        placeholder="Masukkan nomor resi pengiriman"
+                      />
+                    </FormControl>
+                  </>
+                )}
 
                 <FormControl>
                   <FormLabel>Catatan Admin</FormLabel>
