@@ -270,23 +270,43 @@ function OrderDetailPage() {
     }
   };
   
+  // Helper untuk normalisasi status pengiriman ke 5 status utama
+  const normalizeShippingStatus = (status) => {
+    if (!status) return "menunggu diproses";
+    
+    // Lowercase untuk konsistensi perbandingan
+    const lowercaseStatus = status.toLowerCase();
+    
+    if (lowercaseStatus === "received" || lowercaseStatus === "sudah di terima" || lowercaseStatus === "diterima") {
+      return "diterima";
+    } else if (lowercaseStatus === "sedang dikirim" || lowercaseStatus === "dalam pengiriman") {
+      return "dalam pengiriman";
+    } else if (lowercaseStatus === "siap diambil" || lowercaseStatus === "siap dikirim" || lowercaseStatus === "siap kirim") {
+      return "siap kirim";
+    } else if (lowercaseStatus === "dikemas" || lowercaseStatus === "diproses") {
+      return "dikemas";
+    } else {
+      return "menunggu diproses";
+    }
+  };
+  
   // Fungsi untuk mendapatkan status pengiriman
   const getShippingStatusBadge = () => {
-    if (!order.shipping_status) return <Badge colorScheme="gray">Belum Ada Status</Badge>;
-    if (!order) return null;
+    if (!order || !order.shipping_status) return <Badge colorScheme="gray">Menunggu Diproses</Badge>;
     
-    if (order.shipping_status === 'received') {
-      return <Badge colorScheme="green">Pesanan Diterima</Badge>;
-    } else if (shippingImages.delivered) {
-      return <Badge colorScheme="green">Pesanan Terkirim</Badge>;
-    } else if (shippingImages.picked_up) {
-      return <Badge colorScheme="blue">Pesanan Diambil</Badge>;
-    } else if (shippingImages.ready_for_pickup) {
-      return <Badge colorScheme="yellow">Siap Diambil</Badge>;
-    } else if (order.payment_status === 'settlement' || order.payment_status === 'capture' || order.payment_status === 'paid') {
-      return <Badge colorScheme="orange">Diproses</Badge>;
-    } else {
-      return <Badge colorScheme="gray">Menunggu Pembayaran</Badge>;
+    const normalizedStatus = normalizeShippingStatus(order.shipping_status);
+    
+    switch (normalizedStatus) {
+      case "diterima":
+        return <Badge colorScheme="green">Diterima</Badge>;
+      case "dalam pengiriman":
+        return <Badge colorScheme="blue">Dalam Pengiriman</Badge>;
+      case "siap kirim":
+        return <Badge colorScheme="orange">Siap Kirim</Badge>;
+      case "dikemas":
+        return <Badge colorScheme="yellow">Dikemas</Badge>;
+      default:
+        return <Badge colorScheme="gray">Menunggu Diproses</Badge>;
     }
   };
 
@@ -294,7 +314,7 @@ function OrderDetailPage() {
     const steps = [
       { title: 'Pemesanan', description: 'Pesanan dibuat' },
       { title: 'Pembayaran', description: 'Menunggu pembayaran' },
-      { title: 'Pengiriman', description: order?.shipping_status || 'Pesanan diproses' },
+      { title: 'Pengiriman', description: 'Pesanan diproses' },
       { title: 'Selesai', description: 'Pesanan diterima' },
     ];
 
@@ -368,9 +388,9 @@ function OrderDetailPage() {
                           zIndex="0"
                           transition="all 0.3s ease-in-out"
                           clipPath={
-                            order.shipping_status === "dikemas" ? "polygon(0 0, 25% 0, 25% 100%, 0 100%)" :
-                            (order.shipping_status === "siap diambil" || order.shipping_status === "siap dikirim") ? "polygon(0 0, 50% 0, 50% 100%, 0 100%)" :
-                            order.shipping_status === "sedang dikirim" ? "circle(50%)" :
+                            normalizeShippingStatus(order.shipping_status) === "dikemas" ? "polygon(0 0, 25% 0, 25% 100%, 0 100%)" :
+                            normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "polygon(0 0, 50% 0, 50% 100%, 0 100%)" :
+                            normalizeShippingStatus(order.shipping_status) === "dalam pengiriman" ? "circle(50%)" :
                             "circle(0%)"
                           }
                         />
@@ -386,7 +406,7 @@ function OrderDetailPage() {
                           justifyContent="center"
                           zIndex="1"
                         >
-                          {order.shipping_status === "sedang dikirim" ? (
+                          {normalizeShippingStatus(order.shipping_status) === "dalam pengiriman" ? (
                             <StepIcon color="white" boxSize="16px" />
                           ) : (
                             <StepNumber fontSize="md" fontWeight="bold" color="gray.700" />
@@ -408,11 +428,16 @@ function OrderDetailPage() {
                           px={2}
                           py={0.5}
                         >
-                          {order.shipping_status === "dikemas" ? "Dikemas" :
-                           order.shipping_status === "siap diambil" ? "Siap Ambil" :
-                           order.shipping_status === "siap dikirim" ? "Siap Kirim" :
-                           order.shipping_status === "sedang dikirim" ? "Dalam Pengiriman" :
-                           step.description}
+                          {(() => {
+                            const normalizedStatus = normalizeShippingStatus(order.shipping_status);
+                            switch(normalizedStatus) {
+                              case "dikemas": return "Dikemas";
+                              case "siap kirim": return "Siap Kirim";
+                              case "dalam pengiriman": return "Dalam Pengiriman";
+                              case "diterima": return "Diterima";
+                              default: return "Menunggu Diproses";
+                            }
+                          })()}
                         </Tag>
                       </StepDescription>
                     ) : (
