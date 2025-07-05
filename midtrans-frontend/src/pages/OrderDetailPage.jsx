@@ -272,6 +272,7 @@ function OrderDetailPage() {
   
   // Fungsi untuk mendapatkan status pengiriman
   const getShippingStatusBadge = () => {
+    if (!order.shipping_status) return <Badge colorScheme="gray">Belum Ada Status</Badge>;
     if (!order) return null;
     
     if (order.shipping_status === 'received') {
@@ -385,7 +386,11 @@ function OrderDetailPage() {
                           justifyContent="center"
                           zIndex="1"
                         >
-                          <StepNumber fontSize="md" fontWeight="bold" color="gray.700" />
+                          {order.shipping_status === "sedang dikirim" ? (
+                            <StepIcon color="white" boxSize="16px" />
+                          ) : (
+                            <StepNumber fontSize="md" fontWeight="bold" color="gray.700" />
+                          )}
                         </Box>
                       </Box>
                     ) : (
