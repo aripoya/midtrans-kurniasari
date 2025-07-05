@@ -92,8 +92,135 @@ function AdminOrderDetailPage() {
     }
   };
 
+  // Fungsi untuk mengubah URL dari domain lama ke domain baru
+  const transformURL = (url) => {
+    if (!url) return null;
+    
+    // Ubah domain lama ke domain baru
+    if (url.includes('kurniasari-shipping-images.kurniasari.co.id')) {
+      const fileName = url.split('/').pop().split('?')[0]; // Ambil nama file saja, hapus query params
+      return `https://proses.kurniasari.co.id/${fileName}?t=${Date.now()}`;
+    }
+    
+    // Jika sudah menggunakan domain baru, pastikan ada cache busting
+    if (url.includes('proses.kurniasari.co.id') && !url.includes('?t=')) {
+      return `${url}?t=${Date.now()}`;
+    }
+    
+    return url;
+  };
+  
+  // Fungsi untuk mengambil data gambar pengiriman
+  const fetchShippingImages = async (orderId) => {
+    try {
+      console.log('[DEBUG-SHIPPING] Fetching shipping images for order:', orderId);
+      const result = await adminApi.getShippingImages(orderId);
+      console.log('[DEBUG-SHIPPING] API response:', result);
+      
+      if (result.success && result.data) {
+        console.log('[DEBUG-SHIPPING] Shipping images found:', result.data.length);
+        console.log('[DEBUG-SHIPPING] Raw image data:', JSON.stringify(result.data));
+        
+        // Reset state uploadedImages
+        const newImages = {
+          readyForPickup: null,
+          pickedUp: null,
+          received: null
+        };
+        
+        // Map hasil API ke state uploadedImages
+        result.data.forEach(image => {
+          console.log('[DEBUG-SHIPPING] Processing image:', image);
+          switch(image.image_type) {
+            case 'ready_for_pickup':
+              console.log('[DEBUG-SHIPPING] Setting readyForPickup image URL:', image.image_url);
+              // Transform URL & tambahkan cache busting
+              newImages.readyForPickup = transformURL(image.image_url);
+              break;
+            case 'picked_up':
+              console.log('[DEBUG-SHIPPING] Setting pickedUp image URL:', image.image_url);
+              // Transform URL & tambahkan cache busting
+              newImages.pickedUp = transformURL(image.image_url);
+              break;
+            case 'delivered':
+              console.log('[DEBUG-SHIPPING] Setting received image URL:', image.image_url);
+              // Transform URL & tambahkan cache busting
+              newImages.received = transformURL(image.image_url);
+              break;
+            default:
+              console.log('[DEBUG-SHIPPING] Unknown image type:', image.image_type);
+          }
+        });
+        
+        console.log('[DEBUG-SHIPPING] Final images state to set:', newImages);
+        
+        // Update state dengan data baru (force update dengan setState function)
+        setUploadedImages(current => {
+          const updatedImages = {...newImages};
+          // Simpan ke localStorage untuk persistensi
+          try {
+            localStorage.setItem(`shipping_images_${orderId}`, JSON.stringify(updatedImages));
+            console.log('[DEBUG-SHIPPING] Saved images to localStorage');
+          } catch (storageErr) {
+            console.error('[DEBUG-SHIPPING] Failed to save to localStorage:', storageErr);
+          }
+          return updatedImages;
+        });
+        
+        // Debug untuk memverifikasi state setelah update
+        setTimeout(() => {
+          console.log('[DEBUG-SHIPPING] Verifying state after update:', uploadedImages);
+        }, 100);
+      } else {
+        console.log('[DEBUG-SHIPPING] No shipping images found or API error:', result);
+        
+        // Cek jika ada data tersimpan di localStorage
+        try {
+          const savedImages = localStorage.getItem(`shipping_images_${orderId}`);
+          if (savedImages) {
+            const parsedImages = JSON.parse(savedImages);
+            console.log('[DEBUG-SHIPPING] Found saved images in localStorage:', parsedImages);
+            setUploadedImages(parsedImages);
+          }
+        } catch (storageErr) {
+          console.error('[DEBUG-SHIPPING] Failed to retrieve from localStorage:', storageErr);
+        }
+      }
+    } catch (err) {
+      console.error('[DEBUG-SHIPPING] Error fetching shipping images:', err);
+      
+      // Cek jika ada data tersimpan di localStorage
+      try {
+        const savedImages = localStorage.getItem(`shipping_images_${orderId}`);
+        if (savedImages) {
+          const parsedImages = JSON.parse(savedImages);
+          console.log('[DEBUG-SHIPPING] Found saved images in localStorage after API error:', parsedImages);
+          setUploadedImages(parsedImages);
+        }
+      } catch (storageErr) {
+        console.error('[DEBUG-SHIPPING] Failed to retrieve from localStorage:', storageErr);
+      }
+    }
+  };
+
   useEffect(() => {
     fetchOrder();
+    if (id) {
+      // Cek dahulu jika ada data di localStorage
+      try {
+        const savedImages = localStorage.getItem(`shipping_images_${id}`);
+        if (savedImages) {
+          const parsedImages = JSON.parse(savedImages);
+          console.log('[DEBUG-SHIPPING] Loading initial images from localStorage:', parsedImages);
+          setUploadedImages(parsedImages);
+        }
+      } catch (err) {
+        console.error('[DEBUG-SHIPPING] Error loading from localStorage:', err);
+      }
+      
+      // Kemudian ambil data terbaru dari API
+      fetchShippingImages(id);
+    }
   }, [id]);
 
   const handleRefreshStatus = async () => {
@@ -251,21 +378,23 @@ function AdminOrderDetailPage() {
     reader.readAsDataURL(file);
   };
   
-  // Fungsi untuk menyimpan semua foto ke backend
+  // Fungsi untuk menyimpan semua foto yang sudah diupload
   const handleSaveImages = async () => {
+    console.log('[DEBUG-UPLOAD] Starting handleSaveImages...');
     setIsUploading(true);
     
     try {
-      // Cek apakah ada foto yang perlu diupload
-      const imageTypes = ['readyForPickup', 'pickedUp', 'received'];
+      // Definisi mapping tipe gambar antara frontend dan API
       const apiTypeMap = {
         readyForPickup: 'ready_for_pickup',
         pickedUp: 'picked_up',
         received: 'delivered'
       };
       
-      // Array untuk menampung semua promise upload
+      // Array untuk menyimpan detail dan promise upload
       const uploadPromises = [];
+      const uploadDetails = [];
+      const imageTypes = ['readyForPickup', 'pickedUp', 'received'];
       
       // Fungsi untuk mengkonversi Data URL ke File
       const dataURLtoFile = (dataurl, filename) => {
@@ -282,25 +411,38 @@ function AdminOrderDetailPage() {
       
       // Untuk setiap jenis foto, upload jika ada
       for (const type of imageTypes) {
+        console.log(`[DEBUG-UPLOAD] Checking ${type} image:`, uploadedImages[type] ? "Present" : "Missing");
+        
         if (uploadedImages[type]) {
-          // Cek apakah gambar sudah dalam format base64 (hasil dari FileReader)
+          // Cek apakah gambar sudah dalam format base64 (hasil dari FileReader) atau URL dari API
           if (uploadedImages[type].startsWith('data:')) {
-            const file = dataURLtoFile(
-              uploadedImages[type], 
-              `${type}_${new Date().getTime()}.jpg`
-            );
+            console.log(`[DEBUG-UPLOAD] ${type} is a data URL, will upload`);
+            const filename = `${type}_${new Date().getTime()}.jpg`;
+            const file = dataURLtoFile(uploadedImages[type], filename);
+            
+            console.log(`[DEBUG-UPLOAD] Created file for ${type}:`, filename);
+            uploadDetails.push({
+              type, 
+              apiType: apiTypeMap[type],
+              filename
+            });
             
             uploadPromises.push(
               adminApi.uploadShippingImage(id, apiTypeMap[type], file)
             );
+          } else {
+            // Skip gambar yang sudah berupa URL (sudah terupload)
+            console.log(`[DEBUG-UPLOAD] ${type} is already a URL, skipping upload:`, uploadedImages[type]);
           }
         }
       }
       
       // Jika tidak ada foto yang perlu diupload
       if (uploadPromises.length === 0) {
+        console.log('[DEBUG-UPLOAD] No new images to upload');
         toast({
-          title: "Tidak ada foto untuk disimpan",
+          title: "Tidak ada foto baru untuk disimpan",
+          description: "Tidak ada perubahan yang perlu disimpan",
           status: "info",
           duration: 3000,
           isClosable: true,
@@ -309,17 +451,47 @@ function AdminOrderDetailPage() {
         return;
       }
       
-      // Jalankan semua upload secara paralel
+      // Upload semua gambar sekaligus
+      console.log(`[DEBUG-UPLOAD] Uploading ${uploadPromises.length} images...`);
       const results = await Promise.all(uploadPromises);
+      console.log('[DEBUG-UPLOAD] Upload results:', results);
       
-      // Cek hasil upload
-      const failedUploads = results.filter(r => !r.success);
+      // Periksa hasil upload
+      const failedUploads = results.filter(result => !result.success);
       
       if (failedUploads.length > 0) {
-        throw new Error(`${failedUploads.length} foto gagal diupload`);
+        throw new Error(`Gagal mengupload ${failedUploads.length} gambar`);
       }
       
-      // Berhasil upload semua foto
+      // Update URL gambar setelah upload berhasil
+      const updatedImages = {...uploadedImages}; // Clone state saat ini
+      
+      for (let i = 0; i < results.length; i++) {
+        const { success, image_url } = results[i];
+        const { type } = uploadDetails[i];
+        
+        if (success && image_url) {
+          console.log(`[DEBUG-UPLOAD] Setting new URL for ${type}:`, image_url);
+          // Tambahkan cache busting ke URL
+          const imageUrlWithCacheBusting = `${image_url}?t=${Date.now()}`;
+          updatedImages[type] = imageUrlWithCacheBusting;
+        }
+      }
+      
+      // Update state sekali dengan semua perubahan
+      setUploadedImages(updatedImages);
+      
+      // Simpan ke localStorage untuk persistensi
+      try {
+        localStorage.setItem(`shipping_images_${id}`, JSON.stringify(updatedImages));
+        console.log('[DEBUG-UPLOAD] Saved updated images to localStorage after upload');
+      } catch (storageErr) {
+        console.error('[DEBUG-UPLOAD] Failed to save to localStorage:', storageErr);
+      }
+      
+      // Segera ambil ulang data gambar dari API setelah upload berhasil
+      await fetchShippingImages(id);
+      
       toast({
         title: "Foto berhasil disimpan",
         status: "success",
@@ -327,14 +499,11 @@ function AdminOrderDetailPage() {
         isClosable: true,
       });
       
-      // Refresh data order untuk mendapatkan URL gambar dari backend
-      fetchOrder();
-      
-    } catch (error) {
-      console.error('Error saving images:', error);
+    } catch (err) {
+      console.error('[DEBUG-UPLOAD] Error in handleSaveImages:', err);
       toast({
         title: "Gagal menyimpan foto",
-        description: error.message,
+        description: err.message,
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -457,6 +626,77 @@ function AdminOrderDetailPage() {
     const statusInfo = statusMap[status?.toLowerCase()] || { color: "gray", text: status || "Menunggu Diproses" };
     
     return <Badge colorScheme={statusInfo.color}>{statusInfo.text}</Badge>;
+  };
+
+  // Handler untuk memilih gambar
+  const handleImageSelect = (type, file) => {
+    if (!file) {
+      return;
+    }
+    
+    // Validasi ukuran file (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File terlalu besar",
+        description: "Ukuran maksimal file adalah 5MB",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    // Tampilkan preview gambar
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      // Update state secara atomic dan simpan ke localStorage
+      setUploadedImages(prev => {
+        const newState = {
+          ...prev,
+          [type]: e.target.result
+        };
+        
+        // Simpan ke localStorage sementara (untuk preview)
+        try {
+          localStorage.setItem(`shipping_images_${id}`, JSON.stringify(newState));
+          console.log(`[DEBUG-IMAGE] Saved preview image for ${type} to localStorage`);
+        } catch (err) {
+          console.error('[DEBUG-IMAGE] Failed to save preview to localStorage:', err);
+        }
+        
+        return newState;
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Fungsi untuk menampilkan gambar yang diupload
+  const renderUploadedImage = (type) => {
+    if (!uploadedImages[type]) return null;
+    
+    // Tambahkan key dengan timestamp untuk memaksa re-render komponen Image
+    // saat URL berubah (bahkan jika base URL sama)
+    const imageKey = `${type}-${Date.now()}`;
+    const imageUrl = uploadedImages[type];
+    
+    return (
+      <Image 
+        key={imageKey}
+        src={imageUrl} 
+        alt={`Foto ${type}`}
+        maxH="200px"
+        objectFit="contain"
+        mb={2}
+        // Tambahkan onError handler untuk mengatasi kasus loading gagal
+        onError={(e) => {
+          console.error(`[IMAGE-ERROR] Failed to load image for ${type}:`, imageUrl);
+          // Coba load ulang dengan cache busting baru jika terjadi error
+          if (!imageUrl.includes('?t=')) {
+            e.target.src = `${imageUrl}?t=${Date.now()}`;
+          }
+        }}
+      />
+    );
   };
 
 if (loading) {
@@ -582,20 +822,21 @@ return (
                             {/* Foto Siap Ambil */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
                               <Heading size="sm" mb={2}>Siap Ambil</Heading>
-                              {uploadedImages.readyForPickup ? (
-                                <Box position="relative">
-                                  <Image 
-                                    src={uploadedImages.readyForPickup} 
-                                    alt="Siap Ambil" 
-                                    maxH="200px"
-                                    borderRadius="md" 
-                                  />
+                              {renderUploadedImage('readyForPickup')}
+                              
+                              <HStack mt={2} spacing={2}>
+                                <Button 
+                                  onClick={() => fileInputRefs.readyForPickup.current.click()}
+                                  isLoading={isUploading}
+                                  size="sm"
+                                  colorScheme="blue"
+                                >
+                                  {uploadedImages.readyForPickup ? 'Ganti Foto' : 'Upload Foto'}
+                                </Button>
+                                {uploadedImages.readyForPickup && (
                                   <Button 
-                                    size="xs" 
+                                    size="sm" 
                                     colorScheme="red" 
-                                    position="absolute" 
-                                    top="2" 
-                                    right="2"
                                     onClick={() => {
                                       setUploadedImages(prev => ({
                                         ...prev,
@@ -605,41 +846,35 @@ return (
                                   >
                                     Hapus
                                   </Button>
-                                </Box>
-                              ) : (
-                                <Button 
-                                  onClick={() => fileInputRefs.readyForPickup.current.click()}
-                                  isLoading={isUploading}
-                                >
-                                  Upload Foto
-                                </Button>
-                              )}
+                                )}
+                              </HStack>
                               <Input 
                                 type="file" 
                                 accept="image/*" 
                                 hidden 
                                 ref={fileInputRefs.readyForPickup} 
-                                onChange={(e) => handleImageUpload(e, 'readyForPickup')}
+                                onChange={(e) => handleImageSelect('readyForPickup', e.target.files[0])}
                               />
                             </Box>
                             
                             {/* Foto Sudah Diambil */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
                               <Heading size="sm" mb={2}>Sudah Diambil</Heading>
-                              {uploadedImages.pickedUp ? (
-                                <Box position="relative">
-                                  <Image 
-                                    src={uploadedImages.pickedUp} 
-                                    alt="Sudah Diambil" 
-                                    maxH="200px"
-                                    borderRadius="md" 
-                                  />
+                              {renderUploadedImage('pickedUp')}
+                              
+                              <HStack mt={2} spacing={2}>
+                                <Button 
+                                  onClick={() => fileInputRefs.pickedUp.current.click()}
+                                  isLoading={isUploading}
+                                  size="sm"
+                                  colorScheme="blue"
+                                >
+                                  {uploadedImages.pickedUp ? 'Ganti Foto' : 'Upload Foto'}
+                                </Button>
+                                {uploadedImages.pickedUp && (
                                   <Button 
-                                    size="xs" 
+                                    size="sm" 
                                     colorScheme="red" 
-                                    position="absolute" 
-                                    top="2" 
-                                    right="2"
                                     onClick={() => {
                                       setUploadedImages(prev => ({
                                         ...prev,
@@ -649,41 +884,35 @@ return (
                                   >
                                     Hapus
                                   </Button>
-                                </Box>
-                              ) : (
-                                <Button 
-                                  onClick={() => fileInputRefs.pickedUp.current.click()}
-                                  isLoading={isUploading}
-                                >
-                                  Upload Foto
-                                </Button>
-                              )}
+                                )}
+                              </HStack>
                               <Input 
                                 type="file" 
                                 accept="image/*" 
                                 hidden 
                                 ref={fileInputRefs.pickedUp} 
-                                onChange={(e) => handleImageUpload(e, 'pickedUp')}
+                                onChange={(e) => handleImageSelect('pickedUp', e.target.files[0])}
                               />
                             </Box>
                             
                             {/* Foto Sudah Diterima */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
                               <Heading size="sm" mb={2}>Sudah Diterima</Heading>
-                              {uploadedImages.received ? (
-                                <Box position="relative">
-                                  <Image 
-                                    src={uploadedImages.received} 
-                                    alt="Sudah Diterima" 
-                                    maxH="200px"
-                                    borderRadius="md" 
-                                  />
+                              {renderUploadedImage('received')}
+                              
+                              <HStack mt={2} spacing={2}>
+                                <Button 
+                                  onClick={() => fileInputRefs.received.current.click()}
+                                  isLoading={isUploading}
+                                  size="sm"
+                                  colorScheme="blue"
+                                >
+                                  {uploadedImages.received ? 'Ganti Foto' : 'Upload Foto'}
+                                </Button>
+                                {uploadedImages.received && (
                                   <Button 
-                                    size="xs" 
+                                    size="sm" 
                                     colorScheme="red" 
-                                    position="absolute" 
-                                    top="2" 
-                                    right="2"
                                     onClick={() => {
                                       setUploadedImages(prev => ({
                                         ...prev,
@@ -693,21 +922,14 @@ return (
                                   >
                                     Hapus
                                   </Button>
-                                </Box>
-                              ) : (
-                                <Button 
-                                  onClick={() => fileInputRefs.received.current.click()}
-                                  isLoading={isUploading}
-                                >
-                                  Upload Foto
-                                </Button>
-                              )}
+                                )}
+                              </HStack>
                               <Input 
                                 type="file" 
                                 accept="image/*" 
                                 hidden 
                                 ref={fileInputRefs.received} 
-                                onChange={(e) => handleImageUpload(e, 'received')}
+                                onChange={(e) => handleImageSelect('received', e.target.files[0])}
                               />
                             </Box>
                             

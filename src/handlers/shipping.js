@@ -86,8 +86,8 @@ async function uploadShippingImage(request, env) {
     });
     
     // Generate URL untuk gambar
-    // Menggunakan Cloudflare R2 public URLs jika tersedia, atau custom domain
-    const imageUrl = `https://kurniasari-shipping-images.kurniasari.co.id/${fileName}`;
+    // Menggunakan Cloudflare R2 custom domain yang valid
+    const imageUrl = `https://proses.kurniasari.co.id/${fileName}`;
     
     // Hapus referensi gambar lama dengan tipe yang sama jika ada
     await env.DB.prepare(
