@@ -53,6 +53,7 @@ function AdminOrderDetailPage() {
   const [courierService, setCourierService] = useState(''); // TIKI, JNE, atau custom
   const [trackingNumber, setTrackingNumber] = useState(''); // Nomor Resi
   const [trackingNumberError, setTrackingNumberError] = useState(''); // Error untuk validasi nomor resi
+  const [tabIndex, setTabIndex] = useState(0); // State untuk mengontrol tab aktif
 
   const fetchOrder = async () => {
     try {
@@ -979,10 +980,10 @@ return (
                     </AccordionButton>
                   </h2>
                   <AccordionPanel pb={4}>
-                    <Tabs variant="enclosed">
+                    <Tabs variant="enclosed" index={tabIndex} onChange={setTabIndex}>
                       <TabList>
-                        <Tab>Dalam Kota</Tab>
-                        <Tab>Luar Kota</Tab>
+                        <Tab isDisabled={shippingArea !== 'dalam-kota'}>Dalam Kota</Tab>
+                        <Tab isDisabled={shippingArea !== 'luar-kota'}>Luar Kota</Tab>
                         <Tab>QR Code Pengambilan</Tab>
                       </TabList>
                       <TabPanels>
@@ -1397,7 +1398,16 @@ return (
                   <FormLabel>Area Pengiriman</FormLabel>
                   <Select 
                     value={shippingArea} 
-                    onChange={(e) => setShippingArea(e.target.value)}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setShippingArea(newValue);
+                      // Atur tab aktif berdasarkan area pengiriman
+                      if (newValue === 'dalam-kota') {
+                        setTabIndex(0); // Tab Dalam Kota
+                      } else if (newValue === 'luar-kota') {
+                        setTabIndex(1); // Tab Luar Kota
+                      }
+                    }}
                   >
                     <option value="dalam-kota">Dalam Kota</option>
                     <option value="luar-kota">Luar Kota</option>
