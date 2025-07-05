@@ -10,7 +10,7 @@ import {
   ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   Accordion, AccordionItem, AccordionButton, 
   AccordionPanel, AccordionIcon, Input, IconButton,
-  Tabs, TabList, TabPanels, Tab, TabPanel
+  Tabs, TabList, TabPanels, Tab, TabPanel, Checkbox
 } from '@chakra-ui/react';
 import { QRCodeSVG } from 'qrcode.react';
 import { orderService } from '../../api/orderService';
