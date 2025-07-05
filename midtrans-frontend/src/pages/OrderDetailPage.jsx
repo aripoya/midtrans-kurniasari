@@ -7,10 +7,10 @@ import {
   useToast, Flex, Grid, GridItem, Step, StepDescription,
   StepIcon, StepIndicator, StepNumber, StepSeparator,
   StepStatus, StepTitle, Stepper, useBreakpointValue,
-  Tag, Container
+  Tag, Container, Link, Image
 } from '@chakra-ui/react';
 import { orderService } from '../api/orderService';
-import { refreshOrderStatus, markOrderAsReceived } from '../api/api';
+import { refreshOrderStatus, markOrderAsReceived, getShippingImages } from '../api/api';
 import { useAuth } from '../auth/AuthContext';
 import axios from 'axios';
 
@@ -23,6 +23,12 @@ function OrderDetailPage() {
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMarkingAsReceived, setIsMarkingAsReceived] = useState(false);
+  const [shippingImages, setShippingImages] = useState({
+    ready_for_pickup: null,
+    picked_up: null,
+    delivered: null
+  });
+  const [loadingImages, setLoadingImages] = useState(false);
   const toast = useToast();
   const stepperOrientation = useBreakpointValue({ base: 'vertical', md: 'horizontal' });
   const stepperSize = useBreakpointValue({ base: 'sm', md: 'md' });
@@ -95,6 +101,13 @@ function OrderDetailPage() {
   useEffect(() => {
     fetchOrder();
   }, [id]);
+
+  // Fetch shipping images when order is loaded
+  useEffect(() => {
+    if (order && isPublicOrderPage) {
+      fetchShippingImages();
+    }
+  }, [order, isPublicOrderPage]);
 
   useEffect(() => {
     // Auto-refresh status jika ada parameter dari redirect pembayaran
@@ -193,20 +206,87 @@ function OrderDetailPage() {
     }
   };
 
+  // Fungsi untuk mengambil gambar status pengiriman
+  const fetchShippingImages = async () => {
+    try {
+      setLoadingImages(true);
+      const response = await getShippingImages(id);
+      
+      if (response.data && response.data.success) {
+        const images = {
+          ready_for_pickup: null,
+          picked_up: null,
+          delivered: null
+        };
+        
+        response.data.data.forEach(image => {
+          // Transform URLs jika diperlukan
+          let imageUrl = image.image_url;
+          
+          // Ganti domain lama dengan domain baru jika diperlukan
+          if (imageUrl.includes('kurniasari-shipping-images.kurniasari.co.id')) {
+            const fileName = imageUrl.split('/').pop().split('?')[0];
+            imageUrl = `https://proses.kurniasari.co.id/${fileName}?t=${Date.now()}`;
+          }
+          
+          switch(image.image_type) {
+            case 'ready_for_pickup':
+              images.ready_for_pickup = imageUrl;
+              break;
+            case 'picked_up':
+              images.picked_up = imageUrl;
+              break;
+            case 'delivered':
+              images.delivered = imageUrl;
+              break;
+          }
+        });
+        
+        setShippingImages(images);
+      }
+    } catch (err) {
+      console.error('Error fetching shipping images:', err);
+    } finally {
+      setLoadingImages(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
-    const statusMap = {
-      pending: { scheme: 'yellow', text: 'Menunggu Pembayaran' },
-      paid: { scheme: 'green', text: 'Dibayar' },
-      settlement: { scheme: 'green', text: 'Dibayar' },
-      capture: { scheme: 'green', text: 'Dibayar' },
-      cancel: { scheme: 'red', text: 'Dibatalkan' },
-      deny: { scheme: 'red', text: 'Ditolak' },
-      expire: { scheme: 'red', text: 'Kedaluwarsa' },
-      refund: { scheme: 'purple', text: 'Dikembalikan' },
-      partial_refund: { scheme: 'purple', text: 'Dikembalikan Sebagian' },
-    };
-    const { scheme = 'gray', text = 'Tidak Diketahui' } = statusMap[status] || {};
-    return <Badge colorScheme={scheme}>{text}</Badge>;
+    switch (status) {
+      case 'paid':
+      case 'settlement':
+      case 'capture':
+        return <Badge colorScheme="green">Lunas</Badge>;
+      case 'pending':
+        return <Badge colorScheme="yellow">Menunggu Pembayaran</Badge>;
+      case 'expire':
+      case 'expired':
+        return <Badge colorScheme="red">Kadaluarsa</Badge>;
+      case 'cancel':
+      case 'deny':
+        return <Badge colorScheme="red">Dibatalkan</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
+  
+  // Fungsi untuk mendapatkan status pengiriman
+  const getShippingStatusBadge = () => {
+    if (!order) return null;
+    
+    if (order.shipping_status === 'received') {
+      return <Badge colorScheme="green">Pesanan Diterima</Badge>;
+    } else if (shippingImages.delivered) {
+      return <Badge colorScheme="green">Pesanan Terkirim</Badge>;
+    } else if (shippingImages.picked_up) {
+      return <Badge colorScheme="blue">Pesanan Diambil</Badge>;
+    } else if (shippingImages.ready_for_pickup) {
+      return <Badge colorScheme="yellow">Siap Diambil</Badge>;
+    } else if (order.payment_status === 'settlement' || order.payment_status === 'capture' || order.payment_status === 'paid') {
+      return <Badge colorScheme="orange">Diproses</Badge>;
+    } else {
+      return <Badge colorScheme="gray">Menunggu Pembayaran</Badge>;
+    }
   };
 
   const getPaymentSteps = () => {
@@ -300,8 +380,44 @@ function OrderDetailPage() {
                 <Text><strong>Total:</strong> Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
                 <Text><strong>Status:</strong> {getStatusBadge(order.payment_status)}</Text>
                 <Text><strong>Metode:</strong> <Tag>{order.payment_method || 'N/A'}</Tag></Text>
+                {isPublicOrderPage && (
+                  <Text mt={4}><strong>Status Pengiriman:</strong> {getShippingStatusBadge()}</Text>
+                )}
               </GridItem>
             </Grid>
+
+            {/* Tampilkan link ke foto status pengiriman jika ada */}
+            {isPublicOrderPage && (Object.values(shippingImages).some(Boolean)) && (
+              <Box mt={6}>
+                <Heading size="sm" mb={4}>Status Pengiriman</Heading>
+                <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={4}>
+                  {shippingImages.ready_for_pickup && (
+                    <GridItem>
+                      <Text mb={2}><strong>Siap Diambil:</strong></Text>
+                      <Link href={shippingImages.ready_for_pickup} isExternal color="blue.500" fontWeight="medium">
+                        Lihat Foto Siap Diambil
+                      </Link>
+                    </GridItem>
+                  )}
+                  {shippingImages.picked_up && (
+                    <GridItem>
+                      <Text mb={2}><strong>Sudah Diambil:</strong></Text>
+                      <Link href={shippingImages.picked_up} isExternal color="blue.500" fontWeight="medium">
+                        Lihat Foto Sudah Diambil
+                      </Link>
+                    </GridItem>
+                  )}
+                  {shippingImages.delivered && (
+                    <GridItem>
+                      <Text mb={2}><strong>Sudah Diterima:</strong></Text>
+                      <Link href={shippingImages.delivered} isExternal color="blue.500" fontWeight="medium">
+                        Lihat Foto Sudah Diterima
+                      </Link>
+                    </GridItem>
+                  )}
+                </Grid>
+              </Box>
+            )}
 
             <Divider my={6} />
 

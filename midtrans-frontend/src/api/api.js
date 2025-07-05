@@ -43,4 +43,9 @@ export const markOrderAsReceived = (orderId) => {
   return apiClient.post(`/api/orders/${orderId}/mark-received`);
 };
 
+// Get shipping images for customers (public endpoint)
+export const getShippingImages = (orderId) => {
+  return apiClient.get(`/api/shipping/images/${orderId}`);
+};
+
 export default apiClient;
