@@ -949,14 +949,14 @@ return (
                             <Heading size="sm">QR Code Pengambilan</Heading>
                             <Box id="qr-code-container" p={4} borderWidth="1px" borderRadius="lg" bg="white">
                               <QRCodeSVG 
-                                value={`https://tagihan.kurniasari.co.id/admin/orders/${order.id}`} 
+                                value={`https://tagihan.kurniasari.co.id/orders/${order.id}`} 
                                 size={200}
                                 includeMargin={true}
                                 level="H"
                                 ref={qrCodeRef}
                               />
                             </Box>
-                            <Text fontSize="sm">URL: https://tagihan.kurniasari.co.id/admin/orders/{order.id}</Text>
+                            <Text fontSize="sm">URL: https://tagihan.kurniasari.co.id/orders/{order.id}</Text>
                             <Button colorScheme="blue" onClick={() => {
                               try {
                                 // Gunakan element QR code container untuk screenshot
