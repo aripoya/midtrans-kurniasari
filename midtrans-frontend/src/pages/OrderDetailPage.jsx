@@ -355,7 +355,7 @@ function OrderDetailPage() {
                 <Step key={index}>
                   <StepIndicator>
                     {index === 2 && order?.shipping_status ? (
-                      <Box position="relative" width="100%" height="100%" borderRadius="50%" overflow="hidden">
+                      <Box position="relative" width="100%" height="100%" borderRadius="50%" overflow="hidden" display="flex" alignItems="center" justifyContent="center">
                         {/* Progress lingkaran hijau berdasarkan status pengiriman */}
                         <Box 
                           position="absolute" 
@@ -364,6 +364,7 @@ function OrderDetailPage() {
                           width="100%" 
                           height="100%" 
                           bgColor="green.500" 
+                          zIndex="0"
                           transition="all 0.3s ease-in-out"
                           clipPath={
                             order.shipping_status === "dikemas" ? "polygon(0 0, 25% 0, 25% 100%, 0 100%)" :
@@ -372,13 +373,20 @@ function OrderDetailPage() {
                             "circle(0%)"
                           }
                         />
-                        <StepStatus 
-                          position="relative" 
+                        <Box 
+                          position="absolute"
+                          top="0"
+                          left="0"
+                          width="100%"
+                          height="100%"
+                          borderRadius="50%"
+                          display="flex"
+                          alignItems="center"
+                          justifyContent="center"
                           zIndex="1"
-                          complete={<StepIcon />} 
-                          incomplete={<StepNumber />} 
-                          active={<StepNumber />} 
-                        />
+                        >
+                          <StepNumber fontSize="md" fontWeight="bold" color="gray.700" />
+                        </Box>
                       </Box>
                     ) : (
                       <StepStatus complete={<StepIcon />} incomplete={<StepNumber />} active={<StepNumber />} />
