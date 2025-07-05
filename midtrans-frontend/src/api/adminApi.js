@@ -159,7 +159,41 @@ export const adminApi = {
       return {
         success: false,
         data: null,
-        error: error.response?.data?.error || error.message || 'Error saat menghapus pesanan'
+        error: error.response?.data?.error || error.message || 'Error saat mengambil gambar pengiriman'
+      };
+    }
+  },
+  
+  // Menghapus gambar status pengiriman
+  deleteShippingImage: async (orderId, imageType) => {
+    try {
+      // Validasi parameter
+      if (!orderId || !imageType) {
+        throw new Error('Missing required parameters');
+      }
+      
+      // Validasi tipe gambar
+      const validTypes = ['ready_for_pickup', 'picked_up', 'delivered'];
+      if (!validTypes.includes(imageType)) {
+        throw new Error(`Invalid image type. Must be one of: ${validTypes.join(', ')}`);
+      }
+      
+      const response = await axios.delete(
+        `${API_BASE_URL}/api/shipping/images/${orderId}/${imageType}`,
+        {
+          headers: {
+            Authorization: `Bearer ${getAdminToken()}`
+          }
+        }
+      );
+      
+      return { success: true, data: response.data, error: null };
+    } catch (error) {
+      console.error('Error deleting shipping image:', error);
+      return {
+        success: false,
+        data: null,
+        error: error.response?.data?.error || error.message || 'Error saat menghapus gambar pengiriman'
       };
     }
   },

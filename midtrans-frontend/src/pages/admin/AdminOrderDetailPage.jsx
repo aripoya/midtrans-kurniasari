@@ -384,6 +384,67 @@ function AdminOrderDetailPage() {
     };
     reader.readAsDataURL(file);
   };
+
+  // Fungsi untuk menghapus gambar shipping
+  const handleDeleteImage = async (type) => {
+    try {
+      setIsUploading(true);
+      
+      // Konversi type ke format yang digunakan API
+      const apiTypeMap = {
+        readyForPickup: 'ready_for_pickup',
+        pickedUp: 'picked_up',
+        received: 'delivered'
+      };
+      
+      const imageType = apiTypeMap[type];
+      console.log(`[DEBUG-DELETE] Deleting image for ${type} (${imageType})`);
+      
+      // Memanggil API untuk hapus gambar
+      const result = await adminApi.deleteShippingImage(id, imageType);
+      
+      if (result.success) {
+        // Update state
+        setUploadedImages(prev => ({
+          ...prev,
+          [type]: null
+        }));
+        
+        // Hapus dari localStorage untuk sinkronisasi
+        const storageKey = `shipping_images_${id}`;
+        try {
+          const storedData = localStorage.getItem(storageKey);
+          if (storedData) {
+            const parsedData = JSON.parse(storedData);
+            parsedData[type] = null;
+            localStorage.setItem(storageKey, JSON.stringify(parsedData));
+          }
+        } catch (storageErr) {
+          console.error('Error updating localStorage after image deletion:', storageErr);
+        }
+        
+        toast({
+          title: "Gambar berhasil dihapus",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        throw new Error(result.error || 'Gagal menghapus gambar');
+      }
+    } catch (error) {
+      console.error(`Error deleting ${type} image:`, error);
+      toast({
+        title: "Gagal menghapus gambar",
+        description: error.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
   
   // Fungsi untuk menyimpan semua foto yang sudah diupload
   const handleSaveImages = async () => {
@@ -635,8 +696,8 @@ function AdminOrderDetailPage() {
     return <Badge colorScheme={statusInfo.color}>{statusInfo.text}</Badge>;
   };
 
-  // Handler untuk memilih gambar
-  const handleImageSelect = (type, file) => {
+  // Handler untuk memilih gambar dan langsung upload ke server
+  const handleImageSelect = async (type, file) => {
     if (!file) {
       return;
     }
@@ -652,29 +713,119 @@ function AdminOrderDetailPage() {
       });
       return;
     }
-    
-    // Tampilkan preview gambar
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      // Update state secara atomic dan simpan ke localStorage
-      setUploadedImages(prev => {
-        const newState = {
-          ...prev,
-          [type]: e.target.result
-        };
-        
-        // Simpan ke localStorage sementara (untuk preview)
-        try {
-          localStorage.setItem(`shipping_images_${id}`, JSON.stringify(newState));
-          console.log(`[DEBUG-IMAGE] Saved preview image for ${type} to localStorage`);
-        } catch (err) {
-          console.error('[DEBUG-IMAGE] Failed to save preview to localStorage:', err);
-        }
-        
-        return newState;
+
+    // Validasi tipe file
+    const validMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validMimeTypes.includes(file.type)) {
+      toast({
+        title: "Format file tidak didukung",
+        description: "Gunakan format JPG, PNG, WebP, atau GIF",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
       });
-    };
-    reader.readAsDataURL(file);
+      return;
+    }
+    
+    try {
+      setIsUploading(true);
+      console.log(`[DEBUG-IMAGE] Processing new image for ${type}`);
+      
+      // Tampilkan preview gambar
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        // Update state untuk preview lokal
+        setUploadedImages(prev => {
+          const newState = {
+            ...prev,
+            [type]: e.target.result
+          };
+          
+          // Simpan ke localStorage sementara (untuk preview)
+          try {
+            localStorage.setItem(`shipping_images_${id}`, JSON.stringify(newState));
+            console.log(`[DEBUG-IMAGE] Saved preview image for ${type} to localStorage`);
+          } catch (err) {
+            console.error('[DEBUG-IMAGE] Failed to save preview to localStorage:', err);
+          }
+          
+          return newState;
+        });
+        
+        // Upload gambar ke server
+        try {
+          // Konversi type ke format yang digunakan API
+          const apiTypeMap = {
+            readyForPickup: 'ready_for_pickup',
+            pickedUp: 'picked_up',
+            received: 'delivered'
+          };
+          
+          const apiType = apiTypeMap[type];
+          console.log(`[DEBUG-IMAGE] Uploading image for ${type} (${apiType})`);
+          
+          const result = await adminApi.uploadShippingImage(id, apiType, file);
+          
+          if (result.success) {
+            console.log(`[DEBUG-IMAGE] Upload success for ${type}:`, result);
+            
+            // Update URL gambar setelah upload berhasil
+            if (result.image_url) {
+              // Tambahkan cache busting ke URL
+              const imageUrlWithCacheBusting = `${result.image_url}?t=${Date.now()}`;
+              
+              setUploadedImages(prev => {
+                const updatedState = {
+                  ...prev,
+                  [type]: imageUrlWithCacheBusting
+                };
+                
+                // Update localStorage dengan URL baru
+                try {
+                  localStorage.setItem(`shipping_images_${id}`, JSON.stringify(updatedState));
+                } catch (storageErr) {
+                  console.error('[DEBUG-IMAGE] Failed to update localStorage after upload:', storageErr);
+                }
+                
+                return updatedState;
+              });
+              
+              toast({
+                title: "Foto berhasil disimpan",
+                status: "success",
+                duration: 2000,
+                isClosable: true,
+              });
+            }
+          } else {
+            throw new Error(result.error || 'Gagal mengupload gambar');
+          }
+        } catch (uploadError) {
+          console.error(`[DEBUG-IMAGE] Error uploading ${type} image:`, uploadError);
+          toast({
+            title: "Gagal menyimpan foto",
+            description: uploadError.message,
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+        } finally {
+          setIsUploading(false);
+        }
+      };
+      
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error(`[DEBUG-IMAGE] General error in handleImageSelect for ${type}:`, error);
+      toast({
+        title: "Terjadi kesalahan",
+        description: error.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      setIsUploading(false);
+    }
   };
 
   // Fungsi untuk menampilkan gambar yang diupload
@@ -846,13 +997,9 @@ return (
                                 {uploadedImages.readyForPickup && (
                                   <Button 
                                     size="sm" 
-                                    colorScheme="red" 
-                                    onClick={() => {
-                                      setUploadedImages(prev => ({
-                                        ...prev,
-                                        readyForPickup: null
-                                      }));
-                                    }}
+                                    colorScheme="red"
+                                    isLoading={isUploading}
+                                    onClick={() => handleDeleteImage('readyForPickup')}
                                   >
                                     Hapus
                                   </Button>
@@ -884,13 +1031,9 @@ return (
                                 {uploadedImages.pickedUp && (
                                   <Button 
                                     size="sm" 
-                                    colorScheme="red" 
-                                    onClick={() => {
-                                      setUploadedImages(prev => ({
-                                        ...prev,
-                                        pickedUp: null
-                                      }));
-                                    }}
+                                    colorScheme="red"
+                                    isLoading={isUploading}
+                                    onClick={() => handleDeleteImage('pickedUp')}
                                   >
                                     Hapus
                                   </Button>
@@ -922,13 +1065,9 @@ return (
                                 {uploadedImages.received && (
                                   <Button 
                                     size="sm" 
-                                    colorScheme="red" 
-                                    onClick={() => {
-                                      setUploadedImages(prev => ({
-                                        ...prev,
-                                        received: null
-                                      }));
-                                    }}
+                                    colorScheme="red"
+                                    isLoading={isUploading}
+                                    onClick={() => handleDeleteImage('received')}
                                   >
                                     Hapus
                                   </Button>

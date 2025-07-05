@@ -177,6 +177,84 @@ function handleCors() {
 }
 
 /**
+ * Hapus gambar status pengiriman dari R2 dan database D1
+ */
+async function deleteShippingImage(request, env) {
+  try {
+    // Validasi metode request
+    if (request.method !== 'DELETE') {
+      return jsonResponse({ error: 'Method not allowed' }, 405);
+    }
+
+    // Parse URL untuk mendapatkan ID order dan tipe gambar
+    const url = new URL(request.url);
+    const pathSegments = url.pathname.split('/');
+    
+    // Format path: /api/shipping/images/:orderId/:imageType
+    if (pathSegments.length < 6) {
+      return jsonResponse({ error: 'Invalid URL format' }, 400);
+    }
+
+    const orderId = pathSegments[4];
+    const imageType = pathSegments[5];
+    
+    // Validasi tipe gambar
+    const validTypes = ['ready_for_pickup', 'picked_up', 'delivered'];
+    if (!validTypes.includes(imageType)) {
+      return jsonResponse({ 
+        error: 'Invalid image type', 
+        validTypes 
+      }, 400);
+    }
+    
+    // Validasi bahwa order ID ada di database
+    const orderExists = await env.DB.prepare(
+      'SELECT id FROM orders WHERE id = ?'
+    ).bind(orderId).first();
+    
+    if (!orderExists) {
+      return jsonResponse({ error: 'Order not found' }, 404);
+    }
+
+    // Cari data gambar yang akan dihapus untuk mendapatkan nama file
+    const image = await env.DB.prepare(
+      'SELECT * FROM shipping_images WHERE order_id = ? AND image_type = ?'
+    ).bind(orderId, imageType).first();
+
+    if (!image) {
+      return jsonResponse({ error: 'Image not found' }, 404);
+    }
+
+    // Ekstrak nama file dari URL
+    const imageUrl = image.image_url;
+    const fileName = imageUrl.split('/').pop().split('?')[0]; // Ambil nama file saja, hapus query params
+
+    // Hapus file dari R2
+    await env.SHIPPING_IMAGES.delete(fileName);
+    
+    // Hapus referensi dari database D1
+    await env.DB.prepare(
+      'DELETE FROM shipping_images WHERE order_id = ? AND image_type = ?'
+    ).bind(orderId, imageType).run();
+    
+    return jsonResponse({
+      success: true,
+      message: 'Image deleted successfully',
+      data: {
+        orderId,
+        imageType
+      }
+    });
+  } catch (error) {
+    console.error('Error deleting shipping image:', error);
+    return jsonResponse({
+      error: 'Failed to delete image',
+      message: error.message
+    }, 500);
+  }
+}
+
+/**
  * Route handler untuk request shipping
  */
 async function handleRequest(request, env, ctx) {
@@ -189,7 +267,11 @@ async function handleRequest(request, env, ctx) {
 
   // Route untuk upload gambar: POST /api/shipping/images/:orderId/:imageType
   if (url.pathname.match(/^\/api\/shipping\/images\/[^\/]+\/[^\/]+$/)) {
-    return uploadShippingImage(request, env);
+    if (request.method === 'POST') {
+      return uploadShippingImage(request, env);
+    } else if (request.method === 'DELETE') {
+      return deleteShippingImage(request, env);
+    }
   }
   
   // Route untuk mendapatkan gambar: GET /api/shipping/images/:orderId
