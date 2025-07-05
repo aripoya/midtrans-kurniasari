@@ -48,6 +48,7 @@ function AdminOrderDetailPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
   const navigate = useNavigate();
+  const [shippingArea, setShippingArea] = useState('dalam-kota'); // Default: dalam-kota (dalam-kota | luar-kota)
 
   const fetchOrder = async () => {
     try {
@@ -764,6 +765,16 @@ return (
                   <Text><strong>Status Pengiriman:</strong></Text>
                   {getShippingStatusBadge(order.shipping_status)}
                 </HStack>
+                <FormControl mt={2}>
+                  <FormLabel><strong>Area Pengiriman:</strong></FormLabel>
+                  <Select 
+                    value={shippingArea} 
+                    onChange={(e) => setShippingArea(e.target.value)}
+                  >
+                    <option value="dalam-kota">Dalam Kota</option>
+                    <option value="luar-kota">Luar Kota</option>
+                  </Select>
+                </FormControl>
                 <Text mt={2}><strong>Metode:</strong> <Tag>{order.payment_method || 'N/A'}</Tag></Text>
                 {order.payment_time && (
                   <Text><strong>Waktu Pembayaran:</strong> {order.payment_time ? `${new Date(order.payment_time).getDate().toString().padStart(2, '0')}-${(new Date(order.payment_time).getMonth() + 1).toString().padStart(2, '0')}-${new Date(order.payment_time).getFullYear()}` : '-'}</Text>
@@ -815,12 +826,15 @@ return (
                   <AccordionPanel pb={4}>
                     <Tabs variant="enclosed">
                       <TabList>
-                        <Tab>Status Foto</Tab>
+                        <Tab>Dalam Kota</Tab>
+                        <Tab>Luar Kota</Tab>
                         <Tab>QR Code Pengambilan</Tab>
                       </TabList>
                       <TabPanels>
+                        {/* Tab Dalam Kota */}
                         <TabPanel>
                           <VStack spacing={4} align="stretch">
+                            <Text fontWeight="medium">Status Foto - Dalam Kota</Text>
                             {/* Foto Siap Ambil */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
                               <Heading size="sm" mb={2}>Siap Ambil</Heading>
@@ -943,6 +957,182 @@ return (
                               Simpan Semua Foto
                             </Button>
                           </VStack>
+                        </TabPanel>
+                        {/* Tab Luar Kota */}
+                        <TabPanel>
+                          <VStack spacing={4} align="stretch">
+                            <Text fontWeight="medium">Status Foto - Luar Kota</Text>
+                            {/* Foto Siap Kirim */}
+                            <Box borderWidth="1px" borderRadius="lg" p={4}>
+                              <Heading size="sm" mb={2}>Siap Kirim</Heading>
+                              {renderUploadedImage('readyForPickup')}
+                              
+                              <HStack mt={2} spacing={2}>
+                                <Button 
+                                  onClick={() => fileInputRefs.readyForPickup.current.click()}
+                                  isLoading={isUploading}
+                                  size="sm"
+                                  colorScheme="blue"
+                                >
+                                  {uploadedImages.readyForPickup ? 'Ganti Foto' : 'Upload Foto'}
+                                </Button>
+                                {uploadedImages.readyForPickup && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    colorScheme="red"
+                                    onClick={() => {
+                                      setUploadedImages(prev => ({
+                                        ...prev,
+                                        readyForPickup: null
+                                      }));
+                                    }}
+                                  >
+                                    Hapus
+                                  </Button>
+                                )}
+                              </HStack>
+                              <Input 
+                                ref={fileInputRefs.readyForPickup}
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleImageSelect('readyForPickup', e.target.files[0])}
+                                display="none"
+                              />
+                            </Box>
+                            
+                            {/* Foto Sudah Dikirim */}
+                            <Box borderWidth="1px" borderRadius="lg" p={4}>
+                              <Heading size="sm" mb={2}>Sudah Dikirim</Heading>
+                              {renderUploadedImage('pickedUp')}
+                              
+                              <HStack mt={2} spacing={2}>
+                                <Button 
+                                  onClick={() => fileInputRefs.pickedUp.current.click()}
+                                  isLoading={isUploading}
+                                  size="sm"
+                                  colorScheme="blue"
+                                >
+                                  {uploadedImages.pickedUp ? 'Ganti Foto' : 'Upload Foto'}
+                                </Button>
+                                {uploadedImages.pickedUp && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    colorScheme="red"
+                                    onClick={() => {
+                                      setUploadedImages(prev => ({
+                                        ...prev,
+                                        pickedUp: null
+                                      }));
+                                    }}
+                                  >
+                                    Hapus
+                                  </Button>
+                                )}
+                              </HStack>
+                              <Input 
+                                ref={fileInputRefs.pickedUp}
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleImageSelect('pickedUp', e.target.files[0])}
+                                display="none"
+                              />
+                            </Box>
+                            
+                            {/* Foto Sudah Diterima */}
+                            <Box borderWidth="1px" borderRadius="lg" p={4}>
+                              <Heading size="sm" mb={2}>Sudah Diterima</Heading>
+                              {renderUploadedImage('received')}
+                              
+                              <HStack mt={2} spacing={2}>
+                                <Button 
+                                  onClick={() => fileInputRefs.received.current.click()}
+                                  isLoading={isUploading}
+                                  size="sm"
+                                  colorScheme="blue"
+                                >
+                                  {uploadedImages.received ? 'Ganti Foto' : 'Upload Foto'}
+                                </Button>
+                                {uploadedImages.received && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    colorScheme="red"
+                                    onClick={() => {
+                                      setUploadedImages(prev => ({
+                                        ...prev,
+                                        received: null
+                                      }));
+                                    }}
+                                  >
+                                    Hapus
+                                  </Button>
+                                )}
+                              </HStack>
+                              <Input 
+                                ref={fileInputRefs.received}
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleImageSelect('received', e.target.files[0])}
+                                display="none"
+                              />
+                            </Box>
+                          </VStack>
+                        </TabPanel>
+                        {/* Tab QR Code */}
+                        <TabPanel>
+                          <Box mb={4}>
+                            <Heading size="sm" mb={2}>QR Code untuk Pengambilan</Heading>
+                            <Text fontSize="sm" mb={4}>QR code ini bisa ditunjukkan oleh pelanggan saat mengambil pesanan di outlet.</Text>
+                            
+                            <Flex justifyContent="center" mb={4}>
+                              <Box
+                                p={4}
+                                borderWidth="1px"
+                                borderRadius="lg"
+                                width="fit-content"
+                                textAlign="center"
+                                id="qrcode-container"
+                                ref={qrCodeRef}
+                              >
+                                <QRCodeSVG 
+                                  value={`https://tagihan.kurniasari.co.id/orders/${order.id}`}
+                                  size={200}
+                                  level="H"
+                                  includeMargin={true}
+                                  imageSettings={{
+                                    src: "https://kurniasaripayment.netlify.app/logo192.png",
+                                    x: undefined,
+                                    y: undefined,
+                                    height: 40,
+                                    width: 40,
+                                    excavate: true,
+                                  }}
+                                />
+                                <Text mt={2} fontSize="sm" fontWeight="bold">Order #{order.id}</Text>
+                              </Box>
+                            </Flex>
+                            
+                            <Button
+                              onClick={() => {
+                                const container = qrCodeRef.current;
+                                if (!container) return;
+                
+                                html2canvas(container, { scale: 2 }).then(canvas => {
+                                  const link = document.createElement('a');
+                                  link.download = `qrcode-order-${order.id}.png`;
+                                  link.href = canvas.toDataURL();
+                                  link.click();
+                                });
+                              }}
+                              colorScheme="blue"
+                              size="md"
+                              width="full"
+                            >
+                              Download QR Code
+                            </Button>
+                          </Box>
                         </TabPanel>
                         <TabPanel>
                           <VStack spacing={4} align="center">
