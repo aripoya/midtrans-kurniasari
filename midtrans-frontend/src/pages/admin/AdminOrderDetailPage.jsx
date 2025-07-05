@@ -1482,9 +1482,60 @@ return (
                   </Select>
                 </FormControl>
                 
+                {/* UI Tipe Pesanan - dua box berdampingan */}
+                <Box mt={4}>
+                  <Heading as="h3" size="md" mb={3}>Tipe Pesanan</Heading>
+                  <SimpleGrid columns={2} spacing={4}>
+                    {/* Pesan Ambil */}
+                    <Box
+                      p={4}
+                      borderWidth="1px"
+                      borderRadius="lg"
+                      borderColor={shippingArea === 'dalam-kota' ? "green.500" : "gray.200"}
+                      bg={shippingArea === 'dalam-kota' ? "green.50" : "white"}
+                      cursor="pointer"
+                      onClick={() => setShippingArea('dalam-kota')}
+                      _hover={{ borderColor: "green.300" }}
+                    >
+                      <HStack spacing={3}>
+                        <Box boxSize="30px">
+                          <Box as="span" fontSize="24px">📦</Box>
+                        </Box>
+                        <Box>
+                          <Text fontWeight="bold">Pesan Ambil</Text>
+                          <Text fontSize="sm" color="gray.600">Ambil di outlet</Text>
+                        </Box>
+                      </HStack>
+                    </Box>
+                    
+                    {/* Pesan Kirim */}
+                    <Box
+                      p={4}
+                      borderWidth="1px"
+                      borderRadius="lg"
+                      borderColor={shippingArea === 'luar-kota' ? "green.500" : "gray.200"}
+                      bg={shippingArea === 'luar-kota' ? "green.50" : "white"}
+                      cursor="pointer"
+                      onClick={() => setShippingArea('luar-kota')}
+                      _hover={{ borderColor: "green.300" }}
+                    >
+                      <HStack spacing={3}>
+                        <Box boxSize="30px">
+                          <Box as="span" fontSize="24px">🚚</Box>
+                        </Box>
+                        <Box>
+                          <Text fontWeight="bold">Pesan Kirim</Text>
+                          <Text fontSize="sm" color="gray.600">Kirim ke alamat</Text>
+                        </Box>
+                      </HStack>
+                    </Box>
+                  </SimpleGrid>
+                </Box>
+                
+                {/* Metode Pengambilan jika Pesan Ambil dipilih */}
                 {shippingArea === 'dalam-kota' && (
-                  <FormControl>
-                    <FormLabel>Metode Pengambilan</FormLabel>
+                  <FormControl mt={4}>
+                    <FormLabel>Metode Ambil</FormLabel>
                     <Select
                       value={pickupMethod}
                       onChange={(e) => setPickupMethod(e.target.value)}
@@ -1495,9 +1546,9 @@ return (
                   </FormControl>
                 )}
                 
-                {/* Metode Pengiriman, tampilkan untuk semua tipe pengiriman */}
-                <FormControl mt={3}>
-                  <FormLabel>Metode Pengiriman</FormLabel>
+                {/* Metode Pengiriman */}
+                <FormControl mt={4}>
+                  <FormLabel>Metode Kirim</FormLabel>
                   <Select
                     value={metodePengiriman}
                     onChange={(e) => setMetodePengiriman(e.target.value)}
