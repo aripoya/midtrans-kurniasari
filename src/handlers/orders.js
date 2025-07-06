@@ -643,7 +643,6 @@ export async function updateOrderDetails(request, env) {
     if (tracking_number !== undefined) { updateFields.push('tracking_number = ?'); updateParams.push(tracking_number); }
     if (courier_service !== undefined) { updateFields.push('courier_service = ?'); updateParams.push(courier_service); }
     if (tipe_pesanan !== undefined) { updateFields.push('tipe_pesanan = ?'); updateParams.push(tipe_pesanan); }
-    if (metode_pengiriman !== undefined) { updateFields.push('metode_pengiriman = ?'); updateParams.push(metode_pengiriman); }
 
     if (lokasiPengirimanName !== undefined) {
       if (lokasiPengirimanName) {
@@ -681,17 +680,40 @@ export async function updateOrderDetails(request, env) {
     updateParams.push(orderId);
 
     const updateQuery = `UPDATE orders SET ${updateFields.join(', ')} WHERE id = ?`;
-    console.log(`[updateOrderDetails] Update query: ${updateQuery}`);
-    console.log(`[updateOrderDetails] Update params:`, JSON.stringify(updateParams));
 
-    const updateResult = await env.DB.prepare(updateQuery).bind(...updateParams).run();
+    try {
+      console.log(`[updateOrderDetails] Executing query: ${updateQuery}`);
+      console.log(`[updateOrderDetails] With params:`, JSON.stringify(updateParams));
 
-    if (!updateResult || updateResult.meta.changes === 0) {
-      return new Response(JSON.stringify({ success: false, error: 'Order not found or details unchanged' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      const updateResult = await env.DB.prepare(updateQuery).bind(...updateParams).run();
+
+      if (!updateResult.success) {
+        throw new Error('Database update failed: ' + (updateResult.error || 'Unknown D1 error'));
+      }
+
+      if (updateResult.meta.changes === 0) {
+        return new Response(JSON.stringify({ success: false, error: 'Order not found or details were unchanged' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      console.log(`[updateOrderDetails] Successfully updated order: ${orderId}`);
+      return new Response(JSON.stringify({ success: true, message: 'Order details updated successfully' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+    } catch (dbError) {
+      console.error(`[updateOrderDetails] Database Error for order ${orderId}:`, dbError);
+      console.error(`[updateOrderDetails] Failing Query: ${updateQuery}`);
+      console.error(`[updateOrderDetails] Failing Params:`, JSON.stringify(updateParams));
+
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Gagal memperbarui pesanan di database.',
+        details: dbError.message,
+        query: updateQuery, // For debugging
+        params: updateParams // For debugging
+      }), { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
-
-    console.log(`[updateOrderDetails] Successfully updated order: ${orderId}`);
-    return new Response(JSON.stringify({ success: true, message: 'Order details updated successfully' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {
     console.error(`[updateOrderDetails] Unhandled error:`, error.message, error.stack);

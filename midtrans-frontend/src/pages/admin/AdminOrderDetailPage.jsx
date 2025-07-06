@@ -38,13 +38,15 @@ function AdminOrderDetailPage() {
   const [uploadedImages, setUploadedImages] = useState({
     readyForPickup: null,
     pickedUp: null,
-    received: null
+    received: null,
+    shipmentProof: null // Untuk bukti pengiriman luar kota
   });
   const [showQRCode, setShowQRCode] = useState(false);
   const fileInputRefs = {
     readyForPickup: useRef(null),
     pickedUp: useRef(null),
-    received: useRef(null)
+    received: useRef(null),
+    shipmentProof: useRef(null)
   };
   const qrCodeRef = useRef(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -999,13 +1001,14 @@ return (
                         <TabPanel>
                           <VStack spacing={4} align="stretch">
                             <Text fontWeight="medium">Status Foto - Dalam Kota</Text>
+                            <Text fontSize="sm" color="gray.500">Unggah foto untuk setiap tahap pengiriman. Foto akan otomatis tersimpan.</Text>
+
                             {/* Foto Siap Ambil */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>Siap Ambil</Heading>
+                              <Heading size="sm" mb={2}>1. Siap Diambil</Heading>
                               {renderUploadedImage('readyForPickup')}
-                              
                               <HStack mt={2} spacing={2}>
-                                <Button 
+                                <Button
                                   onClick={() => fileInputRefs.readyForPickup.current.click()}
                                   isLoading={isUploading}
                                   size="sm"
@@ -1014,8 +1017,8 @@ return (
                                   {uploadedImages.readyForPickup ? 'Ganti Foto' : 'Upload Foto'}
                                 </Button>
                                 {uploadedImages.readyForPickup && (
-                                  <Button 
-                                    size="sm" 
+                                  <Button
+                                    size="sm"
                                     colorScheme="red"
                                     isLoading={isUploading}
                                     onClick={() => handleDeleteImage('readyForPickup')}
@@ -1024,22 +1027,21 @@ return (
                                   </Button>
                                 )}
                               </HStack>
-                              <Input 
-                                type="file" 
-                                accept="image/*" 
-                                hidden 
-                                ref={fileInputRefs.readyForPickup} 
+                              <Input
+                                type="file"
+                                accept="image/*"
+                                hidden
+                                ref={fileInputRefs.readyForPickup}
                                 onChange={(e) => handleImageSelect('readyForPickup', e.target.files[0])}
                               />
                             </Box>
-                            
+
                             {/* Foto Sudah Diambil */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>Sudah Diambil</Heading>
+                              <Heading size="sm" mb={2}>2. Sudah Diambil</Heading>
                               {renderUploadedImage('pickedUp')}
-                              
                               <HStack mt={2} spacing={2}>
-                                <Button 
+                                <Button
                                   onClick={() => fileInputRefs.pickedUp.current.click()}
                                   isLoading={isUploading}
                                   size="sm"
@@ -1048,8 +1050,8 @@ return (
                                   {uploadedImages.pickedUp ? 'Ganti Foto' : 'Upload Foto'}
                                 </Button>
                                 {uploadedImages.pickedUp && (
-                                  <Button 
-                                    size="sm" 
+                                  <Button
+                                    size="sm"
                                     colorScheme="red"
                                     isLoading={isUploading}
                                     onClick={() => handleDeleteImage('pickedUp')}
@@ -1058,22 +1060,21 @@ return (
                                   </Button>
                                 )}
                               </HStack>
-                              <Input 
-                                type="file" 
-                                accept="image/*" 
-                                hidden 
-                                ref={fileInputRefs.pickedUp} 
+                              <Input
+                                type="file"
+                                accept="image/*"
+                                hidden
+                                ref={fileInputRefs.pickedUp}
                                 onChange={(e) => handleImageSelect('pickedUp', e.target.files[0])}
                               />
                             </Box>
-                            
+
                             {/* Foto Sudah Diterima */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>Sudah Diterima</Heading>
+                              <Heading size="sm" mb={2}>3. Sudah Diterima</Heading>
                               {renderUploadedImage('received')}
-                              
                               <HStack mt={2} spacing={2}>
-                                <Button 
+                                <Button
                                   onClick={() => fileInputRefs.received.current.click()}
                                   isLoading={isUploading}
                                   size="sm"
@@ -1082,8 +1083,8 @@ return (
                                   {uploadedImages.received ? 'Ganti Foto' : 'Upload Foto'}
                                 </Button>
                                 {uploadedImages.received && (
-                                  <Button 
-                                    size="sm" 
+                                  <Button
+                                    size="sm"
                                     colorScheme="red"
                                     isLoading={isUploading}
                                     onClick={() => handleDeleteImage('received')}
@@ -1092,142 +1093,52 @@ return (
                                   </Button>
                                 )}
                               </HStack>
-                              <Input 
-                                type="file" 
-                                accept="image/*" 
-                                hidden 
-                                ref={fileInputRefs.received} 
+                              <Input
+                                type="file"
+                                accept="image/*"
+                                hidden
+                                ref={fileInputRefs.received}
                                 onChange={(e) => handleImageSelect('received', e.target.files[0])}
                               />
                             </Box>
-                            
-                            <Button 
-                              colorScheme="blue" 
-                              onClick={handleSaveImages}
-                              isLoading={isUploading}
-                            >
-                              Simpan Semua Foto
-                            </Button>
                           </VStack>
                         </TabPanel>
                         {/* Tab Luar Kota */}
                         <TabPanel>
                           <VStack spacing={4} align="stretch">
                             <Text fontWeight="medium">Status Foto - Luar Kota</Text>
-                            {/* Foto Siap Kirim */}
-                            <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>Siap Kirim</Heading>
-                              {renderUploadedImage('readyForPickup')}
-                              
-                              <HStack mt={2} spacing={2}>
-                                <Button 
-                                  onClick={() => fileInputRefs.readyForPickup.current.click()}
-                                  isLoading={isUploading}
-                                  size="sm"
-                                  colorScheme="blue"
-                                >
-                                  {uploadedImages.readyForPickup ? 'Ganti Foto' : 'Upload Foto'}
-                                </Button>
-                                {uploadedImages.readyForPickup && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="ghost"
-                                    colorScheme="red"
-                                    onClick={() => {
-                                      setUploadedImages(prev => ({
-                                        ...prev,
-                                        readyForPickup: null
-                                      }));
-                                    }}
-                                  >
-                                    Hapus
-                                  </Button>
-                                )}
-                              </HStack>
-                              <Input 
-                                ref={fileInputRefs.readyForPickup}
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => handleImageSelect('readyForPickup', e.target.files[0])}
-                                display="none"
-                              />
-                            </Box>
+                            <Text fontSize="sm" color="gray.500">Unggah satu foto sebagai bukti pengiriman untuk pesanan luar kota.</Text>
                             
-                            {/* Foto Sudah Dikirim */}
+                            {/* Bukti Pengiriman */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>Sudah Dikirim</Heading>
-                              {renderUploadedImage('pickedUp')}
-                              
+                              <Heading size="sm" mb={2}>Bukti Pengiriman</Heading>
+                              {renderUploadedImage('shipmentProof')}
                               <HStack mt={2} spacing={2}>
-                                <Button 
-                                  onClick={() => fileInputRefs.pickedUp.current.click()}
+                                <Button
+                                  onClick={() => fileInputRefs.shipmentProof.current.click()}
                                   isLoading={isUploading}
                                   size="sm"
                                   colorScheme="blue"
                                 >
-                                  {uploadedImages.pickedUp ? 'Ganti Foto' : 'Upload Foto'}
+                                  {uploadedImages.shipmentProof ? 'Ganti Foto' : 'Upload Foto'}
                                 </Button>
-                                {uploadedImages.pickedUp && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="ghost"
+                                {uploadedImages.shipmentProof && (
+                                  <Button
+                                    size="sm"
                                     colorScheme="red"
-                                    onClick={() => {
-                                      setUploadedImages(prev => ({
-                                        ...prev,
-                                        pickedUp: null
-                                      }));
-                                    }}
+                                    isLoading={isUploading}
+                                    onClick={() => handleDeleteImage('shipmentProof')}
                                   >
                                     Hapus
                                   </Button>
                                 )}
                               </HStack>
-                              <Input 
-                                ref={fileInputRefs.pickedUp}
+                              <Input
                                 type="file"
                                 accept="image/*"
-                                onChange={(e) => handleImageSelect('pickedUp', e.target.files[0])}
-                                display="none"
-                              />
-                            </Box>
-                            
-                            {/* Foto Sudah Diterima */}
-                            <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>Sudah Diterima</Heading>
-                              {renderUploadedImage('received')}
-                              
-                              <HStack mt={2} spacing={2}>
-                                <Button 
-                                  onClick={() => fileInputRefs.received.current.click()}
-                                  isLoading={isUploading}
-                                  size="sm"
-                                  colorScheme="blue"
-                                >
-                                  {uploadedImages.received ? 'Ganti Foto' : 'Upload Foto'}
-                                </Button>
-                                {uploadedImages.received && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="ghost"
-                                    colorScheme="red"
-                                    onClick={() => {
-                                      setUploadedImages(prev => ({
-                                        ...prev,
-                                        received: null
-                                      }));
-                                    }}
-                                  >
-                                    Hapus
-                                  </Button>
-                                )}
-                              </HStack>
-                              <Input 
-                                ref={fileInputRefs.received}
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => handleImageSelect('received', e.target.files[0])}
-                                display="none"
+                                hidden
+                                ref={fileInputRefs.shipmentProof}
+                                onChange={(e) => handleImageSelect('shipmentProof', e.target.files[0])}
                               />
                             </Box>
                           </VStack>
