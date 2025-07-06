@@ -31,6 +31,7 @@ import {
 } from '@chakra-ui/react';
 import { orderService } from '../../api/orderService';
 import { adminApi } from '../../api/adminApi';
+import { formatDate } from '../../utils/date';
 
 // Stat card component for dashboard
 function StatCard({ label, value, colorScheme = "teal" }) {
@@ -214,7 +215,7 @@ function AdminOrdersPage() {
                         <Stack spacing={3}>
                           <Flex justify="space-between">
                             <Text fontWeight="bold">#{order.id.substring(0, 8)}</Text>
-                            <Text>{new Date(order.created_at).getDate().toString().padStart(2, '0')}-{(new Date(order.created_at).getMonth() + 1).toString().padStart(2, '0')}-{new Date(order.created_at).getFullYear()}</Text>
+                            <Text>{formatDate(order.created_at)}</Text>
                           </Flex>
                           <Text><strong>Pelanggan:</strong> {order.customer_name}</Text>
                           <Text><strong>Total:</strong> Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
@@ -264,7 +265,7 @@ function AdminOrdersPage() {
                       filteredOrders.map(order => (
                         <Tr key={order.id}>
                           <Td>#{order.id.substring(0, 8)}</Td>
-                          <Td>{new Date(order.created_at).getDate().toString().padStart(2, '0')}-{(new Date(order.created_at).getMonth() + 1).toString().padStart(2, '0')}-{new Date(order.created_at).getFullYear()}</Td>
+                          <Td>{formatDate(order.created_at)}</Td>
                           <Td>{order.customer_name}</Td>
                           <Td>Rp {order.total_amount?.toLocaleString('id-ID')}</Td>
                           <Td>{getPaymentStatusBadge(order.payment_status)}</Td>

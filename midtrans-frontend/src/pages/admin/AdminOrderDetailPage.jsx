@@ -17,6 +17,7 @@ import { orderService } from '../../api/orderService';
 import { refreshOrderStatus } from '../../api/api';
 import { adminApi } from '../../api/adminApi';
 import html2canvas from 'html2canvas';
+import { formatDate } from '../../utils/date';
 
 function AdminOrderDetailPage() {
   const { id } = useParams();
@@ -923,6 +924,7 @@ return (
             <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={6}>
               <GridItem>
                 <Heading size="sm" mb={4}>Informasi Pelanggan</Heading>
+                <Text><strong>Tanggal Pesanan:</strong> {formatDate(order.created_at)}</Text>
                 <Text><strong>Nama:</strong> {order.customer_name}</Text>
                 <Text><strong>Email:</strong> {order.customer_email}</Text>
                 <Text><strong>Telepon:</strong> {order.customer_phone}</Text>
