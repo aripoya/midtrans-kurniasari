@@ -1568,21 +1568,23 @@ return (
                   </Select>
                 </FormControl>
                 
-                {/* Tipe Pesanan selection */}
-                <FormControl mt={4}>
-                  <FormLabel>Tipe Pesanan</FormLabel>
-                  <Select
-                    value={tipe_pesanan}
-                    onChange={(e) => {
-                      setTipePesanan(e.target.value);
-                      setFormChanged(true);
-                    }}
-                  >
-                    <option value="">Pilih Tipe Pesanan</option>
-                    <option value="Pesan Antar">Pesan Antar</option>
-                    <option value="Pesan Ambil">Pesan Ambil</option>
-                  </Select>
-                </FormControl>
+                {/* Tipe Pesanan selection - hanya tampil jika area pengiriman Dalam Kota */}
+                {shippingArea === 'dalam-kota' && (
+                  <FormControl mt={4}>
+                    <FormLabel>Tipe Pesanan</FormLabel>
+                    <Select
+                      value={tipe_pesanan}
+                      onChange={(e) => {
+                        setTipePesanan(e.target.value);
+                        setFormChanged(true);
+                      }}
+                    >
+                      <option value="">Pilih Tipe Pesanan</option>
+                      <option value="Pesan Antar">Pesan Antar</option>
+                      <option value="Pesan Ambil">Pesan Ambil</option>
+                    </Select>
+                  </FormControl>
+                )}
                 
                 {/* Lokasi Pengiriman selection - shown when tipe_pesanan is "Pesan Antar" */}
                 {tipe_pesanan === 'Pesan Antar' && (
@@ -1607,8 +1609,8 @@ return (
                   </FormControl>
                 )}
                 
-                {/* Lokasi Pengambilan selection - shown when tipe_pesanan is "Pesan Ambil" */}
-                {tipe_pesanan === 'Pesan Ambil' && (
+                {/* Lokasi Pengambilan selection - shown when tipe_pesanan is "Pesan Ambil" and area is Dalam Kota */}
+                {tipe_pesanan === 'Pesan Ambil' && shippingArea === 'dalam-kota' && (
                   <FormControl mt={4}>
                     <FormLabel>Lokasi Pengambilan</FormLabel>
                     <RadioGroup 
