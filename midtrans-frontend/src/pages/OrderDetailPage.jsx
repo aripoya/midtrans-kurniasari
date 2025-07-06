@@ -485,17 +485,46 @@ function OrderDetailPage() {
                               variant="outline"
                               onClick={() => {
                                 if (order.courier_service === 'TIKI') {
-                                  // TIKI tracking with direct URL parameter
-                                  const tikiUrl = `https://www.tiki.id/id/track?resi=${order.tracking_number}`;
-                                  window.open(tikiUrl, '_blank');
-                                  
-                                  toast({
-                                    title: `Melacak resi TIKI`,
-                                    description: `Membuka halaman tracking TIKI dengan nomor resi: ${order.tracking_number}`,
-                                    status: 'info',
-                                    duration: 5000,
-                                    isClosable: true,
-                                  });
+                                  // TIKI tracking with clipboard copy and redirect
+                                  try {
+                                    // Copy tracking number to clipboard
+                                    navigator.clipboard.writeText(order.tracking_number)
+                                      .then(() => {
+                                        // Open TIKI tracking page
+                                        window.open('https://www.tiki.id/id/track', '_blank', 'noopener,noreferrer');
+                                        
+                                        // Show success notification
+                                        toast({
+                                          title: `Nomor resi disalin!`,
+                                          description: `Resi ${order.tracking_number} sudah disalin. Tempel (paste) di form TIKI yang terbuka.`,
+                                          status: 'success',
+                                          duration: 8000,
+                                          isClosable: true,
+                                        });
+                                      })
+                                      .catch(err => {
+                                        console.error('Failed to copy: ', err);
+                                        // Fallback to just opening the page
+                                        window.open('https://www.tiki.id/id/track', '_blank', 'noopener,noreferrer');
+                                        toast({
+                                          title: `Gagal menyalin resi`,
+                                          description: `Silakan salin manual: ${order.tracking_number}`,
+                                          status: 'warning',
+                                          duration: 5000,
+                                          isClosable: true,
+                                        });
+                                      });
+                                  } catch (error) {
+                                    // Fallback if clipboard API is not available
+                                    window.open('https://www.tiki.id/id/track', '_blank', 'noopener,noreferrer');
+                                    toast({
+                                      title: `Lacak resi TIKI`,
+                                      description: `Gunakan nomor resi: ${order.tracking_number}`,
+                                      status: 'info',
+                                      duration: 5000,
+                                      isClosable: true,
+                                    });
+                                  }
                                 } else if (order.courier_service === 'JNE') {
                                   // For JNE, try to use query parameters to auto-fill
                                   const jneUrl = `https://www.jne.co.id/id/tracking/trace?receiptnumber=${order.tracking_number}`;
