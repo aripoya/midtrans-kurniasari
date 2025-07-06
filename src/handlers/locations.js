@@ -16,11 +16,11 @@ export async function getLocations(request, env) {
       throw new Error("Database binding not found.");
     }
 
-    // Fetch all locations ordered by kode_area
+    // Fetch only location names, ordered alphabetically
     const locations = await env.DB.prepare(
-      `SELECT id, kode_area, nama_lokasi, created_at, updated_at 
+      `SELECT id, nama_lokasi 
        FROM locations 
-       ORDER BY kode_area ASC`
+       ORDER BY nama_lokasi ASC`
     ).all();
 
     return new Response(

@@ -1,0 +1,1 @@
+-- This is a dummy migration to force wrangler to re-evaluate the migration state.

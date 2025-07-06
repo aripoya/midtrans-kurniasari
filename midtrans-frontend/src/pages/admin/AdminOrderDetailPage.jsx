@@ -61,246 +61,103 @@ function AdminOrderDetailPage() {
   const [lokasi_pengambilan, setLokasiPengambilan] = useState(''); // Lokasi pengambilan terpilih
   const [tipe_pesanan, setTipePesanan] = useState(''); // Tipe pesanan (Pesan Antar/Pesan Ambil)
 
-  const fetchOrder = async () => {
-    try {
-      console.log('[AdminOrderDetailPage] Fetching order:', id);
-      setLoading(true);
-      setError(null);
-      const data = await orderService.getOrderById(id);
-      console.log('[AdminOrderDetailPage] API response:', data);
-      
-      if (data.success && data.order) {
-        let finalOrder = data.order;
-        console.log('[AdminOrderDetailPage] Original order data:', finalOrder);
-        
-        if (finalOrder.payment_response) {
-          try {
-            const paymentDetails = JSON.parse(finalOrder.payment_response);
-            finalOrder = {
-              ...finalOrder,
-              payment_method: paymentDetails.payment_type || finalOrder.payment_method,
-              payment_time: paymentDetails.settlement_time || finalOrder.payment_time,
-              status: paymentDetails.transaction_status || finalOrder.status,
-            };
-            console.log('[AdminOrderDetailPage] Enhanced order with payment details:', finalOrder);
-          } catch (e) {
-            console.error("Failed to parse payment_response:", e);
-          }
-        }
-        setOrder(finalOrder);
-        setShippingStatus(finalOrder.shipping_status || '');
-        setFormChanged(true); // Add this line
-        setShippingStatus(finalOrder.shipping_status || '');
-        
-        // Set shipping area dan pickup method
-        if (finalOrder.shipping_area) {
-          setShippingArea(finalOrder.shipping_area);
-        }
-        
-        if (finalOrder.pickup_method) {
-          setPickupMethod(finalOrder.pickup_method);
-        }
-        
-        // Set metode pengiriman jika tersedia
-        if (finalOrder.metode_pengiriman) {
-          setMetodePengiriman(finalOrder.metode_pengiriman);
-          console.log('[AdminOrderDetailPage] Metode pengiriman loaded:', finalOrder.metode_pengiriman);
-        }
-        
-        // Cek jika ada catatan admin yang tersimpan
-        if (finalOrder.admin_note) {
-          setSavedAdminNote(finalOrder.admin_note);
-          setAdminNote(finalOrder.admin_note);
-        }
-        
-        // Set tipe pesanan dan lokasi pengiriman/pengambilan
-        if (finalOrder.tipe_pesanan) {
-          setTipePesanan(finalOrder.tipe_pesanan);
-          console.log('[AdminOrderDetailPage] Tipe pesanan loaded:', finalOrder.tipe_pesanan);
-        }
-        
-        if (finalOrder.lokasi_pengiriman) {
-          setLokasiPengiriman(finalOrder.lokasi_pengiriman);
-          console.log('[AdminOrderDetailPage] Lokasi pengiriman loaded:', finalOrder.lokasi_pengiriman);
-        }
-        
-        if (finalOrder.lokasi_pengambilan) {
-          setLokasiPengambilan(finalOrder.lokasi_pengambilan);
-          console.log('[AdminOrderDetailPage] Lokasi pengambilan loaded:', finalOrder.lokasi_pengambilan);
-        }
-      } else {
-        console.error('[AdminOrderDetailPage] Order not found or API returned error');
-        setError(`Pesanan tidak ditemukan.`);
-      }
-    } catch (err) {
-      console.error('[AdminOrderDetailPage] Error fetching order:', err);
-      setError(`Gagal memuat detail pesanan: ${err.message}.`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fungsi untuk mengubah URL dari domain lama ke domain baru
   const transformURL = (url) => {
     if (!url) return null;
-    
-    // Ubah domain lama ke domain baru
     if (url.includes('kurniasari-shipping-images.kurniasari.co.id')) {
-      const fileName = url.split('/').pop().split('?')[0]; // Ambil nama file saja, hapus query params
+      const fileName = url.split('/').pop().split('?')[0];
       return `https://proses.kurniasari.co.id/${fileName}?t=${Date.now()}`;
     }
-    
-    // Jika sudah menggunakan domain baru, pastikan ada cache busting
     if (url.includes('proses.kurniasari.co.id') && !url.includes('?t=')) {
       return `${url}?t=${Date.now()}`;
     }
-    
     return url;
   };
-  
-  // Fungsi untuk mengambil data gambar pengiriman
-  const fetchShippingImages = async (orderId) => {
-    try {
-      console.log('[DEBUG-SHIPPING] Fetching shipping images for order:', orderId);
-      const result = await adminApi.getShippingImages(orderId);
-      console.log('[DEBUG-SHIPPING] API response:', result);
-      
-      if (result.success && result.data) {
-        console.log('[DEBUG-SHIPPING] Shipping images found:', result.data.length);
-        console.log('[DEBUG-SHIPPING] Raw image data:', JSON.stringify(result.data));
-        
-        // Reset state uploadedImages
-        const newImages = {
-          readyForPickup: null,
-          pickedUp: null,
-          received: null
-        };
-        
-        // Map hasil API ke state uploadedImages
-        result.data.forEach(image => {
-          console.log('[DEBUG-SHIPPING] Processing image:', image);
-          switch(image.image_type) {
-            case 'ready_for_pickup':
-              console.log('[DEBUG-SHIPPING] Setting readyForPickup image URL:', image.image_url);
-              // Transform URL & tambahkan cache busting
-              newImages.readyForPickup = transformURL(image.image_url);
-              break;
-            case 'picked_up':
-              console.log('[DEBUG-SHIPPING] Setting pickedUp image URL:', image.image_url);
-              // Transform URL & tambahkan cache busting
-              newImages.pickedUp = transformURL(image.image_url);
-              break;
-            case 'delivered':
-              console.log('[DEBUG-SHIPPING] Setting received image URL:', image.image_url);
-              // Transform URL & tambahkan cache busting
-              newImages.received = transformURL(image.image_url);
-              break;
-            default:
-              console.log('[DEBUG-SHIPPING] Unknown image type:', image.image_type);
-          }
-        });
-        
-        console.log('[DEBUG-SHIPPING] Final images state to set:', newImages);
-        
-        // Update state dengan data baru (force update dengan setState function)
-        setUploadedImages(current => {
-          const updatedImages = {...newImages};
-          // Simpan ke localStorage untuk persistensi
-          try {
-            localStorage.setItem(`shipping_images_${orderId}`, JSON.stringify(updatedImages));
-            console.log('[DEBUG-SHIPPING] Saved images to localStorage');
-          } catch (storageErr) {
-            console.error('[DEBUG-SHIPPING] Failed to save to localStorage:', storageErr);
-          }
-          return updatedImages;
-        });
-        
-        // Debug untuk memverifikasi state setelah update
-        setTimeout(() => {
-          console.log('[DEBUG-SHIPPING] Verifying state after update:', uploadedImages);
-        }, 100);
-      } else {
-        console.log('[DEBUG-SHIPPING] No shipping images found or API error:', result);
-        
-        // Cek jika ada data tersimpan di localStorage
-        try {
-          const savedImages = localStorage.getItem(`shipping_images_${orderId}`);
-          if (savedImages) {
-            const parsedImages = JSON.parse(savedImages);
-            console.log('[DEBUG-SHIPPING] Found saved images in localStorage:', parsedImages);
-            setUploadedImages(parsedImages);
-          }
-        } catch (storageErr) {
-          console.error('[DEBUG-SHIPPING] Failed to retrieve from localStorage:', storageErr);
-        }
-      }
-    } catch (err) {
-      console.error('[DEBUG-SHIPPING] Error fetching shipping images:', err);
-      
-      // Cek jika ada data tersimpan di localStorage
-      try {
-        const savedImages = localStorage.getItem(`shipping_images_${orderId}`);
-        if (savedImages) {
-          const parsedImages = JSON.parse(savedImages);
-          console.log('[DEBUG-SHIPPING] Found saved images in localStorage after API error:', parsedImages);
-          setUploadedImages(parsedImages);
-        }
-      } catch (storageErr) {
-        console.error('[DEBUG-SHIPPING] Failed to retrieve from localStorage:', storageErr);
-      }
-    }
-  };
 
-  // Function to fetch locations from API
-  const fetchLocations = async () => {
+  const loadAllData = useCallback(async () => {
+    if (!id) return;
+
+    setLoading(true);
+    setError(null);
+
     try {
-      console.log('[AdminOrderDetailPage] Fetching locations');
-      const response = await adminApi.getLocations();
-      if (response.success && response.data) {
-        console.log('[AdminOrderDetailPage] Locations fetched:', response.data);
-        setLocations(response.data);
-      } else {
-        console.error('[AdminOrderDetailPage] Error fetching locations:', response.error);
-        toast({
-          title: 'Error fetching locations',
-          description: response.error || 'Terjadi kesalahan saat mengambil data lokasi',
-          status: 'error',
-          duration: 3000,
-          isClosable: true
+      const [locationsRes, orderRes, imagesRes] = await Promise.all([
+        adminApi.getLocations(),
+        orderService.getOrderById(id),
+        adminApi.getShippingImages(id),
+      ]);
+
+      // 1. Process Locations
+      if (!locationsRes.success) throw new Error('Gagal memuat daftar lokasi.');
+      const fetchedLocations = locationsRes.data;
+      setLocations(fetchedLocations);
+
+      // 2. Process Order
+      if (!orderRes.success || !orderRes.order) throw new Error(orderRes.error || 'Pesanan tidak ditemukan');
+      let finalOrder = orderRes.order;
+      if (finalOrder.payment_response) {
+        try {
+          const paymentDetails = JSON.parse(finalOrder.payment_response);
+          finalOrder = {
+            ...finalOrder,
+            payment_method: paymentDetails.payment_type || finalOrder.payment_method,
+            payment_time: paymentDetails.settlement_time || finalOrder.payment_time,
+            payment_status: paymentDetails.transaction_status || finalOrder.payment_status,
+          };
+        } catch (e) {
+          console.error('Error parsing payment_response:', e);
+        }
+      }
+      setOrder(finalOrder);
+
+      // 3. Map location names to kode_area for form state
+      const pengirimanKode = fetchedLocations.find(loc => loc.nama_lokasi === finalOrder.lokasi_pengiriman)?.kode_area || '';
+      const pengambilanKode = fetchedLocations.find(loc => loc.nama_lokasi === finalOrder.lokasi_pengambilan)?.kode_area || '';
+      setLokasiPengiriman(pengirimanKode);
+      setLokasiPengambilan(pengambilanKode);
+
+      // 4. Set other form states
+      setShippingStatus(finalOrder.shipping_status || '');
+      setAdminNote(finalOrder.admin_note || '');
+      setSavedAdminNote(finalOrder.admin_note || '');
+      setTipePesanan(finalOrder.tipe_pesanan);
+      if (finalOrder.tipe_pesanan === 'Pesan Antar') {
+        setMetodePengiriman('kurir-toko');
+      } else if (finalOrder.tipe_pesanan === 'Pesan Ambil') {
+        setMetodePengiriman('diambil-sendiri');
+      }
+
+      // 5. Process Shipping Images
+      const newImages = { readyForPickup: null, pickedUp: null, received: null };
+      if (imagesRes.success && imagesRes.data) {
+        imagesRes.data.forEach(image => {
+          const imageUrl = transformURL(image.image_url);
+          if (image.image_type === 'ready_for_pickup') newImages.readyForPickup = imageUrl;
+          else if (image.image_type === 'picked_up') newImages.pickedUp = imageUrl;
+          else if (image.image_type === 'delivered') newImages.received = imageUrl;
         });
       }
-    } catch (error) {
-      console.error('[AdminOrderDetailPage] Error in fetchLocations:', error);
+      setUploadedImages(newImages);
+      localStorage.setItem(`shipping_images_${id}`, JSON.stringify(newImages));
+
+    } catch (err) {
+      console.error('[AdminOrderDetailPage] Error loading data:', err);
+      setError(err.message);
+      toast({ title: 'Error', description: err.message, status: 'error', duration: 5000, isClosable: true });
+    } finally {
+      setLoading(false);
     }
-  };
-  
+  }, [id, toast]);
+
   useEffect(() => {
-    fetchOrder();
-    fetchLocations();
-    if (id) {
-      // Cek dahulu jika ada data di localStorage
-      try {
-        const savedImages = localStorage.getItem(`shipping_images_${id}`);
-        if (savedImages) {
-          const parsedImages = JSON.parse(savedImages);
-          console.log('[DEBUG-SHIPPING] Loading initial images from localStorage:', parsedImages);
-          setUploadedImages(parsedImages);
-        }
-      } catch (err) {
-        console.error('[DEBUG-SHIPPING] Error loading from localStorage:', err);
-      }
-      
-      // Kemudian ambil data terbaru dari API
-      fetchShippingImages(id);
-    }
-  }, [id]);
+    loadAllData();
+  }, [loadAllData]);
 
   const handleRefreshStatus = async () => {
     setIsRefreshing(true);
     try {
       const { data } = await refreshOrderStatus(id);
       if (data.success) {
-        await fetchOrder(); // Refetch to get all updated data
+        await loadAllData(); // Refetch all data
         toast({
           title: "Status Diperbarui",
           description: `Status pembayaran sekarang adalah: ${data.payment_status}.`,
@@ -1608,8 +1465,8 @@ return (
                       }}
                     >
                       {locations.map((loc) => (
-                        <option key={loc.kode_area} value={loc.nama_lokasi}>
-                          {loc.kode_area} - {loc.nama_lokasi}
+                        <option key={loc.id} value={loc.nama_lokasi}>
+                          {loc.nama_lokasi}
                         </option>
                       ))}
                     </Select>
@@ -1630,8 +1487,8 @@ return (
                       }}
                     >
                       {locations.map((loc) => (
-                        <option key={loc.kode_area} value={loc.nama_lokasi}>
-                          {loc.kode_area} - {loc.nama_lokasi}
+                        <option key={loc.id} value={loc.nama_lokasi}>
+                          {loc.nama_lokasi}
                         </option>
                       ))}
                     </Select>
