@@ -1590,22 +1590,21 @@ return (
                 {tipe_pesanan === 'Pesan Antar' && (
                   <FormControl mt={4}>
                     <FormLabel>Lokasi Pengiriman</FormLabel>
-                    <RadioGroup 
-                      value={lokasi_pengiriman} 
-                      onChange={(value) => {
-                        setLokasiPengiriman(value);
+                    <Select
+                      placeholder="Pilih Lokasi Pengiriman"
+                      value={lokasi_pengiriman}
+                      onChange={(e) => {
+                        setLokasiPengiriman(e.target.value);
                         setFormChanged(true);
                       }}
                     >
-                      <SimpleGrid columns={[2, 3]} spacing={4} mt={2}>
-                        {locations.map((loc) => (
-                          <Radio key={loc.kode_area} value={loc.kode_area} colorScheme="blue">
-                            {loc.kode_area} - {loc.nama_lokasi}
-                          </Radio>
-                        ))}
-                        {locations.length === 0 && <Text>Tidak ada data lokasi</Text>}
-                      </SimpleGrid>
-                    </RadioGroup>
+                      {locations.map((loc) => (
+                        <option key={loc.kode_area} value={loc.kode_area}>
+                          {loc.kode_area} - {loc.nama_lokasi}
+                        </option>
+                      ))}
+                    </Select>
+                    {locations.length === 0 && <Text mt={2} color="red.500">Tidak ada data lokasi</Text>}
                   </FormControl>
                 )}
                 
@@ -1613,22 +1612,21 @@ return (
                 {tipe_pesanan === 'Pesan Ambil' && shippingArea === 'dalam-kota' && (
                   <FormControl mt={4}>
                     <FormLabel>Lokasi Pengambilan</FormLabel>
-                    <RadioGroup 
-                      value={lokasi_pengambilan} 
-                      onChange={(value) => {
-                        setLokasiPengambilan(value);
+                    <Select
+                      placeholder="Pilih Lokasi Pengambilan"
+                      value={lokasi_pengambilan}
+                      onChange={(e) => {
+                        setLokasiPengambilan(e.target.value);
                         setFormChanged(true);
                       }}
                     >
-                      <SimpleGrid columns={[2, 3]} spacing={4} mt={2}>
-                        {locations.map((loc) => (
-                          <Radio key={loc.kode_area} value={loc.kode_area} colorScheme="blue">
-                            {loc.kode_area} - {loc.nama_lokasi}
-                          </Radio>
-                        ))}
-                        {locations.length === 0 && <Text>Tidak ada data lokasi</Text>}
-                      </SimpleGrid>
-                    </RadioGroup>
+                      {locations.map((loc) => (
+                        <option key={loc.kode_area} value={loc.kode_area}>
+                          {loc.kode_area} - {loc.nama_lokasi}
+                        </option>
+                      ))}
+                    </Select>
+                    {locations.length === 0 && <Text mt={2} color="red.500">Tidak ada data lokasi</Text>}
                   </FormControl>
                 )}
                 
