@@ -477,7 +477,36 @@ function OrderDetailPage() {
                           <Text><strong>Jasa Kurir:</strong> {order.courier_service}</Text>
                         )}
                         {order.tracking_number ? (
-                          <Text><strong>No. Resi:</strong> {order.tracking_number}</Text>
+                          <HStack spacing={2} align="center">
+                            <Text><strong>No. Resi:</strong> {order.tracking_number}</Text>
+                            <Button
+                              size="sm"
+                              colorScheme="blue"
+                              variant="outline"
+                              onClick={() => {
+                                let trackingUrl = '';
+                                if (order.courier_service === 'TIKI') {
+                                  // TIKI tracking URL - auto-fill not supported, but we can open the page
+                                  trackingUrl = 'https://www.tiki.id/id/track';
+                                } else if (order.courier_service === 'JNE') {
+                                  // JNE tracking URL - auto-fill not supported, but we can open the page
+                                  trackingUrl = 'https://jne.co.id/en/tracking-package';
+                                }
+                                if (trackingUrl) {
+                                  window.open(trackingUrl, '_blank');
+                                  toast({
+                                    title: `Melacak resi ${order.courier_service}`,
+                                    description: `Masukkan nomor resi: ${order.tracking_number}`,
+                                    status: 'info',
+                                    duration: 5000,
+                                    isClosable: true,
+                                  });
+                                }
+                              }}
+                            >
+                              Lacak Resi
+                            </Button>
+                          </HStack>
                         ) : (
                           <Text><strong>No. Resi:</strong> <i>Dalam Proses Request No Resi</i></Text>
                         )}
