@@ -933,21 +933,21 @@ return (
                 )}
               </GridItem>
               <GridItem>
-                <Heading size="sm" mb={4}>Detail Pembayaran</Heading>
+                <Heading size="sm" mb={4}>Detail Teknis Pengiriman</Heading>
                 <Text><strong>Total:</strong> Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
-                <HStack mt={2}>
-                  <Text><strong>Status Pembayaran:</strong></Text>
-                  {getPaymentStatusBadge(order.payment_status)}
-                </HStack>
                 <HStack mt={2}>
                   <Text><strong>Status Pengiriman:</strong></Text>
                   {getShippingStatusBadge(order.shipping_status)}
                 </HStack>
-                <Text mt={2}><strong>Metode:</strong> <Tag>{order.payment_method || 'N/A'}</Tag></Text>
-                {order.payment_time && (
-                  <Text><strong>Waktu Pembayaran:</strong> {order.payment_time ? `${new Date(order.payment_time).getDate().toString().padStart(2, '0')}-${(new Date(order.payment_time).getMonth() + 1).toString().padStart(2, '0')}-${new Date(order.payment_time).getFullYear()}` : '-'}</Text>
+                <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
+                <Text><strong>Metode Pengambilan:</strong> {order.pickup_method === 'sendiri' ? 'Ambil Sendiri' : 'Ojek Online'}</Text>
+                {order.shipping_area === 'luar-kota' && (
+                  <>
+                    <Text><strong>Jasa Kurir:</strong> {order.courier_service || '-'}</Text>
+                    <Text><strong>No. Resi:</strong> {order.tracking_number || '-'}</Text>
+                  </>
                 )}
-                <Text><strong>Dibuat:</strong> {order.created_at ? `${new Date(order.created_at).getDate().toString().padStart(2, '0')}-${(new Date(order.created_at).getMonth() + 1).toString().padStart(2, '0')}-${new Date(order.created_at).getFullYear()}` : '-'}</Text>
+                <Text><strong>Dibuat:</strong> {formatDate(order.created_at)}</Text>
               </GridItem>
             </Grid>
 
