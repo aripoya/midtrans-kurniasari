@@ -328,6 +328,10 @@ function AdminOrderDetailPage() {
   const handleUpdateStatus = async () => {
     setIsUpdating(true);
     try {
+      console.log('DEBUG - Selected location values:', {
+        lokasi_pengambilan,
+        lokasi_pengiriman
+      });
       // Normalisasi nilai untuk memastikan sesuai dengan ekspektasi backend
       // Backend mengharapkan nilai string yang valid atau null, bukan undefined
       const normalizedStatus = shippingStatus?.trim() || null;
@@ -437,6 +441,11 @@ function AdminOrderDetailPage() {
         duration: 3000,
         isClosable: true,
       });
+      
+      // Force page reload to fetch fresh data after update
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (err) {
       console.error('Error saat memperbarui status pesanan:', err);
       toast({
