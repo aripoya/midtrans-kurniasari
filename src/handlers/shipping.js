@@ -39,7 +39,7 @@ async function uploadShippingImage(request, env) {
     const imageType = pathSegments[5];
     
     // Validasi tipe gambar
-    const validTypes = ['ready_for_pickup', 'picked_up', 'delivered'];
+        const validTypes = ['ready_for_pickup', 'picked_up', 'delivered', 'shipmentProof'];
     if (!validTypes.includes(imageType)) {
       return jsonResponse({ 
         error: 'Invalid image type', 
@@ -199,7 +199,7 @@ async function deleteShippingImage(request, env) {
     const imageType = pathSegments[5];
     
     // Validasi tipe gambar
-    const validTypes = ['ready_for_pickup', 'picked_up', 'delivered'];
+        const validTypes = ['ready_for_pickup', 'picked_up', 'delivered', 'shipmentProof'];
     if (!validTypes.includes(imageType)) {
       return jsonResponse({ 
         error: 'Invalid image type', 
