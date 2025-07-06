@@ -34,6 +34,7 @@ function AdminOrderDetailPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [formChanged, setFormChanged] = useState(false);
   const [uploadedImages, setUploadedImages] = useState({
     readyForPickup: null,
     pickedUp: null,
@@ -83,6 +84,8 @@ function AdminOrderDetailPage() {
           }
         }
         setOrder(finalOrder);
+        setShippingStatus(finalOrder.shipping_status || '');
+        setFormChanged(true); // Add this line
         setShippingStatus(finalOrder.shipping_status || '');
         
         // Set shipping area dan pickup method
@@ -354,6 +357,9 @@ function AdminOrderDetailPage() {
         return updated;
       });
       setSavedAdminNote(normalizedAdminNote || '');
+      
+      // Reset form changed state setelah update berhasil
+      setFormChanged(false);
       
       // Show success notification
       toast({
@@ -1452,7 +1458,10 @@ return (
                   <FormLabel>Status Pengiriman</FormLabel>
                   <Select 
                     value={shippingStatus} 
-                    onChange={e => setShippingStatus(e.target.value)}
+                    onChange={e => {
+                      setShippingStatus(e.target.value);
+                      setFormChanged(true);
+                    }}
                   >
                     <option value="">Menunggu Diproses</option>
                     <option value="dikemas">Dikemas</option>
@@ -1469,6 +1478,7 @@ return (
                     onChange={(e) => {
                       const newValue = e.target.value;
                       setShippingArea(newValue);
+                      setFormChanged(true);
                       
                       // Atur tab aktif berdasarkan area pengiriman
                       if (newValue === 'dalam-kota') {
@@ -1593,7 +1603,10 @@ return (
                     <FormLabel>Metode Ambil</FormLabel>
                     <Select
                       value={pickupMethod}
-                      onChange={(e) => setPickupMethod(e.target.value)}
+                      onChange={(e) => {
+                        setPickupMethod(e.target.value);
+                        setFormChanged(true);
+                      }}
                     >
                       <option value="sendiri">Ambil Sendiri</option>
                       <option value="ojek-online-ambil">Ojek Online</option>
@@ -1607,7 +1620,10 @@ return (
                     <FormLabel>Metode Kirim</FormLabel>
                     <Select
                       value={metodePengiriman}
-                      onChange={(e) => setMetodePengiriman(e.target.value)}
+                      onChange={(e) => {
+                        setMetodePengiriman(e.target.value);
+                        setFormChanged(true);
+                      }}
                       placeholder="Pilih metode pengiriman"
                     >
                       <option value="ojek-online">Ojek Online</option>
@@ -1626,6 +1642,7 @@ return (
                           onChange={(e) => {
                             const newService = e.target.checked ? 'TIKI' : '';
                             setCourierService(newService);
+                            setFormChanged(true);
                             
                             // Reset error ketika layanan berubah
                             if (trackingNumber) {
@@ -1646,6 +1663,7 @@ return (
                           onChange={(e) => {
                             const newService = e.target.checked ? 'JNE' : '';
                             setCourierService(newService);
+                            setFormChanged(true);
                             
                             // Reset error ketika layanan berubah
                             if (trackingNumber) {
@@ -1666,6 +1684,7 @@ return (
                           onChange={(e) => {
                             const newService = e.target.checked ? 'TRAVEL' : '';
                             setCourierService(newService);
+                            setFormChanged(true);
                             
                             // Reset tracking number dan error jika Travel dipilih
                             if (newService === 'TRAVEL') {
@@ -1688,6 +1707,7 @@ return (
                           onChange={(e) => {
                             const value = e.target.value;
                             setTrackingNumber(value);
+                            setFormChanged(true);
                             
                             // Hanya izinkan karakter angka
                             if (value && !/^\d*$/.test(value)) {
@@ -1719,7 +1739,10 @@ return (
                         <>
                           <Textarea 
                             value={adminNote}
-                            onChange={e => setAdminNote(e.target.value)}
+                            onChange={e => {
+                              setAdminNote(e.target.value);
+                              setFormChanged(true);
+                            }}
                             placeholder="Tambahkan catatan terkait pesanan (opsional)"
                           />
                           <HStack mt={2} spacing={2}>
@@ -1777,7 +1800,7 @@ return (
                   colorScheme="blue" 
                   onClick={handleUpdateStatus}
                   isLoading={isUpdating}
-                  isDisabled={order.shipping_status === shippingStatus}
+                  isDisabled={!formChanged}
                   mt={4}
                 >
                   Perbarui Status Pesanan
