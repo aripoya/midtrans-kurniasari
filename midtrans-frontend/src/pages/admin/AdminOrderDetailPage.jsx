@@ -36,11 +36,22 @@ function AdminOrderDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [formChanged, setFormChanged] = useState(false);
-  const [uploadedImages, setUploadedImages] = useState({
-    readyForPickup: null,
-    pickedUp: null,
-    received: null,
-    shipmentProof: null // Untuk bukti pengiriman luar kota
+  const [uploadedImages, setUploadedImages] = useState(() => {
+    try {
+      const savedImages = localStorage.getItem(`shipping_images_${id}`);
+      if (savedImages) {
+        console.log("[DEBUG] Loaded images from localStorage");
+        return JSON.parse(savedImages);
+      }
+    } catch (error) {
+      console.error("[DEBUG] Failed to load images from localStorage", error);
+    }
+    return {
+      readyForPickup: null,
+      pickedUp: null,
+      received: null,
+      shipmentProof: null
+    };
   });
   const [showQRCode, setShowQRCode] = useState(false);
   const fileInputRefs = {
