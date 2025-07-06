@@ -274,6 +274,30 @@ export const adminApi = {
   // Verifica si el usuario está autenticado como admin
   isAuthenticated: () => {
     return localStorage.getItem('adminToken') !== null;
+  },
+  
+  // Mengambil daftar lokasi (kode area)
+  getLocations: async () => {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/api/locations`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        }
+      );
+      
+      return { success: true, data: response.data.locations, error: null };
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      return {
+        success: false,
+        data: null,
+        error: error.response?.data?.error || error.message || 'Error saat mengambil data lokasi'
+      };
+    }
   }
 };
 

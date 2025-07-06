@@ -620,7 +620,17 @@ export async function updateOrderDetails(request, env) {
       }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
-    const { status, admin_note, shipping_area, pickup_method, metode_pengiriman, tracking_number, courier_service } = data;
+    const { 
+      status, 
+      shipping_area, 
+      pickup_method, 
+      admin_note, 
+      tracking_number, 
+      courier_service, 
+      lokasi_pengiriman,
+      lokasi_pengambilan,
+      tipe_pesanan
+    } = data;
 
     // Validasi dasar
     if (!orderId) {
@@ -658,11 +668,6 @@ export async function updateOrderDetails(request, env) {
       updateParams.push(status);
     }
     
-    if (admin_note !== undefined) {
-      updateFields.push('admin_note = ?');
-      updateParams.push(admin_note || null); // Konversi string kosong ke null
-    }
-    
     if (shipping_area !== undefined) {
       const allowedShippingAreas = ['dalam-kota', 'luar-kota'];
       if (shipping_area && !allowedShippingAreas.includes(shipping_area)) {
@@ -690,15 +695,15 @@ export async function updateOrderDetails(request, env) {
     }
     
     // Validasi dan proses metode_pengiriman
-    if (metode_pengiriman !== undefined) {
+    if (data.metode_pengiriman !== undefined) {
       const allowedDeliveryMethods = ['ojek-online', 'team-delivery'];
-      if (metode_pengiriman && !allowedDeliveryMethods.includes(metode_pengiriman)) {
-        console.error(`[updateOrderDetails] Invalid metode_pengiriman: ${metode_pengiriman}`);
+      if (data.metode_pengiriman && !allowedDeliveryMethods.includes(data.metode_pengiriman)) {
+        console.error(`[updateOrderDetails] Invalid metode_pengiriman: ${data.metode_pengiriman}`);
         return new Response(JSON.stringify({ success: false, error: `Invalid delivery method value. Allowed values: ${allowedDeliveryMethods.join(', ')}` }), 
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       updateFields.push('metode_pengiriman = ?');
-      updateParams.push(metode_pengiriman || null);
+      updateParams.push(data.metode_pengiriman || null);
     }
     
     // Process tracking_number if provided
@@ -711,6 +716,24 @@ export async function updateOrderDetails(request, env) {
     if (courier_service !== undefined) {
       updateFields.push('courier_service = ?');
       updateParams.push(courier_service || null);
+    }
+    
+    // Process lokasi_pengiriman if provided
+    if (lokasi_pengiriman !== undefined) {
+      updateFields.push('lokasi_pengiriman = ?');
+      updateParams.push(lokasi_pengiriman || null);
+    }
+    
+    // Process lokasi_pengambilan if provided
+    if (lokasi_pengambilan !== undefined) {
+      updateFields.push('lokasi_pengambilan = ?');
+      updateParams.push(lokasi_pengambilan || null);
+    }
+    
+    // Process tipe_pesanan if provided
+    if (tipe_pesanan !== undefined) {
+      updateFields.push('tipe_pesanan = ?');
+      updateParams.push(tipe_pesanan || null);
     }
     
     // Tambahkan updated_at dan ID
@@ -739,8 +762,8 @@ export async function updateOrderDetails(request, env) {
     } catch (e) {
       if (e.message.includes('no such column')) {
         // Kolom belum ada, tambahkan kolom baru
-        console.log(`[updateOrderDetails] Adding missing columns to orders table`);
         try {
+          console.log(`[updateOrderDetails] Adding missing columns to orders table`);
           // Cek keberadaan kolom shipping_area
           try {
             await env.DB.prepare("SELECT shipping_area FROM orders LIMIT 1").first();
@@ -819,6 +842,45 @@ export async function updateOrderDetails(request, env) {
             }
           }
           
+          // Cek keberadaan kolom lokasi_pengiriman
+          try {
+            await env.DB.prepare("SELECT lokasi_pengiriman FROM orders LIMIT 1").first();
+            console.log(`[updateOrderDetails] Column lokasi_pengiriman already exists`);
+          } catch (columnError) {
+            if (columnError.message.includes('no such column: lokasi_pengiriman')) {
+              console.log(`[updateOrderDetails] Adding column lokasi_pengiriman`);
+              await env.DB.prepare('ALTER TABLE orders ADD COLUMN lokasi_pengiriman TEXT DEFAULT NULL').run();
+            } else {
+              throw columnError;
+            }
+          }
+          
+          // Cek keberadaan kolom lokasi_pengambilan
+          try {
+            await env.DB.prepare("SELECT lokasi_pengambilan FROM orders LIMIT 1").first();
+            console.log(`[updateOrderDetails] Column lokasi_pengambilan already exists`);
+          } catch (columnError) {
+            if (columnError.message.includes('no such column: lokasi_pengambilan')) {
+              console.log(`[updateOrderDetails] Adding column lokasi_pengambilan`);
+              await env.DB.prepare('ALTER TABLE orders ADD COLUMN lokasi_pengambilan TEXT DEFAULT NULL').run();
+            } else {
+              throw columnError;
+            }
+          }
+          
+          // Cek keberadaan kolom tipe_pesanan
+          try {
+            await env.DB.prepare("SELECT tipe_pesanan FROM orders LIMIT 1").first();
+            console.log(`[updateOrderDetails] Column tipe_pesanan already exists`);
+          } catch (columnError) {
+            if (columnError.message.includes('no such column: tipe_pesanan')) {
+              console.log(`[updateOrderDetails] Adding column tipe_pesanan`);
+              await env.DB.prepare('ALTER TABLE orders ADD COLUMN tipe_pesanan TEXT DEFAULT NULL').run();
+            } else {
+              throw columnError;
+            }
+          }
+          
           console.log(`[updateOrderDetails] All missing columns added successfully`);
         } catch (alterError) {
           console.error(`[updateOrderDetails] Error adding columns:`, alterError);
@@ -863,7 +925,12 @@ export async function updateOrderDetails(request, env) {
         status: status || undefined, 
         shipping_area: shipping_area || undefined, 
         pickup_method: pickup_method || undefined,
-        admin_note: admin_note || undefined
+        admin_note: admin_note || undefined,
+        tracking_number: tracking_number || undefined,
+        courier_service: courier_service || undefined,
+        lokasi_pengiriman: lokasi_pengiriman || undefined,
+        lokasi_pengambilan: lokasi_pengambilan || undefined,
+        tipe_pesanan: tipe_pesanan || undefined
       }
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 

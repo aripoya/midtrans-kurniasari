@@ -471,6 +471,16 @@ function OrderDetailPage() {
                     {order.shipping_area && (
                       <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                     )}
+                    {order.tipe_pesanan && (
+                      <Text><strong>Tipe Pesanan:</strong> {order.tipe_pesanan}</Text>
+                    )}
+                    {/* Display location information based on order type */}
+                    {order.tipe_pesanan === 'Pesan Antar' && order.lokasi_pengiriman && (
+                      <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman}</Text>
+                    )}
+                    {order.tipe_pesanan === 'Pesan Ambil' && order.lokasi_pengambilan && (
+                      <Text><strong>Lokasi Pengambilan:</strong> {order.lokasi_pengambilan}</Text>
+                    )}
                     {order.shipping_area === 'luar-kota' && (
                       <>
                         {order.courier_service && (

@@ -4,6 +4,7 @@ import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDet
 import { markOrderAsReceived } from './handlers/received.js';
 import { getProducts, createProduct, updateProduct, deleteProduct } from './handlers/products.js';
 import { handleRequest as handleShippingRequest } from './handlers/shipping.js';
+import { getLocations } from './handlers/locations.js';
 
 
 console.log('Initializing router');
@@ -40,7 +41,8 @@ router.get('/', (request) => {
         'GET    /api/debug/midtrans',
         'GET    /api/config',
         'GET    /api/debug/database',
-        'GET    /api/admin/orders'
+        'GET    /api/admin/orders',
+        'GET    /api/locations'
     ];
     
     return new Response(JSON.stringify({
@@ -110,6 +112,12 @@ router.post('/api/orders/:id/mark-received', (request, env) => {
 router.get('/api/admin/orders', (request, env) => {
     request.corsHeaders = corsHeaders;
     return getAdminOrders(request, env);
+});
+
+// Locations endpoints
+router.get('/api/locations', (request, env) => {
+    request.corsHeaders = corsHeaders;
+    return getLocations(request, env);
 });
 
 // Product management endpoints

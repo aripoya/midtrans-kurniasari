@@ -1,11 +1,11 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box, Heading, Text, VStack, HStack, Badge, Button,
   Table, Tbody, Tr, Td, Th, Thead, Divider, Spinner,
   Alert, AlertIcon, Card, CardBody, CardHeader, CardFooter,
   useToast, Flex, Grid, GridItem, Select, FormControl, 
-  FormLabel, Textarea, SimpleGrid, Stack, Tag, Image,
+  FormLabel, Textarea, SimpleGrid, Stack, Tag, Image, Radio, RadioGroup,
   useDisclosure, Modal, ModalOverlay, ModalContent,
   ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   Accordion, AccordionItem, AccordionButton, 
@@ -56,6 +56,10 @@ function AdminOrderDetailPage() {
   const [trackingNumber, setTrackingNumber] = useState(''); // Nomor Resi
   const [trackingNumberError, setTrackingNumberError] = useState(''); // Error untuk validasi nomor resi
   const [tabIndex, setTabIndex] = useState(0); // State untuk mengontrol tab aktif
+  const [locations, setLocations] = useState([]); // Daftar lokasi (kode area)
+  const [lokasi_pengiriman, setLokasiPengiriman] = useState(''); // Lokasi pengiriman terpilih
+  const [lokasi_pengambilan, setLokasiPengambilan] = useState(''); // Lokasi pengambilan terpilih
+  const [tipe_pesanan, setTipePesanan] = useState(''); // Tipe pesanan (Pesan Antar/Pesan Ambil)
 
   const fetchOrder = async () => {
     try {
@@ -107,6 +111,22 @@ function AdminOrderDetailPage() {
         if (finalOrder.admin_note) {
           setSavedAdminNote(finalOrder.admin_note);
           setAdminNote(finalOrder.admin_note);
+        }
+        
+        // Set tipe pesanan dan lokasi pengiriman/pengambilan
+        if (finalOrder.tipe_pesanan) {
+          setTipePesanan(finalOrder.tipe_pesanan);
+          console.log('[AdminOrderDetailPage] Tipe pesanan loaded:', finalOrder.tipe_pesanan);
+        }
+        
+        if (finalOrder.lokasi_pengiriman) {
+          setLokasiPengiriman(finalOrder.lokasi_pengiriman);
+          console.log('[AdminOrderDetailPage] Lokasi pengiriman loaded:', finalOrder.lokasi_pengiriman);
+        }
+        
+        if (finalOrder.lokasi_pengambilan) {
+          setLokasiPengambilan(finalOrder.lokasi_pengambilan);
+          console.log('[AdminOrderDetailPage] Lokasi pengambilan loaded:', finalOrder.lokasi_pengambilan);
         }
       } else {
         console.error('[AdminOrderDetailPage] Order not found or API returned error');
@@ -231,8 +251,32 @@ function AdminOrderDetailPage() {
     }
   };
 
+  // Function to fetch locations from API
+  const fetchLocations = async () => {
+    try {
+      console.log('[AdminOrderDetailPage] Fetching locations');
+      const response = await adminApi.getLocations();
+      if (response.success && response.data) {
+        console.log('[AdminOrderDetailPage] Locations fetched:', response.data);
+        setLocations(response.data);
+      } else {
+        console.error('[AdminOrderDetailPage] Error fetching locations:', response.error);
+        toast({
+          title: 'Error fetching locations',
+          description: response.error || 'Terjadi kesalahan saat mengambil data lokasi',
+          status: 'error',
+          duration: 3000,
+          isClosable: true
+        });
+      }
+    } catch (error) {
+      console.error('[AdminOrderDetailPage] Error in fetchLocations:', error);
+    }
+  };
+  
   useEffect(() => {
     fetchOrder();
+    fetchLocations();
     if (id) {
       // Cek dahulu jika ada data di localStorage
       try {
@@ -291,6 +335,9 @@ function AdminOrderDetailPage() {
       const normalizedShippingArea = shippingArea?.trim() || null;
       const normalizedPickupMethod = pickupMethod?.trim() || null;
       const normalizedMetodePengiriman = metodePengiriman?.trim() || null;
+      const normalizedTipePesanan = tipe_pesanan?.trim() || null;
+      const normalizedLokasiPengiriman = lokasi_pengiriman?.trim() || null;
+      const normalizedLokasiPengambilan = lokasi_pengambilan?.trim() || null;
       
       // Validasi status sebelum mengirim ke server
       const allowedStatuses = ['dikemas', 'siap kirim', 'sedang dikirim', 'received'];
@@ -323,6 +370,19 @@ function AdminOrderDetailPage() {
         shippingData.pickup_method = normalizedPickupMethod;
       }
       if (normalizedMetodePengiriman) shippingData.metode_pengiriman = normalizedMetodePengiriman;
+      
+      // Tambahkan field lokasi
+      if (normalizedTipePesanan) shippingData.tipe_pesanan = normalizedTipePesanan;
+      
+      // Tambahkan lokasi pengiriman jika tipe pesanan adalah Pesan Antar
+      if (normalizedTipePesanan === 'Pesan Antar' && normalizedLokasiPengiriman) {
+        shippingData.lokasi_pengiriman = normalizedLokasiPengiriman;
+      }
+      
+      // Tambahkan lokasi pengambilan jika tipe pesanan adalah Pesan Ambil
+      if (normalizedTipePesanan === 'Pesan Ambil' && normalizedLokasiPengambilan) {
+        shippingData.lokasi_pengambilan = normalizedLokasiPengambilan;
+      }
       
       // Tambahkan tracking_number dan courier_service untuk luar kota
       if (normalizedShippingArea === 'luar-kota') {
@@ -1507,6 +1567,68 @@ return (
                     <option value="luar-kota">Luar Kota</option>
                   </Select>
                 </FormControl>
+                
+                {/* Tipe Pesanan selection */}
+                <FormControl mt={4}>
+                  <FormLabel>Tipe Pesanan</FormLabel>
+                  <Select
+                    value={tipe_pesanan}
+                    onChange={(e) => {
+                      setTipePesanan(e.target.value);
+                      setFormChanged(true);
+                    }}
+                  >
+                    <option value="">Pilih Tipe Pesanan</option>
+                    <option value="Pesan Antar">Pesan Antar</option>
+                    <option value="Pesan Ambil">Pesan Ambil</option>
+                  </Select>
+                </FormControl>
+                
+                {/* Lokasi Pengiriman selection - shown when tipe_pesanan is "Pesan Antar" */}
+                {tipe_pesanan === 'Pesan Antar' && (
+                  <FormControl mt={4}>
+                    <FormLabel>Lokasi Pengiriman</FormLabel>
+                    <RadioGroup 
+                      value={lokasi_pengiriman} 
+                      onChange={(value) => {
+                        setLokasiPengiriman(value);
+                        setFormChanged(true);
+                      }}
+                    >
+                      <SimpleGrid columns={[2, 3]} spacing={4} mt={2}>
+                        {locations.map((loc) => (
+                          <Radio key={loc.kode_area} value={loc.kode_area} colorScheme="blue">
+                            {loc.kode_area} - {loc.nama_lokasi}
+                          </Radio>
+                        ))}
+                        {locations.length === 0 && <Text>Tidak ada data lokasi</Text>}
+                      </SimpleGrid>
+                    </RadioGroup>
+                  </FormControl>
+                )}
+                
+                {/* Lokasi Pengambilan selection - shown when tipe_pesanan is "Pesan Ambil" */}
+                {tipe_pesanan === 'Pesan Ambil' && (
+                  <FormControl mt={4}>
+                    <FormLabel>Lokasi Pengambilan</FormLabel>
+                    <RadioGroup 
+                      value={lokasi_pengambilan} 
+                      onChange={(value) => {
+                        setLokasiPengambilan(value);
+                        setFormChanged(true);
+                      }}
+                    >
+                      <SimpleGrid columns={[2, 3]} spacing={4} mt={2}>
+                        {locations.map((loc) => (
+                          <Radio key={loc.kode_area} value={loc.kode_area} colorScheme="blue">
+                            {loc.kode_area} - {loc.nama_lokasi}
+                          </Radio>
+                        ))}
+                        {locations.length === 0 && <Text>Tidak ada data lokasi</Text>}
+                      </SimpleGrid>
+                    </RadioGroup>
+                  </FormControl>
+                )}
                 
                 {/* UI Tipe Pesanan - hanya tampil jika area pengiriman Dalam Kota */}
                 {shippingArea === 'dalam-kota' && (
