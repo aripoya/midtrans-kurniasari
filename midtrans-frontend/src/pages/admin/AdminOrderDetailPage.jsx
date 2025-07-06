@@ -1469,11 +1469,19 @@ return (
                     onChange={(e) => {
                       const newValue = e.target.value;
                       setShippingArea(newValue);
+                      
                       // Atur tab aktif berdasarkan area pengiriman
                       if (newValue === 'dalam-kota') {
                         setTabIndex(0); // Tab Dalam Kota
+                        // Reset state jika sebelumnya luar kota
+                        setCourierService('');
+                        setTrackingNumber('');
+                        setTrackingNumberError('');
                       } else if (newValue === 'luar-kota') {
                         setTabIndex(1); // Tab Luar Kota
+                        // Reset state tipe pesanan untuk luar kota
+                        setPickupMethod(''); // Nonaktifkan Pesan Ambil
+                        setMetodePengiriman(''); // Reset Metode Kirim
                       }
                     }}
                   >
@@ -1482,75 +1490,102 @@ return (
                   </Select>
                 </FormControl>
                 
-                {/* UI Tipe Pesanan */}
-                <Box mt={4}>
-                  <Heading as="h3" size="md" mb={3}>Tipe Pesanan</Heading>
-                  <SimpleGrid columns={2} spacing={4}>
-                    {/* Pesan Ambil */}
+                {/* UI Tipe Pesanan - hanya tampil jika area pengiriman Dalam Kota */}
+                {shippingArea === 'dalam-kota' && (
+                  <Box mt={4}>
+                    <Heading as="h3" size="md" mb={3}>Tipe Pesanan</Heading>
+                    <SimpleGrid columns={2} spacing={4}>
+                      {/* Pesan Ambil */}
+                      <Box
+                        p={4}
+                        borderWidth="1px"
+                        borderRadius="lg"
+                        borderColor={pickupMethod === 'sendiri' || pickupMethod === 'ojek-online-ambil' ? "green.500" : "gray.200"}
+                        bg={pickupMethod === 'sendiri' || pickupMethod === 'ojek-online-ambil' ? "green.50" : "white"}
+                        cursor="pointer"
+                        onClick={() => {
+                          // Set untuk Pesan Ambil
+                          setShippingArea('dalam-kota');
+                          // Aktifkan metode ambil
+                          if (pickupMethod !== 'sendiri' && pickupMethod !== 'ojek-online-ambil') {
+                            setPickupMethod('sendiri'); // Default ke 'sendiri' jika belum dipilih
+                          }
+                          // Reset metode kirim
+                          setMetodePengiriman('');
+                        }}
+                        opacity={metodePengiriman !== '' ? 0.6 : 1}
+                        _hover={{ borderColor: metodePengiriman === '' ? "green.300" : "gray.200" }}
+                      >
+                        <HStack spacing={3}>
+                          <Box boxSize="30px">
+                            <Box as="span" fontSize="24px">📦</Box>
+                          </Box>
+                          <Box>
+                            <Text fontWeight="bold">Pesan Ambil</Text>
+                            <Text fontSize="sm" color="gray.600">Ambil di outlet</Text>
+                          </Box>
+                        </HStack>
+                      </Box>
+                      
+                      {/* Pesan Kirim */}
+                      <Box
+                        p={4}
+                        borderWidth="1px"
+                        borderRadius="lg"
+                        borderColor={metodePengiriman === 'ojek-online' || metodePengiriman === 'team-delivery' ? "green.500" : "gray.200"}
+                        bg={metodePengiriman === 'ojek-online' || metodePengiriman === 'team-delivery' ? "green.50" : "white"}
+                        cursor="pointer"
+                        onClick={() => {
+                          // Set untuk Pesan Kirim
+                          setShippingArea('dalam-kota'); // Tetap dalam kota untuk kedua opsi
+                          // Aktifkan metode kirim
+                          if (metodePengiriman !== 'ojek-online' && metodePengiriman !== 'team-delivery') {
+                            setMetodePengiriman('ojek-online'); // Default ke 'ojek-online' jika belum dipilih
+                          }
+                          // Reset metode ambil
+                          setPickupMethod('');
+                        }}
+                        opacity={pickupMethod !== '' ? 0.6 : 1}
+                        _hover={{ borderColor: pickupMethod === '' ? "green.300" : "gray.200" }}
+                      >
+                        <HStack spacing={3}>
+                          <Box boxSize="30px">
+                            <Box as="span" fontSize="24px">🚚</Box>
+                          </Box>
+                          <Box>
+                            <Text fontWeight="bold">Pesan Kirim</Text>
+                            <Text fontSize="sm" color="gray.600">Kirim ke alamat</Text>
+                          </Box>
+                        </HStack>
+                      </Box>
+                    </SimpleGrid>
+                  </Box>
+                )}
+                
+                {/* UI Tipe Pesanan untuk Luar Kota - hanya menampilkan Pesan Kirim */}
+                {shippingArea === 'luar-kota' && (
+                  <Box mt={4}>
+                    <Heading as="h3" size="md" mb={3}>Tipe Pesanan</Heading>
                     <Box
                       p={4}
                       borderWidth="1px"
                       borderRadius="lg"
-                      borderColor={pickupMethod === 'sendiri' || pickupMethod === 'ojek-online-ambil' ? "green.500" : "gray.200"}
-                      bg={pickupMethod === 'sendiri' || pickupMethod === 'ojek-online-ambil' ? "green.50" : "white"}
-                      cursor="pointer"
-                      onClick={() => {
-                        // Set untuk Pesan Ambil
-                        setShippingArea('dalam-kota');
-                        // Aktifkan metode ambil
-                        if (pickupMethod !== 'sendiri' && pickupMethod !== 'ojek-online-ambil') {
-                          setPickupMethod('sendiri'); // Default ke 'sendiri' jika belum dipilih
-                        }
-                        // Reset metode kirim
-                        setMetodePengiriman('');
-                      }}
-                      opacity={metodePengiriman !== '' ? 0.6 : 1}
-                      _hover={{ borderColor: metodePengiriman === '' ? "green.300" : "gray.200" }}
-                    >
-                      <HStack spacing={3}>
-                        <Box boxSize="30px">
-                          <Box as="span" fontSize="24px">📦</Box>
-                        </Box>
-                        <Box>
-                          <Text fontWeight="bold">Pesan Ambil</Text>
-                          <Text fontSize="sm" color="gray.600">Ambil di outlet</Text>
-                        </Box>
-                      </HStack>
-                    </Box>
-                    
-                    {/* Pesan Kirim */}
-                    <Box
-                      p={4}
-                      borderWidth="1px"
-                      borderRadius="lg"
-                      borderColor={metodePengiriman === 'ojek-online' || metodePengiriman === 'team-delivery' ? "green.500" : "gray.200"}
-                      bg={metodePengiriman === 'ojek-online' || metodePengiriman === 'team-delivery' ? "green.50" : "white"}
-                      cursor="pointer"
-                      onClick={() => {
-                        // Set untuk Pesan Kirim
-                        setShippingArea('dalam-kota'); // Tetap dalam kota untuk kedua opsi
-                        // Aktifkan metode kirim
-                        if (metodePengiriman !== 'ojek-online' && metodePengiriman !== 'team-delivery') {
-                          setMetodePengiriman('ojek-online'); // Default ke 'ojek-online' jika belum dipilih
-                        }
-                        // Reset metode ambil
-                        setPickupMethod('');
-                      }}
-                      opacity={pickupMethod !== '' ? 0.6 : 1}
-                      _hover={{ borderColor: pickupMethod === '' ? "green.300" : "gray.200" }}
+                      borderColor="green.500"
+                      bg="green.50"
+                      width="100%"
                     >
                       <HStack spacing={3}>
                         <Box boxSize="30px">
                           <Box as="span" fontSize="24px">🚚</Box>
                         </Box>
                         <Box>
-                          <Text fontWeight="bold">Pesan Kirim</Text>
+                          <Text fontWeight="bold">Pesan Kirim (Luar Kota)</Text>
                           <Text fontSize="sm" color="gray.600">Kirim ke alamat</Text>
                         </Box>
                       </HStack>
                     </Box>
-                  </SimpleGrid>
-                </Box>
+                  </Box>
+                )}
                 
                 {/* Metode Ambil - hanya muncul jika Pesan Ambil aktif dan Pesan Kirim tidak aktif */}
                 {pickupMethod !== '' && metodePengiriman === '' && (
