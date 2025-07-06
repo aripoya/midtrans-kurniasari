@@ -1497,11 +1497,15 @@ return (
                       onClick={() => {
                         // Set untuk Pesan Ambil
                         setShippingArea('dalam-kota');
+                        // Aktifkan metode ambil
                         if (pickupMethod !== 'sendiri' && pickupMethod !== 'ojek-online-ambil') {
                           setPickupMethod('sendiri'); // Default ke 'sendiri' jika belum dipilih
                         }
+                        // Reset metode kirim
+                        setMetodePengiriman('');
                       }}
-                      _hover={{ borderColor: "green.300" }}
+                      opacity={metodePengiriman !== '' ? 0.6 : 1}
+                      _hover={{ borderColor: metodePengiriman === '' ? "green.300" : "gray.200" }}
                     >
                       <HStack spacing={3}>
                         <Box boxSize="30px">
@@ -1525,11 +1529,15 @@ return (
                       onClick={() => {
                         // Set untuk Pesan Kirim
                         setShippingArea('dalam-kota'); // Tetap dalam kota untuk kedua opsi
+                        // Aktifkan metode kirim
                         if (metodePengiriman !== 'ojek-online' && metodePengiriman !== 'team-delivery') {
                           setMetodePengiriman('ojek-online'); // Default ke 'ojek-online' jika belum dipilih
                         }
+                        // Reset metode ambil
+                        setPickupMethod('');
                       }}
-                      _hover={{ borderColor: "green.300" }}
+                      opacity={pickupMethod !== '' ? 0.6 : 1}
+                      _hover={{ borderColor: pickupMethod === '' ? "green.300" : "gray.200" }}
                     >
                       <HStack spacing={3}>
                         <Box boxSize="30px">
@@ -1544,8 +1552,8 @@ return (
                   </SimpleGrid>
                 </Box>
                 
-                {/* Metode Ambil - muncul jika Pesan Ambil aktif */}
-                {(pickupMethod === 'sendiri' || pickupMethod === 'ojek-online-ambil') && (
+                {/* Metode Ambil - hanya muncul jika Pesan Ambil aktif dan Pesan Kirim tidak aktif */}
+                {pickupMethod !== '' && metodePengiriman === '' && (
                   <FormControl mt={4}>
                     <FormLabel>Metode Ambil</FormLabel>
                     <Select
@@ -1558,8 +1566,8 @@ return (
                   </FormControl>
                 )}
                 
-                {/* Metode Kirim - muncul jika Pesan Kirim aktif */}
-                {(metodePengiriman === 'ojek-online' || metodePengiriman === 'team-delivery') && (
+                {/* Metode Kirim - hanya muncul jika Pesan Kirim aktif dan Pesan Ambil tidak aktif */}
+                {metodePengiriman !== '' && pickupMethod === '' && (
                   <FormControl mt={4}>
                     <FormLabel>Metode Kirim</FormLabel>
                     <Select
