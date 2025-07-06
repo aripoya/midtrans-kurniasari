@@ -1599,7 +1599,7 @@ return (
                       }}
                     >
                       {locations.map((loc) => (
-                        <option key={loc.kode_area} value={loc.kode_area}>
+                        <option key={loc.kode_area} value={loc.nama_lokasi}>
                           {loc.kode_area} - {loc.nama_lokasi}
                         </option>
                       ))}
@@ -1621,7 +1621,7 @@ return (
                       }}
                     >
                       {locations.map((loc) => (
-                        <option key={loc.kode_area} value={loc.kode_area}>
+                        <option key={loc.kode_area} value={loc.nama_lokasi}>
                           {loc.kode_area} - {loc.nama_lokasi}
                         </option>
                       ))}
