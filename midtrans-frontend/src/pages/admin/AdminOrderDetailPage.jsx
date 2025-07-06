@@ -51,7 +51,7 @@ function AdminOrderDetailPage() {
   const navigate = useNavigate();
   const [shippingArea, setShippingArea] = useState('dalam-kota'); // Default: dalam-kota (dalam-kota | luar-kota)
   const [pickupMethod, setPickupMethod] = useState('sendiri'); // Default: sendiri (sendiri | ojek-online)
-  const [courierService, setCourierService] = useState(''); // TIKI, JNE, atau custom
+  const [courierService, setCourierService] = useState(''); // TIKI, JNE, Travel, atau custom
   const [trackingNumber, setTrackingNumber] = useState(''); // Nomor Resi
   const [trackingNumberError, setTrackingNumberError] = useState(''); // Error untuk validasi nomor resi
   const [tabIndex, setTabIndex] = useState(0); // State untuk mengontrol tab aktif
@@ -1587,8 +1587,8 @@ return (
                   </Box>
                 )}
                 
-                {/* Metode Ambil - hanya muncul jika Pesan Ambil aktif dan Pesan Kirim tidak aktif */}
-                {pickupMethod !== '' && metodePengiriman === '' && (
+                {/* Metode Ambil - hanya muncul jika Pesan Ambil aktif dan Pesan Kirim tidak aktif dan bukan Luar Kota */}
+                {pickupMethod !== '' && metodePengiriman === '' && shippingArea !== 'luar-kota' && (
                   <FormControl mt={4}>
                     <FormLabel>Metode Ambil</FormLabel>
                     <Select
@@ -1661,99 +1661,117 @@ return (
                         >
                           JNE (15 digit)
                         </Checkbox>
+                        <Checkbox 
+                          isChecked={courierService === 'TRAVEL'}
+                          onChange={(e) => {
+                            const newService = e.target.checked ? 'TRAVEL' : '';
+                            setCourierService(newService);
+                            
+                            // Reset tracking number dan error jika Travel dipilih
+                            if (newService === 'TRAVEL') {
+                              setTrackingNumber(''); // Kosongkan nomor resi
+                              setTrackingNumberError('');
+                            }
+                          }}
+                        >
+                          Travel
+                        </Checkbox>
                       </HStack>
                     </FormControl>
                     
-                    <FormControl isInvalid={trackingNumberError !== ''}>
-                      <FormLabel>Nomor Resi</FormLabel>
-                      <Input
-                        value={trackingNumber}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setTrackingNumber(value);
-                          
-                          // Hanya izinkan karakter angka
-                          if (value && !/^\d*$/.test(value)) {
-                            setTrackingNumberError('Nomor resi hanya boleh berisi angka');
-                            return;
-                          }
-                          
-                          // Validasi panjang berdasarkan jasa kurir
-                          if (courierService === 'TIKI' && value && value.length !== 16) {
-                            setTrackingNumberError('Nomor resi TIKI harus 16 digit');
-                          } else if (courierService === 'JNE' && value && value.length !== 15) {
-                            setTrackingNumberError('Nomor resi JNE harus 15 digit');
-                          } else {
-                            setTrackingNumberError('');
-                          }
-                        }}
-                        placeholder={`Masukkan nomor resi ${courierService === 'TIKI' ? 'TIKI (16 digit)' : courierService === 'JNE' ? 'JNE (15 digit)' : 'pengiriman'}`}
-                        maxLength={courierService === 'TIKI' ? 16 : courierService === 'JNE' ? 15 : undefined}
-                      />
-                      {trackingNumberError && (
-                        <FormLabel color="red.500" fontSize="sm">{trackingNumberError}</FormLabel>
+                    {/* Tampilkan input Nomor Resi hanya jika TRAVEL tidak dipilih */}
+                    {courierService !== 'TRAVEL' && (
+                      <FormControl isInvalid={trackingNumberError !== ''}>
+                        <FormLabel>Nomor Resi</FormLabel>
+                        <Input
+                          value={trackingNumber}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setTrackingNumber(value);
+                            
+                            // Hanya izinkan karakter angka
+                            if (value && !/^\d*$/.test(value)) {
+                              setTrackingNumberError('Nomor resi hanya boleh berisi angka');
+                              return;
+                            }
+                            
+                            // Validasi panjang berdasarkan jasa kurir
+                            if (courierService === 'TIKI' && value && value.length !== 16) {
+                              setTrackingNumberError('Nomor resi TIKI harus 16 digit');
+                            } else if (courierService === 'JNE' && value && value.length !== 15) {
+                              setTrackingNumberError('Nomor resi JNE harus 15 digit');
+                            } else {
+                              setTrackingNumberError('');
+                            }
+                          }}
+                          placeholder={`Masukkan nomor resi ${courierService === 'TIKI' ? 'TIKI (16 digit)' : courierService === 'JNE' ? 'JNE (15 digit)' : 'pengiriman'}`}
+                          maxLength={courierService === 'TIKI' ? 16 : courierService === 'JNE' ? 15 : undefined}
+                        />
+                        {trackingNumberError && (
+                          <FormLabel color="red.500" fontSize="sm">{trackingNumberError}</FormLabel>
+                        )}
+                      </FormControl>
+                    )}
+                    
+                    <FormControl>
+                      <FormLabel>Catatan Admin</FormLabel>
+                      {isEditingNote ? (
+                        <>
+                          <Textarea 
+                            value={adminNote}
+                            onChange={e => setAdminNote(e.target.value)}
+                            placeholder="Tambahkan catatan terkait pesanan (opsional)"
+                          />
+                          <HStack mt={2} spacing={2}>
+                            <Button 
+                              colorScheme="green" 
+                              onClick={handleSaveNote}
+                              isLoading={isSavingNote}
+                              size="sm"
+                            >
+                              Simpan Catatan
+                            </Button>
+                            <Button 
+                              onClick={handleCancelEdit}
+                              size="sm"
+                            >
+                              Batal
+                            </Button>
+                          </HStack>
+                        </>
+                      ) : (
+                        <>
+                          <Box p={3} borderWidth="1px" borderRadius="md" minHeight="100px" bg="gray.50">
+                            {savedAdminNote ? (
+                              <Text>{savedAdminNote}</Text>
+                            ) : (
+                              <Text color="gray.500" fontStyle="italic">Belum ada catatan</Text>
+                            )}
+                          </Box>
+                          <HStack mt={2} spacing={2}>
+                            <Button 
+                              colorScheme="blue" 
+                              onClick={handleEditNote}
+                              size="sm"
+                            >
+                              Edit Catatan
+                            </Button>
+                            {savedAdminNote && (
+                              <Button 
+                                colorScheme="red" 
+                                onClick={handleDeleteNote}
+                                isLoading={isDeletingNote}
+                                size="sm"
+                              >
+                                Hapus Catatan
+                              </Button>
+                            )}
+                          </HStack>
+                        </>
                       )}
                     </FormControl>
                   </>
                 )}
-
-                <FormControl>
-                  <FormLabel>Catatan Admin</FormLabel>
-                  {isEditingNote ? (
-                    <>
-                      <Textarea 
-                        value={adminNote}
-                        onChange={e => setAdminNote(e.target.value)}
-                        placeholder="Tambahkan catatan terkait pesanan (opsional)"
-                      />
-                      <HStack mt={2} spacing={2}>
-                        <Button 
-                          colorScheme="green" 
-                          onClick={handleSaveNote}
-                          isLoading={isSavingNote}
-                          size="sm"
-                        >
-                          Simpan Catatan
-                        </Button>
-                        <Button 
-                          onClick={handleCancelEdit}
-                          size="sm"
-                        >
-                          Batal
-                        </Button>
-                      </HStack>
-                    </>
-                  ) : (
-                    <>
-                      <Box p={3} borderWidth="1px" borderRadius="md" minHeight="100px" bg="gray.50">
-                        {savedAdminNote ? (
-                          <Text>{savedAdminNote}</Text>
-                        ) : (
-                          <Text color="gray.500" fontStyle="italic">Belum ada catatan</Text>
-                        )}
-                      </Box>
-                      <HStack mt={2} spacing={2}>
-                        <Button 
-                          colorScheme="blue" 
-                          onClick={handleEditNote}
-                          size="sm"
-                        >
-                          Edit Catatan
-                        </Button>
-                        {savedAdminNote && (
-                          <Button 
-                            colorScheme="red" 
-                            onClick={handleDeleteNote}
-                            isLoading={isDeletingNote}
-                            size="sm"
-                          >
-                            Hapus Catatan
-                          </Button>
-                        )}
-                      </HStack>
-                    </>
-                  )}
-                </FormControl>
 
                 <Button 
                   colorScheme="blue" 
