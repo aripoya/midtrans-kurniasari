@@ -620,7 +620,7 @@ export async function updateOrderDetails(request, env) {
       }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
-    const { status, admin_note, shipping_area, pickup_method, metode_pengiriman } = data;
+    const { status, admin_note, shipping_area, pickup_method, metode_pengiriman, tracking_number, courier_service } = data;
 
     // Validasi dasar
     if (!orderId) {
@@ -701,6 +701,18 @@ export async function updateOrderDetails(request, env) {
       updateParams.push(metode_pengiriman || null);
     }
     
+    // Process tracking_number if provided
+    if (tracking_number !== undefined) {
+      updateFields.push('tracking_number = ?');
+      updateParams.push(tracking_number || null);
+    }
+    
+    // Process courier_service if provided
+    if (courier_service !== undefined) {
+      updateFields.push('courier_service = ?');
+      updateParams.push(courier_service || null);
+    }
+    
     // Tambahkan updated_at dan ID
     updateFields.push('updated_at = CURRENT_TIMESTAMP');
     updateParams.push(orderId); // Untuk WHERE clause
@@ -776,6 +788,32 @@ export async function updateOrderDetails(request, env) {
             if (columnError.message.includes('no such column: metode_pengiriman')) {
               console.log(`[updateOrderDetails] Adding column metode_pengiriman`);
               await env.DB.prepare('ALTER TABLE orders ADD COLUMN metode_pengiriman TEXT DEFAULT NULL').run();
+            } else {
+              throw columnError;
+            }
+          }
+          
+          // Cek keberadaan kolom tracking_number
+          try {
+            await env.DB.prepare("SELECT tracking_number FROM orders LIMIT 1").first();
+            console.log(`[updateOrderDetails] Column tracking_number already exists`);
+          } catch (columnError) {
+            if (columnError.message.includes('no such column: tracking_number')) {
+              console.log(`[updateOrderDetails] Adding column tracking_number`);
+              await env.DB.prepare('ALTER TABLE orders ADD COLUMN tracking_number TEXT DEFAULT NULL').run();
+            } else {
+              throw columnError;
+            }
+          }
+          
+          // Cek keberadaan kolom courier_service
+          try {
+            await env.DB.prepare("SELECT courier_service FROM orders LIMIT 1").first();
+            console.log(`[updateOrderDetails] Column courier_service already exists`);
+          } catch (columnError) {
+            if (columnError.message.includes('no such column: courier_service')) {
+              console.log(`[updateOrderDetails] Adding column courier_service`);
+              await env.DB.prepare('ALTER TABLE orders ADD COLUMN courier_service TEXT DEFAULT NULL').run();
             } else {
               throw columnError;
             }
