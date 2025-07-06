@@ -485,30 +485,16 @@ function OrderDetailPage() {
                               variant="outline"
                               onClick={() => {
                                 if (order.courier_service === 'TIKI') {
-                                  // TIKI tracking - try to use window.localStorage to copy number to clipboard
-                                  // Copy tracking number to clipboard for easier pasting
-                                  navigator.clipboard.writeText(order.tracking_number).then(() => {
-                                    // Open TIKI tracking page
-                                    window.open('https://www.tiki.id/id/track', '_blank');
-                                    
-                                    toast({
-                                      title: `Melacak resi TIKI`,
-                                      description: `Nomor resi ${order.tracking_number} sudah disalin ke clipboard. Silahkan paste (Ctrl+V) di halaman TIKI.`,
-                                      status: 'success',
-                                      duration: 8000,
-                                      isClosable: true,
-                                    });
-                                  }).catch(err => {
-                                    console.error('Failed to copy text: ', err);
-                                    // Fallback if clipboard API fails
-                                    window.open('https://www.tiki.id/id/track', '_blank');
-                                    toast({
-                                      title: `Melacak resi TIKI`,
-                                      description: `Silahkan masukkan nomor resi: ${order.tracking_number}`,
-                                      status: 'info',
-                                      duration: 5000,
-                                      isClosable: true,
-                                    });
+                                  // TIKI tracking with direct URL parameter
+                                  const tikiUrl = `https://www.tiki.id/id/track?resi=${order.tracking_number}`;
+                                  window.open(tikiUrl, '_blank');
+                                  
+                                  toast({
+                                    title: `Melacak resi TIKI`,
+                                    description: `Membuka halaman tracking TIKI dengan nomor resi: ${order.tracking_number}`,
+                                    status: 'info',
+                                    duration: 5000,
+                                    isClosable: true,
                                   });
                                 } else if (order.courier_service === 'JNE') {
                                   // For JNE, try to use query parameters to auto-fill
