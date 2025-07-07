@@ -13,7 +13,8 @@ console.log('Router initialized successfully');
 
 // CORS headers for all responses
 const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': 'https://kurniasaripayment.netlify.app',
+    'Vary': 'Origin',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cache-Control, X-Requested-With',
 };
@@ -316,8 +317,9 @@ export default {
             console.error('Worker error:', error.message);
             console.error('Error stack:', error.stack);
             // Ensure corsHeaders is defined in the error handler
-            const errorCorsHeaders = corsHeaders || {
-                'Access-Control-Allow-Origin': '*',
+                        const errorCorsHeaders = corsHeaders || {
+                'Access-Control-Allow-Origin': 'https://kurniasaripayment.netlify.app',
+                'Vary': 'Origin',
                 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type, Authorization',
             };
