@@ -36,22 +36,11 @@ function AdminOrderDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [formChanged, setFormChanged] = useState(false);
-  const [uploadedImages, setUploadedImages] = useState(() => {
-    try {
-      const savedImages = localStorage.getItem(`shipping_images_${id}`);
-      if (savedImages) {
-        console.log("[DEBUG] Loaded images from localStorage");
-        return JSON.parse(savedImages);
-      }
-    } catch (error) {
-      console.error("[DEBUG] Failed to load images from localStorage", error);
-    }
-    return {
-      readyForPickup: null,
-      pickedUp: null,
-      received: null,
-      shipmentProof: null
-    };
+  const [uploadedImages, setUploadedImages] = useState({
+    readyForPickup: null,
+    pickedUp: null,
+    received: null,
+    shipmentProof: null
   });
   const [showQRCode, setShowQRCode] = useState(false);
   const fileInputRefs = {
@@ -141,17 +130,15 @@ function AdminOrderDetailPage() {
       }
 
       // 5. Process Shipping Images
-      const newImages = { readyForPickup: null, pickedUp: null, received: null };
-      if (imagesRes.success && imagesRes.data) {
-        imagesRes.data.forEach(image => {
-          const imageUrl = transformURL(image.image_url);
-          if (image.image_type === 'ready_for_pickup') newImages.readyForPickup = imageUrl;
-          else if (image.image_type === 'picked_up') newImages.pickedUp = imageUrl;
-          else if (image.image_type === 'delivered') newImages.received = imageUrl;
-        });
+      if (imagesRes.success && imagesRes.images) {
+        const imagesData = imagesRes.images.reduce((acc, img) => {
+          // Transform URL to include a timestamp to bypass cache
+          acc[img.image_type] = transformURL(img.image_url);
+          return acc;
+        }, {});
+        // Update the state with the images fetched from the backend
+        setUploadedImages(prevImages => ({ ...prevImages, ...imagesData }));
       }
-      setUploadedImages(newImages);
-      localStorage.setItem(`shipping_images_${id}`, JSON.stringify(newImages));
 
     } catch (err) {
       console.error('[AdminOrderDetailPage] Error loading data:', err);
@@ -791,7 +778,8 @@ function AdminOrderDetailPage() {
           const apiTypeMap = {
             readyForPickup: 'ready_for_pickup',
             pickedUp: 'picked_up',
-            received: 'delivered'
+            received: 'delivered',
+            shipmentProof: 'shipment_proof'
           };
           
           const apiType = apiTypeMap[type];
@@ -1007,7 +995,7 @@ return (
                       <TabList>
                         <Tab isDisabled={shippingArea !== 'dalam-kota'}>Dalam Kota</Tab>
                         <Tab isDisabled={shippingArea !== 'luar-kota'}>Luar Kota</Tab>
-                        <Tab>QR Code Pengambilan</Tab>
+                        {tipe_pesanan === 'Pesan Ambil' && <Tab>QR Code Pengambilan</Tab>}
                       </TabList>
                       <TabPanels>
                         {/* Tab Dalam Kota */}
@@ -1157,143 +1145,89 @@ return (
                           </VStack>
                         </TabPanel>
                         {/* Tab QR Code */}
-                        <TabPanel>
-                          <Box mb={4}>
-                            <Heading size="sm" mb={2}>QR Code untuk Pengambilan</Heading>
-                            <Text fontSize="sm" mb={4}>QR code ini bisa ditunjukkan oleh pelanggan saat mengambil pesanan di outlet.</Text>
-                            
-                            <Flex justifyContent="center" mb={4}>
-                              <Box
-                                p={4}
-                                borderWidth="1px"
-                                borderRadius="lg"
-                                width="fit-content"
-                                textAlign="center"
-                                id="qrcode-container"
-                                ref={qrCodeRef}
-                              >
-                                <QRCodeSVG 
-                                  value={`https://tagihan.kurniasari.co.id/orders/${order.id}`}
-                                  size={200}
-                                  level="H"
-                                  includeMargin={true}
-                                  imageSettings={{
-                                    src: "https://kurniasaripayment.netlify.app/logo192.png",
-                                    x: undefined,
-                                    y: undefined,
-                                    height: 40,
-                                    width: 40,
-                                    excavate: true,
-                                  }}
-                                />
-                                <Text mt={2} fontSize="sm" fontWeight="bold">Order #{order.id}</Text>
-                              </Box>
-                            </Flex>
-                            
-                            <Button
-                              onClick={() => {
-                                const container = qrCodeRef.current;
-                                if (!container) return;
-                
-                                html2canvas(container, { scale: 2 }).then(canvas => {
-                                  const link = document.createElement('a');
-                                  link.download = `qrcode-order-${order.id}.png`;
-                                  link.href = canvas.toDataURL();
-                                  link.click();
-                                });
-                              }}
-                              colorScheme="blue"
-                              size="md"
-                              width="full"
-                            >
-                              Download QR Code
-                            </Button>
-                          </Box>
-                        </TabPanel>
-                        <TabPanel>
-                          <VStack spacing={4} align="center">
-                            <Heading size="sm">QR Code Pengambilan</Heading>
-                            <Box id="qr-code-container" p={4} borderWidth="1px" borderRadius="lg" bg="white">
-                              <QRCodeSVG 
-                                value={`https://tagihan.kurniasari.co.id/orders/${order.id}`} 
-                                size={200}
-                                includeMargin={true}
-                                level="H"
-                                ref={qrCodeRef}
-                              />
-                            </Box>
-                            <Text fontSize="sm">URL: https://tagihan.kurniasari.co.id/orders/{order.id}</Text>
-                            <Button colorScheme="blue" onClick={() => {
-                              try {
-                                // Gunakan element QR code container untuk screenshot
-                                const qrCodeContainer = document.getElementById('qr-code-container');
-                                if (!qrCodeContainer) {
-                                  toast({
-                                    title: "Gagal mengunduh QR Code",
-                                    description: "QR Code tidak tersedia",
-                                    status: "error",
-                                    duration: 3000,
-                                    isClosable: true
-                                  });
-                                  return;
-                                }
-                                
-                                // Gunakan html2canvas untuk mengambil screenshot elemen
-                                html2canvas(qrCodeContainer, {
-                                  backgroundColor: "#ffffff",
-                                  scale: 2, // Scale untuk kualitas lebih baik
-                                  logging: false
-                                }).then(canvas => {
-                                  try {
-                                    // Konversi canvas ke URL dan download
+                        {tipe_pesanan === 'Pesan Ambil' && (
+                          <TabPanel>
+                            <VStack spacing={4} align="stretch">
+                              <Heading size="sm">QR Code untuk Pengambilan</Heading>
+                              <Text fontSize="sm" color="gray.500">Tunjukkan QR code ini saat mengambil pesanan di outlet.</Text>
+                              
+                              <Flex justifyContent="center" my={4}>
+                                <Box
+                                  p={4}
+                                  borderWidth="1px"
+                                  borderRadius="lg"
+                                  bg="white"
+                                  ref={qrCodeRef}
+                                  id="qrcode-container"
+                                >
+                                  {order && order.id ? (
+                                    <VStack>
+                                      <QRCodeSVG 
+                                        value={`https://tagihan.kurniasari.co.id/orders/${order.id}`}
+                                        size={220}
+                                        level="H"
+                                        includeMargin={true}
+                                        imageSettings={{
+                                          src: "https://kurniasaripayment.netlify.app/logo192.png",
+                                          height: 40,
+                                          width: 40,
+                                          excavate: true,
+                                        }}
+                                      />
+                                      <Text pt={2} fontSize="sm" fontWeight="bold">Order #{order.id}</Text>
+                                    </VStack>
+                                  ) : (
+                                    <Text>Order ID tidak tersedia.</Text>
+                                  )}
+                                </Box>
+                              </Flex>
+                              
+                              <Button
+                                onClick={() => {
+                                  const qrCodeElement = qrCodeRef.current;
+                                  if (!qrCodeElement || !order || !order.id) {
+                                    toast({
+                                      title: "Gagal mengunduh QR Code",
+                                      description: "Data QR Code belum siap.",
+                                      status: "error",
+                                      duration: 3000,
+                                      isClosable: true,
+                                    });
+                                    return;
+                                  }
+                                  
+                                  html2canvas(qrCodeElement, { 
+                                    scale: 3,
+                                    backgroundColor: '#ffffff',
+                                    useCORS: true,
+                                  }).then(canvas => {
                                     const link = document.createElement('a');
-                                    link.download = `QR-${order.id}.png`;
+                                    link.download = `QR-Code-Order-${order.id}.png`;
                                     link.href = canvas.toDataURL('image/png');
-                                    document.body.appendChild(link);
                                     link.click();
-                                    document.body.removeChild(link);
-                                    
                                     toast({
                                       title: "QR Code berhasil diunduh",
                                       status: "success",
                                       duration: 2000,
-                                      isClosable: true
+                                      isClosable: true,
                                     });
-                                  } catch (downloadErr) {
-                                    console.error('Error downloading QR code:', downloadErr);
+                                  }).catch(err => {
+                                    console.error("Error generating QR code image:", err);
                                     toast({
-                                      title: "Gagal mengunduh QR Code",
-                                      description: downloadErr.message,
+                                      title: "Gagal membuat gambar QR Code",
+                                      description: err.message,
                                       status: "error",
                                       duration: 3000,
-                                      isClosable: true
+                                      isClosable: true,
                                     });
-                                  }
-                                }).catch(err => {
-                                  console.error('Error capturing QR code with html2canvas:', err);
-                                  toast({
-                                    title: "Gagal mengambil gambar QR Code",
-                                    description: err.message,
-                                    status: "error",
-                                    duration: 3000,
-                                    isClosable: true
                                   });
-                                });
-                              } catch (err) {
-                                console.error('Error creating QR code download:', err);
-                                toast({
-                                  title: "Gagal mengunduh QR Code",
-                                  description: err.message,
-                                  status: "error",
-                                  duration: 3000,
-                                  isClosable: true
-                                });
-                              }
-                            }}>
-                              Download QR Code
-                            </Button>
-                          </VStack>
-                        </TabPanel>
+                                }}
+                              >
+                                Download QR Code
+                              </Button>
+                            </VStack>
+                          </TabPanel>
+                        )}
                       </TabPanels>
                     </Tabs>
                   </AccordionPanel>

@@ -262,14 +262,17 @@ export async function getOrderById(request, env) {
 
     const { results: items } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(orderId).all();
 
+    const { results: shipping_images } = await env.DB.prepare('SELECT image_type, image_url FROM shipping_images WHERE order_id = ?').bind(orderId).all();
+
     const finalOrder = {
       ...order,
       lokasi_pengiriman: lokasi_pengiriman_nama,
       lokasi_pengambilan: lokasi_pengambilan_nama,
-      items
+      items,
+      shipping_images
     };
 
-    return new Response(JSON.stringify({ success: true, order: finalOrder }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+    return new Response(JSON.stringify({ success: true, data: finalOrder }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
 
   } catch (error) {
     console.error('Get Order By ID Error:', error.message, error.stack);
@@ -503,7 +506,7 @@ export async function getAdminOrders(request, env) {
           lokasi_pengambilan: lokasi_pengambilan_nama, // Use the name from the JOIN
           items,
           payment_details: paymentDetails,
-          total_amount: items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0)
+          total_amount: items.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0)
         };
       } catch (itemError) {
         console.error(`Error processing items for order ${order.id}:`, itemError);

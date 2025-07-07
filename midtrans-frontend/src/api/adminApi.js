@@ -145,7 +145,7 @@ export const adminApi = {
       }
       
       // Validasi tipe gambar
-      const validTypes = ['ready_for_pickup', 'picked_up', 'delivered'];
+      const validTypes = ['ready_for_pickup', 'picked_up', 'delivered', 'shipment_proof'];
       if (!validTypes.includes(imageType)) {
         throw new Error(`Invalid image type. Must be one of: ${validTypes.join(', ')}`);
       }
@@ -214,7 +214,7 @@ export const adminApi = {
       }
       
       // Validasi tipe gambar
-      const validTypes = ['ready_for_pickup', 'picked_up', 'delivered'];
+      const validTypes = ['ready_for_pickup', 'picked_up', 'delivered', 'shipment_proof'];
       if (!validTypes.includes(imageType)) {
         throw new Error(`Invalid image type. Must be one of: ${validTypes.join(', ')}`);
       }
