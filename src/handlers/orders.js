@@ -225,6 +225,7 @@ export async function getOrderById(request, env) {
     'Expires': '0',
   };
 
+  let failedQuery = 'unknown';
   try {
     const url = new URL(request.url);
     const orderId = url.pathname.split('/').pop();
@@ -237,37 +238,40 @@ export async function getOrderById(request, env) {
       return new Response(JSON.stringify({ success: false, error: 'Database not available' }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
     }
 
-    const orderQuery = `
-      SELECT
-        o.*,
-        lp.nama_lokasi AS lokasi_pengiriman_nama,
-        la.nama_lokasi AS lokasi_pengambilan_nama
-      FROM orders o
-      LEFT JOIN locations lp ON o.lokasi_pengiriman = lp.kode_area
-      LEFT JOIN locations la ON o.lokasi_pengambilan = la.kode_area
-      WHERE o.id = ?
-    `;
+    // Step 1: Fetch the main order details
+    failedQuery = 'fetching order';
+    const order = await env.DB.prepare('SELECT * FROM orders WHERE id = ?').bind(orderId).first();
 
-    const orderResult = await env.DB.prepare(orderQuery).bind(orderId).first();
-
-    if (!orderResult) {
+    if (!order) {
       return new Response(JSON.stringify({ success: false, error: 'Order not found' }), { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
     }
 
-    const { 
-      lokasi_pengiriman_nama, 
-      lokasi_pengambilan_nama,
-      ...order
-    } = orderResult;
-
+    // Step 2: Fetch order items
+    failedQuery = 'fetching order items';
     const { results: items } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(orderId).all();
 
+    // Step 3: Fetch shipping images
+    failedQuery = 'fetching shipping images';
     const { results: shipping_images } = await env.DB.prepare('SELECT image_type, image_url FROM shipping_images WHERE order_id = ?').bind(orderId).all();
+
+    // Step 4: Fetch location names if they exist
+    failedQuery = 'fetching location names';
+    let lokasiPengirimanNama = null;
+    if (order.lokasi_pengiriman) {
+      const loc = await env.DB.prepare('SELECT nama_lokasi FROM locations WHERE nama_lokasi = ?').bind(order.lokasi_pengiriman).first();
+      lokasiPengirimanNama = loc ? loc.nama_lokasi : order.lokasi_pengiriman; // Fallback to the stored value
+    }
+
+    let lokasiPengambilanNama = null;
+    if (order.lokasi_pengambilan) {
+      const loc = await env.DB.prepare('SELECT nama_lokasi FROM locations WHERE nama_lokasi = ?').bind(order.lokasi_pengambilan).first();
+      lokasiPengambilanNama = loc ? loc.nama_lokasi : order.lokasi_pengambilan; // Fallback to the stored value
+    }
 
     const finalOrder = {
       ...order,
-      lokasi_pengiriman: lokasi_pengiriman_nama,
-      lokasi_pengambilan: lokasi_pengambilan_nama,
+      lokasi_pengiriman: lokasiPengirimanNama,
+      lokasi_pengambilan: lokasiPengambilanNama,
       items,
       shipping_images
     };
@@ -275,8 +279,8 @@ export async function getOrderById(request, env) {
     return new Response(JSON.stringify({ success: true, data: finalOrder }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
 
   } catch (error) {
-    console.error('Get Order By ID Error:', error.message, error.stack);
-    return new Response(JSON.stringify({ success: false, error: 'Failed to fetch order' }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+    console.error(`Get Order By ID Error while ${failedQuery}:`, error.message, error.stack);
+    return new Response(JSON.stringify({ success: false, error: 'Failed to fetch order', details: `Error during: ${failedQuery}` }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
   }
 }
 
