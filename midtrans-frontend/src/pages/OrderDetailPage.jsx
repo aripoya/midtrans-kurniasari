@@ -42,21 +42,55 @@ function OrderDetailPage() {
       setLoading(true);
       setError(null);
       
+      // Debug log untuk memudahkan troubleshooting
+      console.log(`🔍 Mencoba mengambil pesanan dengan ID: ${id}`);
+      
       // Different fetch approach based on public vs protected route
-      let data;
+      let orderData;
       
       if (isPublicOrderPage) {
         // For public pages, use direct axios call without auth headers
-        const apiUrl = import.meta.env.VITE_API_URL || 'https://pesanan.kurniasari.co.id';
-        const response = await axios.get(`${apiUrl}/api/orders/${id}`);
-        data = response.data;
+        // Menggunakan VITE_API_BASE_URL yang sesuai dengan konfigurasi di api.js
+        const isDev = import.meta.env.MODE === 'development';
+        const apiUrl = import.meta.env.VITE_API_BASE_URL || (isDev ? 'http://localhost:8787' : 'https://order-management-app-production.wahwooh.workers.dev');
+        
+        console.log(`🌐 Menggunakan API URL: ${apiUrl}`);
+        
+        try {
+          const response = await axios.get(`${apiUrl}/api/orders/${id}`);
+          console.log('📦 Respons API:', response.data);
+          
+          // Periksa struktur data respons (bisa data.order atau data.data)
+          if (response.data.success) {
+            if (response.data.order) {
+              orderData = response.data.order; // Format lama
+            } else if (response.data.data) {
+              orderData = response.data.data;  // Format baru dari API produksi
+            } else {
+              throw new Error('Format data tidak dikenali');
+            }
+          } else {
+            throw new Error('Respons API tidak sukses');
+          }
+        } catch (apiError) {
+          console.error('❌ Error saat memanggil API:', apiError);
+          throw apiError;
+        }
       } else {
         // For protected pages, use orderService which includes auth
-        data = await orderService.getOrderById(id);
+        const serviceResponse = await orderService.getOrderById(id);
+        if (serviceResponse.success && serviceResponse.order) {
+          orderData = serviceResponse.order;
+        } else if (serviceResponse.success && serviceResponse.data) {
+          orderData = serviceResponse.data;
+        } else {
+          throw new Error('Data tidak ditemukan dari orderService');
+        }
       }
       
-      if (data.success && data.order) {
-        let finalOrder = data.order;
+      // Pastikan kita memiliki data pesanan
+      if (orderData) {
+        let finalOrder = orderData;
         if (finalOrder.payment_response) {
           try {
             const paymentDetails = JSON.parse(finalOrder.payment_response);
@@ -71,10 +105,12 @@ function OrderDetailPage() {
           }
         }
         setOrder(finalOrder);
+        console.log('✅ Berhasil memuat data pesanan:', finalOrder);
       } else {
         setError(`Pesanan tidak ditemukan.`);
       }
     } catch (err) {
+      console.error('❌ Error dalam fetchOrder:', err);
       setError(`Gagal memuat detail pesanan: ${err.message}.`);
     } finally {
       setLoading(false);
