@@ -250,9 +250,17 @@ export async function getOrderById(request, env) {
     failedQuery = 'fetching order items';
     const { results: items } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(orderId).all();
 
-    // Step 3: Fetch shipping images
+    // Step 3: Fetch shipping images (with error handling)
     failedQuery = 'fetching shipping images';
-    const { results: shipping_images } = await env.DB.prepare('SELECT image_type, image_url FROM shipping_images WHERE order_id = ?').bind(orderId).all();
+    let shipping_images = [];
+    try {
+      const shippingImagesResult = await env.DB.prepare('SELECT image_type, image_url FROM shipping_images WHERE order_id = ?').bind(orderId).all();
+      shipping_images = shippingImagesResult.results || [];
+    } catch (shippingError) {
+      // Log error but don't fail the entire request
+      console.error(`Error fetching shipping images for order ${orderId}:`, shippingError);
+      // Continue with empty shipping_images array
+    }
 
     // Step 4: Fetch location names if they exist
     failedQuery = 'fetching location names';
@@ -466,8 +474,8 @@ export async function getAdminOrders(request, env) {
         lp.nama_lokasi AS lokasi_pengiriman_nama,
         la.nama_lokasi AS lokasi_pengambilan_nama
       FROM orders o
-      LEFT JOIN locations lp ON o.lokasi_pengiriman = lp.kode_area
-      LEFT JOIN locations la ON o.lokasi_pengambilan = la.kode_area
+      LEFT JOIN locations lp ON o.lokasi_pengiriman = lp.nama_lokasi
+      LEFT JOIN locations la ON o.lokasi_pengambilan = la.nama_lokasi
       ORDER BY o.created_at DESC
       LIMIT ? OFFSET ?
     `;
@@ -624,7 +632,7 @@ export async function updateOrderDetails(request, env) {
 
     const {
       status,
-      shipping_area,
+      // shipping_area dihapus dari sini karena kolom ini tidak ada di database
       pickup_method,
       admin_note,
       tracking_number,
@@ -643,8 +651,11 @@ export async function updateOrderDetails(request, env) {
     const updateFields = [];
     const updateParams = [];
 
+    // Update shipping status jika ada
     if (status !== undefined) { updateFields.push('shipping_status = ?'); updateParams.push(status); }
-    if (shipping_area !== undefined) { updateFields.push('shipping_area = ?'); updateParams.push(shipping_area); }
+    // Hapus shipping_area karena kolom tidak ada di database
+    // if (shipping_area !== undefined) { updateFields.push('shipping_area = ?'); updateParams.push(shipping_area); }
+    // Kolom pickup_method sudah ditambahkan kembali ke database
     if (pickup_method !== undefined) { updateFields.push('pickup_method = ?'); updateParams.push(pickup_method); }
     if (admin_note !== undefined) { updateFields.push('admin_note = ?'); updateParams.push(admin_note); }
     if (tracking_number !== undefined) { updateFields.push('tracking_number = ?'); updateParams.push(tracking_number); }
@@ -653,12 +664,13 @@ export async function updateOrderDetails(request, env) {
 
     if (lokasiPengirimanName !== undefined) {
       if (lokasiPengirimanName) {
-        const location = await env.DB.prepare("SELECT kode_area FROM locations WHERE nama_lokasi = ?").bind(lokasiPengirimanName).first();
+        // Periksa apakah lokasi valid, tapi gunakan langsung nama_lokasi (bukan kode_area yang sudah dihapus)
+        const location = await env.DB.prepare("SELECT id FROM locations WHERE nama_lokasi = ?").bind(lokasiPengirimanName).first();
         if (!location) {
           return new Response(JSON.stringify({ success: false, error: `Invalid location name for lokasi_pengiriman: ${lokasiPengirimanName}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
         updateFields.push('lokasi_pengiriman = ?');
-        updateParams.push(location.kode_area);
+        updateParams.push(lokasiPengirimanName); // Gunakan nama lokasi langsung
       } else {
         updateFields.push('lokasi_pengiriman = ?');
         updateParams.push(null);
@@ -667,12 +679,13 @@ export async function updateOrderDetails(request, env) {
 
     if (lokasiPengambilanName !== undefined) {
       if (lokasiPengambilanName) {
-        const location = await env.DB.prepare("SELECT kode_area FROM locations WHERE nama_lokasi = ?").bind(lokasiPengambilanName).first();
+        // Periksa apakah lokasi valid, tapi gunakan langsung nama_lokasi (bukan kode_area yang sudah dihapus)
+        const location = await env.DB.prepare("SELECT id FROM locations WHERE nama_lokasi = ?").bind(lokasiPengambilanName).first();
         if (!location) {
           return new Response(JSON.stringify({ success: false, error: `Invalid location name for lokasi_pengambilan: ${lokasiPengambilanName}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
         updateFields.push('lokasi_pengambilan = ?');
-        updateParams.push(location.kode_area);
+        updateParams.push(lokasiPengambilanName); // Gunakan nama lokasi langsung
       } else {
         updateFields.push('lokasi_pengambilan = ?');
         updateParams.push(null);

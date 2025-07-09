@@ -18,6 +18,7 @@ import { refreshOrderStatus } from '../../api/api';
 import { adminApi } from '../../api/adminApi';
 import html2canvas from 'html2canvas';
 import { formatDate } from '../../utils/date';
+import axios from 'axios';
 
 function AdminOrderDetailPage() {
   const { id } = useParams();
@@ -37,10 +38,10 @@ function AdminOrderDetailPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [formChanged, setFormChanged] = useState(false);
   const [uploadedImages, setUploadedImages] = useState({
-    readyForPickup: null,
-    pickedUp: null,
-    received: null,
-    shipmentProof: null
+    readyForPickup: "",
+    pickedUp: "",
+    received: "",
+    shipmentProof: ""
   });
   const [showQRCode, setShowQRCode] = useState(false);
   const fileInputRefs = {
@@ -65,7 +66,7 @@ function AdminOrderDetailPage() {
   const [tipe_pesanan, setTipePesanan] = useState(''); // Tipe pesanan (Pesan Antar/Pesan Ambil)
 
   const transformURL = (url) => {
-    if (!url) return null;
+    if (!url) return ""; // Mengembalikan string kosong, bukan null
     if (url.includes('kurniasari-shipping-images.kurniasari.co.id')) {
       const fileName = url.split('/').pop().split('?')[0];
       return `https://proses.kurniasari.co.id/${fileName}?t=${Date.now()}`;
@@ -76,27 +77,70 @@ function AdminOrderDetailPage() {
     return url;
   };
 
+  // Periksa apakah ini adalah public order (format ORDER-xxx)  
+  const isPublicOrderPage = id && id.startsWith('ORDER-');
+  
   const loadAllData = useCallback(async () => {
     if (!id) return;
 
     setLoading(true);
     setError(null);
+    
+    console.log(`🔍 Mencoba mengambil pesanan dengan ID: ${id}`);
 
     try {
-      const [locationsRes, orderRes, imagesRes] = await Promise.all([
-        adminApi.getLocations(),
-        orderService.getOrderById(id),
-        adminApi.getShippingImages(id),
-      ]);
-
-      // 1. Process Locations
+      // 1. Get locations first (always use adminApi)
+      const locationsRes = await adminApi.getLocations();
       if (!locationsRes.success) throw new Error('Gagal memuat daftar lokasi.');
       const fetchedLocations = locationsRes.data;
       setLocations(fetchedLocations);
-
-      // 2. Process Order
-      if (!orderRes.success || !orderRes.order) throw new Error(orderRes.error || 'Pesanan tidak ditemukan');
-      let finalOrder = orderRes.order;
+      
+      // 2. Get order data with special handling for public orders
+      let orderData;
+      
+      if (isPublicOrderPage) {
+        // For public orders, use direct API call with axios
+        const apiUrl = import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev';
+        console.log(`🌐 Menggunakan API URL: ${apiUrl}`);
+        
+        try {
+          const response = await axios.get(`${apiUrl}/api/orders/${id}`);
+          console.log('📦 Respons API:', response.data);
+          
+          // Check response structure (could be order or data)
+          if (response.data.success) {
+            if (response.data.order) {
+              orderData = response.data.order; // Old format
+            } else if (response.data.data) {
+              orderData = response.data.data;  // New format from production API
+            } else {
+              throw new Error('Format data tidak dikenali');
+            }
+          } else {
+            throw new Error('Respons API tidak sukses');
+          }
+        } catch (apiError) {
+          console.error('❌ Error saat memanggil API:', apiError);
+          throw apiError;
+        }
+      } else {
+        // For admin-specific orders, use orderService
+        const serviceResponse = await orderService.getOrderById(id);
+        if (serviceResponse.success && serviceResponse.order) {
+          orderData = serviceResponse.order;
+        } else if (serviceResponse.success && serviceResponse.data) {
+          orderData = serviceResponse.data;
+        } else {
+          throw new Error('Data tidak ditemukan dari orderService');
+        }
+      }
+      
+      // Process order data
+      if (!orderData) {
+        throw new Error('Data pesanan tidak ditemukan');
+      }
+      
+      let finalOrder = orderData;
       if (finalOrder.payment_response) {
         try {
           const paymentDetails = JSON.parse(finalOrder.payment_response);
@@ -110,13 +154,13 @@ function AdminOrderDetailPage() {
           console.error('Error parsing payment_response:', e);
         }
       }
+      
       setOrder(finalOrder);
 
-      // 3. Map location names to kode_area for form state
-      const pengirimanKode = fetchedLocations.find(loc => loc.nama_lokasi === finalOrder.lokasi_pengiriman)?.kode_area || '';
-      const pengambilanKode = fetchedLocations.find(loc => loc.nama_lokasi === finalOrder.lokasi_pengambilan)?.kode_area || '';
-      setLokasiPengiriman(pengirimanKode);
-      setLokasiPengambilan(pengambilanKode);
+      // 3. Set lokasi pengiriman dan pengambilan berdasarkan nama lokasi
+      // Perhatikan: kita langsung menggunakan nama_lokasi, bukan kode_area yang sudah dihapus
+      setLokasiPengiriman(finalOrder.lokasi_pengiriman || '');
+      setLokasiPengambilan(finalOrder.lokasi_pengambilan || '');
 
       // 4. Set other form states
       setShippingStatus(finalOrder.shipping_status || '');
@@ -130,16 +174,23 @@ function AdminOrderDetailPage() {
       }
 
       // 5. Process Shipping Images
-      if (imagesRes.success && imagesRes.images) {
-        const imagesData = imagesRes.images.reduce((acc, img) => {
-          // Transform URL to include a timestamp to bypass cache
-          acc[img.image_type] = transformURL(img.image_url);
-          return acc;
-        }, {});
-        // Update the state with the images fetched from the backend
-        setUploadedImages(prevImages => ({ ...prevImages, ...imagesData }));
+      // Nested try-catch for shipping images (non-critical)  
+      try {
+        const imagesRes = await adminApi.getShippingImages(id);
+        if (imagesRes.success && imagesRes.images) {
+          const imagesData = imagesRes.images.reduce((acc, img) => {
+            // Transform URL to include a timestamp to bypass cache
+            acc[img.image_type] = transformURL(img.image_url);
+            return acc;
+          }, {});
+          // Update the state with the images fetched from the backend
+          setUploadedImages(prevImages => ({ ...prevImages, ...imagesData }));
+        }
+      } catch (imageErr) {
+        console.error('Error loading shipping images:', imageErr);
+        // Non-critical error, don't throw
       }
-
+      
     } catch (err) {
       console.error('[AdminOrderDetailPage] Error loading data:', err);
       setError(err.message);
@@ -202,10 +253,14 @@ function AdminOrderDetailPage() {
       const normalizedLokasiPengambilan = lokasi_pengambilan?.trim() || null;
       
       // Validasi status sebelum mengirim ke server
-      const allowedStatuses = ['dikemas', 'siap kirim', 'sedang dikirim', 'received'];
+      const allowedStatuses = ['pending', 'dikemas', 'siap kirim', 'sedang dikirim', 'received'];
       if (normalizedStatus && !allowedStatuses.includes(normalizedStatus)) {
+        console.error(`[ERROR] Invalid status: '${normalizedStatus}'. Allowed values:`, allowedStatuses);
         throw new Error(`Status tidak valid. Nilai yang diperbolehkan: ${allowedStatuses.join(', ')}`);
       }
+      
+      // Log untuk debugging
+      console.log('[DEBUG-STATUS] Status yang akan dikirim:', normalizedStatus);
       
       // Validasi shipping area
       const allowedShippingAreas = ['dalam-kota', 'luar-kota'];
@@ -227,7 +282,9 @@ function AdminOrderDetailPage() {
       // Siapkan data yang akan dikirim ke server
       if (normalizedStatus) shippingData.status = normalizedStatus;
       if (normalizedAdminNote !== null) shippingData.admin_note = normalizedAdminNote;
-      if (normalizedShippingArea) shippingData.shipping_area = normalizedShippingArea;
+      // Kolom shipping_area sudah dihapus dari database, jadi tidak perlu dikirim ke server
+      // if (normalizedShippingArea) shippingData.shipping_area = normalizedShippingArea;
+      // Kolom pickup_method sudah ditambahkan kembali ke database
       if (normalizedShippingArea === 'dalam-kota' && normalizedPickupMethod) {
         shippingData.pickup_method = normalizedPickupMethod;
       }
@@ -280,7 +337,8 @@ function AdminOrderDetailPage() {
         const updated = {
           ...prev,
           shipping_status: normalizedStatus || prev.shipping_status,
-          shipping_area: normalizedShippingArea || prev.shipping_area,
+          // Tidak perlu mengupdate shipping_area karena sudah tidak ada di database
+          // pickup_method sudah ditambahkan kembali ke database
           pickup_method: normalizedPickupMethod || prev.pickup_method
         };
         console.log('State order diperbarui:', updated);
@@ -407,6 +465,8 @@ function AdminOrderDetailPage() {
 
   // Fungsi untuk menghapus gambar shipping
   const handleDeleteImage = async (type) => {
+    if (!uploadedImages[type] || uploadedImages[type] === "" || !order) return;
+    
     try {
       setIsUploading(true);
       
@@ -427,7 +487,7 @@ function AdminOrderDetailPage() {
         // Update state
         setUploadedImages(prev => ({
           ...prev,
-          [type]: null
+          [type]: ""
         }));
         
         // Hapus dari localStorage untuk sinkronisasi
@@ -761,12 +821,16 @@ function AdminOrderDetailPage() {
             [type]: e.target.result
           };
           
-          // Simpan ke localStorage sementara (untuk preview)
+          // Tidak perlu menyimpan ke localStorage karena sudah di state
+          // dan gambar sudah diupload ke server
+          // Ini mencegah error quota exceeded
+          console.log(`[DEBUG-IMAGE] Using state for ${type} preview instead of localStorage`);
+          
+          // Hapus item lama jika ada untuk menghindari penumpukan di localStorage
           try {
-            localStorage.setItem(`shipping_images_${id}`, JSON.stringify(newState));
-            console.log(`[DEBUG-IMAGE] Saved preview image for ${type} to localStorage`);
+            localStorage.removeItem(`shipping_images_${id}`);
           } catch (err) {
-            console.error('[DEBUG-IMAGE] Failed to save preview to localStorage:', err);
+            console.error('[DEBUG-IMAGE] Error clearing localStorage:', err);
           }
           
           return newState;
@@ -851,12 +915,28 @@ function AdminOrderDetailPage() {
 
   // Fungsi untuk menampilkan gambar yang diupload
   const renderUploadedImage = (type) => {
-    if (!uploadedImages[type]) return null;
+    const imageUrl = uploadedImages[type];
+    
+    if (!imageUrl || imageUrl === "") {
+      return (
+        <Box 
+          w="100%" 
+          h="150px" 
+          border="2px dashed" 
+          borderColor="gray.200"
+          borderRadius="md"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+        >
+          <Text color="gray.500">Belum ada foto</Text>
+        </Box>
+      );
+    }
     
     // Tambahkan key dengan timestamp untuk memaksa re-render komponen Image
     // saat URL berubah (bahkan jika base URL sama)
     const imageKey = `${type}-${Date.now()}`;
-    const imageUrl = uploadedImages[type];
     
     return (
       <Image 
@@ -888,10 +968,43 @@ if (loading) {
 
 if (error || !order) {
   return (
-    <Alert status="warning">
-      <AlertIcon />
-      {error || "Pesanan tidak ditemukan."}
-    </Alert>
+    <Box p={4} maxW="1200px" mx="auto">
+      {loading ? (
+        <Flex justify="center" align="center" minH="60vh">
+          <Spinner size="xl" />
+        </Flex>
+      ) : error ? (
+        <Box textAlign="center" py={10} px={6}>
+          <Alert status="error" variant="solid" mb={6}>
+            <AlertIcon />
+            {error}
+          </Alert>
+          
+          <Heading as="h2" size="xl" mt={6} mb={2}>
+            Pesanan tidak ditemukan
+          </Heading>
+          
+          <Text color={"gray.500"} mb={6}>
+            Pesanan dengan ID <strong>{id}</strong> tidak dapat ditemukan di database. 
+            Silakan periksa ID pesanan atau kembali ke daftar pesanan.
+          </Text>
+
+          <Button
+            colorScheme="blue"
+            onClick={() => navigate('/admin/orders')}
+            size="lg"
+            mt={4}
+          >
+            Kembali ke Daftar Pesanan
+          </Button>
+        </Box>
+      ) : (
+        <Alert status="warning">
+          <AlertIcon />
+          Pesanan tidak ditemukan.
+        </Alert>
+      )}
+    </Box>
   );
 }
 
@@ -903,13 +1016,26 @@ return (
       <Heading size="lg">
         Detail Pesanan #{order.id.substring(0, 8)}
       </Heading>
-      <Button 
-        as={RouterLink} 
-        to="/admin/orders" 
-        variant="outline"
-      >
-        Kembali ke Daftar
-      </Button>
+      <HStack spacing={4}>
+        <Button 
+          as={RouterLink} 
+          to="/admin/orders" 
+          variant="outline"
+        >
+          Kembali ke Daftar
+        </Button>
+        {isPublicOrderPage && (
+          <Button
+            as={RouterLink}
+            to={`/orders/${id}`}
+            colorScheme="blue"
+            variant="outline"
+            leftIcon={<span role="img" aria-label="eye">👁️</span>}
+          >
+            Lihat sebagai Pelanggan
+          </Button>
+        )}
+      </HStack>
     </HStack>
 
     <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
@@ -1463,7 +1589,7 @@ return (
                       }}
                     >
                       <option value="sendiri">Ambil Sendiri</option>
-                      <option value="ojek-online-ambil">Ojek Online</option>
+                      <option value="ojek-online">Ojek Online</option>
                     </Select>
                   </FormControl>
                 )}

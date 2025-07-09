@@ -1,12 +1,12 @@
 -- Insert predefined locations
-INSERT INTO locations (kode_area, nama_lokasi) VALUES 
-('AB', 'Outlet Glagahsari 91C'),
-('TM', 'Outlet Glagahsari 108'),
-('BO', 'Outlet Bonbin'),
-('MJL', 'Outlet Monjali'),
-('JKL', 'Outlet Pogung'),
-('JKLU', 'Outlet Jakal KM14'),
-('JW', 'Outlet Jalan Wonosari'),
-('JAWA', 'Outlet Jalan Wates'),
-('JAGO', 'Outlet Godean'),
-('KH', 'Outlet Ahmad Dahlan');
+INSERT INTO locations (nama_lokasi) VALUES 
+('Outlet Glagahsari 91C'),
+('Outlet Glagahsari 108'),
+('Outlet Bonbin'),
+('Outlet Monjali'),
+('Outlet Pogung'),
+('Outlet Jakal KM14'),
+('Outlet Jalan Wonosari'),
+('Outlet Jalan Wates'),
+('Outlet Godean'),
+('Outlet Ahmad Dahlan');

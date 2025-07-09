@@ -1,6 +1,6 @@
 // Handler for locations functionality
 export async function getLocations(request, env) {
-  const corsHeaders = {
+  const corsHeaders = request.corsHeaders || {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -13,7 +13,47 @@ export async function getLocations(request, env) {
 
   try {
     if (!env.DB) {
-      throw new Error("Database binding not found.");
+      console.warn("[getLocations] Database binding not found.");
+      // Return empty array instead of throwing an error
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          locations: [],
+          warning: "Database binding not available"
+        }), 
+        { 
+          status: 200, 
+          headers: { 
+            'Content-Type': 'application/json',
+            ...corsHeaders 
+          } 
+        }
+      );
+    }
+
+    // Check if the table exists before querying
+    const tableExists = await env.DB.prepare(
+      `SELECT name FROM sqlite_master 
+       WHERE type='table' AND name='locations'`
+    ).first();
+
+    // If table doesn't exist, return empty array with success
+    if (!tableExists) {
+      console.log("[getLocations] Locations table doesn't exist.");
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          locations: [],
+          warning: "Locations table not found"
+        }), 
+        { 
+          status: 200, 
+          headers: { 
+            'Content-Type': 'application/json',
+            ...corsHeaders 
+          } 
+        }
+      );
     }
 
     // Fetch only location names, ordered alphabetically
@@ -26,7 +66,7 @@ export async function getLocations(request, env) {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        locations: locations.results 
+        locations: locations.results || [] 
       }), 
       { 
         status: 200, 
@@ -40,14 +80,16 @@ export async function getLocations(request, env) {
   } catch (error) {
     console.error(`[getLocations] Error:`, error);
     
+    // Return success with empty array instead of error
+    // This prevents frontend crashes
     return new Response(
       JSON.stringify({ 
-        success: false, 
-        error: 'Failed to fetch locations',
-        details: error.message 
+        success: true, 
+        locations: [],
+        error_info: error.message // For debugging only
       }), 
       { 
-        status: 500, 
+        status: 200, // Use 200 instead of 500 to prevent frontend errors
         headers: { 
           'Content-Type': 'application/json',
           ...corsHeaders 

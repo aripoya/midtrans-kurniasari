@@ -169,6 +169,20 @@ function AdminOrdersPage() {
           <StatCard label="Dalam Pengiriman" value={stats.shipping} colorScheme="orange" />
         </SimpleGrid>
         
+        {/* Link to public orders page */}
+        <Box mb={4}>
+          <Button
+            as={RouterLink}
+            to="/orders"
+            colorScheme="blue"
+            variant="outline"
+            size="md"
+            leftIcon={<span>🔗</span>}
+          >
+            Lihat Halaman Pesanan Publik
+          </Button>
+        </Box>
+        
         {/* Filters */}
         <HStack mb={6} spacing={4} flexDir={{ base: "column", md: "row" }} alignItems={{ base: "stretch", md: "center" }}>
           <Input 
