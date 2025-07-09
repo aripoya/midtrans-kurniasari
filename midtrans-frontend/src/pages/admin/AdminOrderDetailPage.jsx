@@ -338,12 +338,38 @@ function AdminOrderDetailPage() {
           ...prev,
           shipping_status: normalizedStatus || prev.shipping_status,
           // Tidak perlu mengupdate shipping_area karena sudah tidak ada di database
-          // pickup_method sudah ditambahkan kembali ke database
-          pickup_method: normalizedPickupMethod || prev.pickup_method
+          pickup_method: normalizedPickupMethod || prev.pickup_method,
+          // Tambahkan field lain yang diupdate
+          tipe_pesanan: normalizedTipePesanan || prev.tipe_pesanan,
+          metode_pengiriman: normalizedMetodePengiriman || prev.metode_pengiriman,
+          admin_note: normalizedAdminNote || prev.admin_note
         };
+        
+        // Tambahkan field kondisional
+        if (normalizedTipePesanan === 'Pesan Antar' && normalizedLokasiPengiriman) {
+          updated.lokasi_pengiriman = normalizedLokasiPengiriman;
+        }
+        
+        if (normalizedTipePesanan === 'Pesan Ambil' && normalizedLokasiPengambilan) {
+          updated.lokasi_pengambilan = normalizedLokasiPengambilan;
+        }
+        
+        // Tambahkan tracking dan courier service untuk luar kota
+        if (normalizedShippingArea === 'luar-kota') {
+          if (courierService !== 'TRAVEL') {
+            updated.tracking_number = trackingNumber || prev.tracking_number;
+          }
+          updated.courier_service = courierService || prev.courier_service;
+        }
+        
         console.log('State order diperbarui:', updated);
         return updated;
       });
+      
+      // Refresh order data setelah update
+      setTimeout(() => {
+        fetchOrderData();
+      }, 500);
       setSavedAdminNote(normalizedAdminNote || '');
       
       // Reset form changed state setelah update berhasil
