@@ -337,7 +337,8 @@ function AdminOrderDetailPage() {
         const updated = {
           ...prev,
           shipping_status: normalizedStatus || prev.shipping_status,
-          // Tidak perlu mengupdate shipping_area karena sudah tidak ada di database
+          // shipping_area perlu diperbarui untuk sinkronisasi tampilan
+          shipping_area: normalizedShippingArea || prev.shipping_area,
           pickup_method: normalizedPickupMethod || prev.pickup_method,
           // Tambahkan field lain yang diupdate
           tipe_pesanan: normalizedTipePesanan || prev.tipe_pesanan,
