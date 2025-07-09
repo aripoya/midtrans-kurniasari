@@ -1,0 +1,11 @@
+{
+  "buildCommand": "npm install && npm run build",
+  "outputDirectory": "dist",
+  "nodeVersion": "18",
+  "routes": [
+    { "pattern": "/*", "serve": "/index.html" }
+  ],
+  "env": {
+    "VITE_API_BASE_URL": "https://order-management-app-production.wahwooh.workers.dev"
+  }
+}
