@@ -2,7 +2,10 @@ import axios from 'axios';
 
 // Use the environment variable from Vite, with a fallback to the production URL.
 // This makes the configuration flexible and respects the build environment.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://pesanan.kurniasari.co.id';
+// Determine if we're in development mode
+const isDev = import.meta.env.MODE === 'development';
+// Use localhost for dev mode, otherwise use the environment variable with production fallback
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (isDev ? 'http://localhost:8787' : 'https://order-management-app-production.wahwooh.workers.dev');
 
 // Create axios instance with default config
 const apiClient = axios.create({

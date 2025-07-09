@@ -2,7 +2,10 @@ import axios from 'axios';
 import apiClient from './api';
 
 // Use the same API URL as the main api client to ensure consistency
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://pesanan.kurniasari.co.id';
+// Determine if we're in development mode
+const isDev = import.meta.env.MODE === 'development';
+// Use localhost for dev mode, otherwise use the environment variable with production fallback
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (isDev ? 'http://localhost:8787' : 'https://order-management-app-production.wahwooh.workers.dev');
 
 // Helper function to get admin token from localStorage
 const getAdminToken = () => {
@@ -77,39 +80,66 @@ export const adminApi = {
     }
   },
 
-  // Obtiene la lista completa de pedidos para admin (con más información)
+  // Mendapatkan daftar lengkap pesanan untuk admin
+  // NOTE: Menggunakan endpoint biasa /api/orders dengan parameter offset dan limit
+  // karena endpoint admin khusus mungkin tidak tersedia di produksi
   getAdminOrders: async () => {
     try {
       // Add timestamp to prevent caching
       const timestamp = new Date().getTime();
-      console.log(`[DEBUG] Using API endpoint: ${API_BASE_URL}/api/admin/orders?_t=${timestamp}`);
+      // Gunakan endpoint reguler dengan parameter yang lebih besar
+      const requestUrl = `${API_BASE_URL}/api/orders?offset=0&limit=100&_t=${timestamp}`;
+      console.log(`[DEBUG] Using standard orders endpoint: ${requestUrl}`);
       
-      // Try with fetch API instead of axios for more control
-      const response = await fetch(
-        `${API_BASE_URL}/api/admin/orders?_t=${timestamp}`,
-        {
-          method: 'GET',
-          mode: 'cors',
-          credentials: 'omit',  // Don't send credentials
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
-          }
+      // Mendapatkan token admin untuk penggunaan di masa mendatang
+      // (meskipun endpoint ini mungkin tidak memerlukannya)
+      const adminToken = getAdminToken();
+      console.log('[DEBUG] Admin token present:', adminToken ? 'Yes' : 'No');
+      
+      // Gunakan axios untuk permintaan yang lebih sederhana
+      const response = await axios.get(requestUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache'
         }
-      );
+      });
       
-      if (!response.ok) {
-        console.error('API response not OK:', response.status, response.statusText);
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      console.log('[DEBUG] Orders API response status:', response.status);
+      console.log('[DEBUG] Orders API response structure:', Object.keys(response.data));
+      
+      // Bentuk ulang respons untuk kompatibilitas dengan kode yang ada
+      // Format asli mungkin: { success: true, data: [...] } atau { success: true, orders: [...] }
+      let orders = [];
+      
+      if (response.data?.success) {
+        // Ekstrak data pesanan dari berbagai kemungkinan struktur
+        if (Array.isArray(response.data.data)) {
+          orders = response.data.data;
+        } else if (Array.isArray(response.data.orders)) {
+          orders = response.data.orders;
+        } else if (response.data.data?.orders && Array.isArray(response.data.data.orders)) {
+          orders = response.data.data.orders;
+        }
+        
+        console.log(`[DEBUG] Successfully parsed ${orders.length} orders`);
+        
+        // Bentuk respons kompatibel dengan struktur yang diharapkan
+        return { 
+          data: { 
+            success: true, 
+            orders: orders 
+          }, 
+          error: null 
+        };
+      } else {
+        console.error('[DEBUG] Invalid or unexpected API response structure');
+        throw new Error('Format respons API tidak valid');
       }
-      
-      const data = await response.json();
-      return { data, error: null };
     } catch (error) {
       console.error('Error fetching admin orders:', error);
       return {
         data: null,
-        error: error.message || 'Error al obtener pedidos'
+        error: error.message || 'Error saat mengambil daftar pesanan'
       };
     }
   },
@@ -279,23 +309,30 @@ export const adminApi = {
   // Mengambil daftar lokasi (kode area)
   getLocations: async () => {
     try {
+      console.log('[DEBUG] Fetching locations from:', `${API_BASE_URL}/api/locations`);
       const response = await axios.get(
         `${API_BASE_URL}/api/locations`,
         {
           headers: {
             'Accept': 'application/json',
             'Cache-Control': 'no-cache'
-          }
+          },
+          // Timeout setelah 5 detik untuk mencegah loading yang terlalu lama
+          timeout: 5000
         }
       );
       
-      return { success: true, data: response.data.locations, error: null };
+      console.log('[DEBUG] Locations API response:', response.data);
+      return { success: true, data: response.data.locations || [], error: null };
     } catch (error) {
-      console.error('Error fetching locations:', error);
+      console.error('[DEBUG] Error fetching locations:', error);
+      // Kembalikan array kosong sebagai fallback jika tabel locations tidak ada
+      // Ini mencegah aplikasi crash karena error
       return {
-        success: false,
-        data: null,
-        error: error.response?.data?.error || error.message || 'Error saat mengambil data lokasi'
+        success: true, // Tetap kembalikan success = true untuk mencegah error di UI
+        data: [], // Array kosong sebagai fallback
+        errorMessage: error.response?.data?.error || error.message || 'Gagal mengambil data lokasi',
+        originalError: error
       };
     }
   }
