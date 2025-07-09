@@ -652,7 +652,15 @@ export async function updateOrderDetails(request, env) {
     const updateParams = [];
 
     // Update shipping status jika ada
-    if (status !== undefined) { updateFields.push('shipping_status = ?'); updateParams.push(status); }
+    if (status !== undefined) { 
+      // Validasi status harus valid sebelum diupdate
+      const allowedStatuses = ['pending', 'dikemas', 'siap kirim', 'siap di ambil', 'sedang dikirim', 'received'];
+      if (!allowedStatuses.includes(status)) {
+        return new Response(JSON.stringify({ success: false, error: `Invalid status value: ${status}. Allowed values: ${allowedStatuses.join(', ')}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      updateFields.push('shipping_status = ?'); 
+      updateParams.push(status); 
+    }
     // Hapus shipping_area karena kolom tidak ada di database
     // if (shipping_area !== undefined) { updateFields.push('shipping_area = ?'); updateParams.push(shipping_area); }
     // Kolom pickup_method sudah ditambahkan kembali ke database
