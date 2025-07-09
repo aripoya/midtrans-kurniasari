@@ -1482,77 +1482,7 @@ return (
                   </FormControl>
                 )}
                 
-                {/* UI Tipe Pesanan - hanya tampil jika area pengiriman Dalam Kota */}
-                {shippingArea === 'dalam-kota' && (
-                  <Box mt={4}>
-                    <Heading as="h3" size="md" mb={3}>Tipe Pesanan</Heading>
-                    <SimpleGrid columns={2} spacing={4}>
-                      {/* Pesan Ambil */}
-                      <Box
-                        p={4}
-                        borderWidth="1px"
-                        borderRadius="lg"
-                        borderColor={pickupMethod === 'sendiri' || pickupMethod === 'ojek-online-ambil' ? "green.500" : "gray.200"}
-                        bg={pickupMethod === 'sendiri' || pickupMethod === 'ojek-online-ambil' ? "green.50" : "white"}
-                        cursor="pointer"
-                        onClick={() => {
-                          // Set untuk Pesan Ambil
-                          setShippingArea('dalam-kota');
-                          // Aktifkan metode ambil
-                          if (pickupMethod !== 'sendiri' && pickupMethod !== 'ojek-online-ambil') {
-                            setPickupMethod('sendiri'); // Default ke 'sendiri' jika belum dipilih
-                          }
-                          // Reset metode kirim
-                          setMetodePengiriman('');
-                        }}
-                        opacity={metodePengiriman !== '' ? 0.6 : 1}
-                        _hover={{ borderColor: metodePengiriman === '' ? "green.300" : "gray.200" }}
-                      >
-                        <HStack spacing={3}>
-                          <Box boxSize="30px">
-                            <Box as="span" fontSize="24px">📦</Box>
-                          </Box>
-                          <Box>
-                            <Text fontWeight="bold">Pesan Ambil</Text>
-                            <Text fontSize="sm" color="gray.600">Ambil di outlet</Text>
-                          </Box>
-                        </HStack>
-                      </Box>
-                      
-                      {/* Pesan Kirim */}
-                      <Box
-                        p={4}
-                        borderWidth="1px"
-                        borderRadius="lg"
-                        borderColor={metodePengiriman === 'ojek-online' || metodePengiriman === 'team-delivery' ? "green.500" : "gray.200"}
-                        bg={metodePengiriman === 'ojek-online' || metodePengiriman === 'team-delivery' ? "green.50" : "white"}
-                        cursor="pointer"
-                        onClick={() => {
-                          // Set untuk Pesan Kirim
-                          setShippingArea('dalam-kota'); // Tetap dalam kota untuk kedua opsi
-                          // Aktifkan metode kirim
-                          if (metodePengiriman !== 'ojek-online' && metodePengiriman !== 'team-delivery') {
-                            setMetodePengiriman('ojek-online'); // Default ke 'ojek-online' jika belum dipilih
-                          }
-                          // Reset metode ambil
-                          setPickupMethod('');
-                        }}
-                        opacity={pickupMethod !== '' ? 0.6 : 1}
-                        _hover={{ borderColor: pickupMethod === '' ? "green.300" : "gray.200" }}
-                      >
-                        <HStack spacing={3}>
-                          <Box boxSize="30px">
-                            <Box as="span" fontSize="24px">🚚</Box>
-                          </Box>
-                          <Box>
-                            <Text fontWeight="bold">Pesan Kirim</Text>
-                            <Text fontSize="sm" color="gray.600">Kirim ke alamat</Text>
-                          </Box>
-                        </HStack>
-                      </Box>
-                    </SimpleGrid>
-                  </Box>
-                )}
+                {/* UI Tipe Pesanan telah dihapus karena sudah ada di dropdown */}
                 
                 {/* UI Tipe Pesanan untuk Luar Kota - hanya menampilkan Pesan Kirim */}
                 {shippingArea === 'luar-kota' && (
