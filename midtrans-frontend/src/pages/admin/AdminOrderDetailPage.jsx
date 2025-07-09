@@ -1438,6 +1438,33 @@ return (
                   </FormControl>
                 )}
                 
+                {/* Metode dinamis berdasarkan tipe pesanan */}
+                {tipe_pesanan && (
+                  <FormControl mt={4}>
+                    <FormLabel>{tipe_pesanan === 'Pesan Ambil' ? 'Metode Ambil' : 'Metode Antar'}</FormLabel>
+                    <Select
+                      placeholder={`Pilih ${tipe_pesanan === 'Pesan Ambil' ? 'Metode Ambil' : 'Metode Antar'}`}
+                      value={pickupMethod}
+                      onChange={(e) => {
+                        setPickupMethod(e.target.value);
+                        setFormChanged(true);
+                      }}
+                    >
+                      {tipe_pesanan === 'Pesan Ambil' ? (
+                        <>
+                          <option value="sendiri">Ambil sendiri</option>
+                          <option value="ojek-online">Di Ambil Driver Ojek Online</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="team-delivery">Di Antar Deliveryman</option>
+                          <option value="ojek-online">Di Antar Driver Ojek Online</option>
+                        </>
+                      )}
+                    </Select>
+                  </FormControl>
+                )}
+                
                 {/* Lokasi Pengiriman selection - shown when tipe_pesanan is "Pesan Antar" */}
                 {tipe_pesanan === 'Pesan Antar' && (
                   <FormControl mt={4}>
