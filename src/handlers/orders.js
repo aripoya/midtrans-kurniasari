@@ -580,7 +580,7 @@ export async function updateOrderStatus(request, env) {
       return new Response(JSON.stringify({ success: false, error: 'Order ID and status are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const allowedStatuses = ['dikemas', 'siap kirim', 'siap di ambil', 'sedang dikirim', 'received'];
+    const allowedStatuses = ['pending', 'dikemas', 'siap kirim', 'siap di ambil', 'sedang dikirim', 'received'];
     if (!allowedStatuses.includes(status)) {
       return new Response(JSON.stringify({ success: false, error: 'Invalid status value' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
