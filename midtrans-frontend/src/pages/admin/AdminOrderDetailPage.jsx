@@ -766,6 +766,7 @@ function AdminOrderDetailPage() {
     const statusMap = {
       "dikemas": { color: "blue", text: "Dikemas" },
       "siap kirim": { color: "purple", text: "Siap Kirim" },
+      "siap di ambil": { color: "teal", text: "Siap Di Ambil" },
       "dikirim": { color: "orange", text: "Dikirim" },
       "sedang dikirim": { color: "orange", text: "Sedang Dikirim" },
       "received": { color: "green", text: "Diterima" },
@@ -1384,6 +1385,7 @@ return (
                     <option value="">Menunggu Diproses</option>
                     <option value="dikemas">Dikemas</option>
                     <option value="siap kirim">Siap Kirim</option>
+                    <option value="siap di ambil">Siap Di Ambil</option>
                     <option value="sedang dikirim">Dalam Pengiriman</option>
                     <option value="received">Diterima</option>
                   </Select>
