@@ -1091,8 +1091,15 @@ return (
                   <Text><strong>Status Pengiriman:</strong></Text>
                   {getShippingStatusBadge(order.shipping_status)}
                 </HStack>
+                <Text><strong>Tipe Pesanan:</strong> {order.tipe_pesanan || '-'}</Text>
                 <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
-                <Text><strong>Metode Pengambilan:</strong> {order.pickup_method === 'sendiri' ? 'Ambil Sendiri' : 'Ojek Online'}</Text>
+                {order.tipe_pesanan === 'Pesan Ambil' && (
+                  <Text><strong>Lokasi Pengambilan:</strong> {order.lokasi_pengambilan || '-'}</Text>
+                )}
+                {order.tipe_pesanan === 'Pesan Antar' && (
+                  <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman || '-'}</Text>
+                )}
+                <Text><strong>Metode {order.tipe_pesanan === 'Pesan Ambil' ? 'Ambil' : 'Antar'}:</strong> {order.pickup_method === 'sendiri' ? 'Ambil Sendiri' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : order.pickup_method === 'team-delivery' ? 'Deliveryman' : '-'}</Text>
                 {order.shipping_area === 'luar-kota' && (
                   <>
                     <Text><strong>Jasa Kurir:</strong> {order.courier_service || '-'}</Text>
