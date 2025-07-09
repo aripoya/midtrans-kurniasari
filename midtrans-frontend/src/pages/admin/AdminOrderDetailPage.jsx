@@ -1382,7 +1382,7 @@ return (
                       setFormChanged(true);
                     }}
                   >
-                    <option value="">Menunggu Diproses</option>
+                    <option value="pending">Menunggu Diproses</option>
                     <option value="dikemas">Dikemas</option>
                     <option value="siap kirim">Siap Kirim</option>
                     <option value="siap di ambil">Siap Di Ambil</option>
