@@ -282,8 +282,8 @@ function AdminOrderDetailPage() {
       // Siapkan data yang akan dikirim ke server
       if (normalizedStatus) shippingData.status = normalizedStatus;
       if (normalizedAdminNote !== null) shippingData.admin_note = normalizedAdminNote;
-      // Kolom shipping_area sudah dihapus dari database, jadi tidak perlu dikirim ke server
-      // if (normalizedShippingArea) shippingData.shipping_area = normalizedShippingArea;
+      // Aktifkan kembali shipping_area karena kolom sudah ditambahkan ke database
+      if (normalizedShippingArea) shippingData.shipping_area = normalizedShippingArea;
       // Kolom pickup_method sudah ditambahkan kembali ke database
       if (normalizedShippingArea === 'dalam-kota' && normalizedPickupMethod) {
         shippingData.pickup_method = normalizedPickupMethod;

@@ -632,7 +632,7 @@ export async function updateOrderDetails(request, env) {
 
     const {
       status,
-      // shipping_area dihapus dari sini karena kolom ini tidak ada di database
+      // shipping_area sekarang sudah ada di database, bisa digunakan kembali
       pickup_method,
       admin_note,
       tracking_number,
@@ -661,8 +661,8 @@ export async function updateOrderDetails(request, env) {
       updateFields.push('shipping_status = ?'); 
       updateParams.push(status); 
     }
-    // Hapus shipping_area karena kolom tidak ada di database
-    // if (shipping_area !== undefined) { updateFields.push('shipping_area = ?'); updateParams.push(shipping_area); }
+    // Aktifkan kembali shipping_area karena kolom sudah ditambahkan ke database
+    if (shipping_area !== undefined) { updateFields.push('shipping_area = ?'); updateParams.push(shipping_area); }
     // Kolom pickup_method sudah ditambahkan kembali ke database
     if (pickup_method !== undefined) { updateFields.push('pickup_method = ?'); updateParams.push(pickup_method); }
     if (admin_note !== undefined) { updateFields.push('admin_note = ?'); updateParams.push(admin_note); }
