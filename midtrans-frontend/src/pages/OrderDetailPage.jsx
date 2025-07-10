@@ -517,7 +517,7 @@ function OrderDetailPage() {
                       <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                     )}
                     {order.pickup_method && (
-                      <Text><strong>Metode Ambil:</strong> {order.pickup_method === 'sendiri' ? 'Ambil Sendiri' : 'Ojek Online'}</Text>
+                      <Text><strong>Metode Ambil:</strong> {order.pickup_method === 'deliveryman' || order.pickup_method === 'sendiri' ? 'Deliveryman' : 'Ojek Online'}</Text>
                     )}
                     {order.tipe_pesanan && (
                       <Text><strong>Tipe Pesanan:</strong> {order.tipe_pesanan}</Text>
