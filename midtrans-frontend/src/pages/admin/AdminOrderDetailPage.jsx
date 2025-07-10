@@ -167,6 +167,19 @@ function AdminOrderDetailPage() {
       setAdminNote(finalOrder.admin_note || '');
       setSavedAdminNote(finalOrder.admin_note || '');
       setTipePesanan(finalOrder.tipe_pesanan);
+      // Pastikan nilai shipping_area dari database digunakan untuk state lokal
+      setShippingArea(finalOrder.shipping_area || 'dalam-kota');
+      console.log('DEBUG - Setting shipping area from order:', finalOrder.shipping_area);
+      
+      // Set pickup_method dari data order jika tersedia
+      if (finalOrder.pickup_method) {
+        setPickupMethod(finalOrder.pickup_method);
+        console.log('DEBUG - Setting pickup method from order:', finalOrder.pickup_method);
+      } else {
+        // Default ke 'sendiri' jika tidak ada di order
+        setPickupMethod('sendiri');
+        console.log('DEBUG - No pickup_method in order data, defaulting to "sendiri"');
+      }
       if (finalOrder.tipe_pesanan === 'Pesan Antar') {
         setMetodePengiriman('kurir-toko');
       } else if (finalOrder.tipe_pesanan === 'Pesan Ambil') {
@@ -1431,9 +1444,9 @@ return (
                     value={shippingArea} 
                     onChange={(e) => {
                       const newValue = e.target.value;
+                      console.log('DEBUG - Changing shipping area from', shippingArea, 'to', newValue);
                       setShippingArea(newValue);
                       setFormChanged(true);
-                      
                       // Atur tab aktif berdasarkan area pengiriman
                       if (newValue === 'dalam-kota') {
                         setTabIndex(0); // Tab Dalam Kota
