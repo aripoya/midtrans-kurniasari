@@ -214,14 +214,16 @@ function AdminOrderDetailPage() {
       // Nested try-catch for shipping images (non-critical)  
       try {
         const imagesRes = await adminApi.getShippingImages(id);
-        if (imagesRes.success && imagesRes.images) {
-          const imagesData = imagesRes.images.reduce((acc, img) => {
+        console.log('DEBUG-IMAGES Shipping images response:', imagesRes);
+        if (imagesRes.success && imagesRes.data) {
+          const imagesData = imagesRes.data.reduce((acc, img) => {
             // Transform URL to include a timestamp to bypass cache
             acc[img.image_type] = transformURL(img.image_url);
             return acc;
           }, {});
           // Update the state with the images fetched from the backend
           setUploadedImages(prevImages => ({ ...prevImages, ...imagesData }));
+          console.log('DEBUG-IMAGES Processed images data:', imagesData);
         }
       } catch (imageErr) {
         console.error('Error loading shipping images:', imageErr);
