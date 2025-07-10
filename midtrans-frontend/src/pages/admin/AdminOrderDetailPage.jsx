@@ -1442,7 +1442,10 @@ return (
                   <FormLabel>Status Pengiriman</FormLabel>
                   <Select 
                     value={shippingStatus} 
-                    onChange={(e) => setShippingStatus(e.target.value)}
+                    onChange={(e) => {
+                      setShippingStatus(e.target.value);
+                      setFormChanged(true);
+                    }}
                     placeholder="Pilih status"
                   >
                     {getShippingStatusOptions().map(option => (
