@@ -20,6 +20,7 @@ import html2canvas from 'html2canvas';
 import { formatDate } from '../../utils/date';
 import axios from 'axios';
 import { normalizeShippingStatus, getShippingStatusConfig, getShippingStatusOptions } from '../../utils/orderStatusUtils';
+import imageCompression from 'browser-image-compression';
 
 function AdminOrderDetailPage() {
   const { id } = useParams();
@@ -49,6 +50,12 @@ function AdminOrderDetailPage() {
     pickedUp: "",
     received: "",
     shipmentProof: ""
+  });
+  const [compressedImages, setCompressedImages] = useState({
+    readyForPickup: null,
+    pickedUp: null,
+    received: null,
+    shipmentProof: null
   });
   const [showQRCode, setShowQRCode] = useState(false);
   const fileInputRefs = {
@@ -513,7 +520,7 @@ function AdminOrderDetailPage() {
     }
   };
   
-  // Fungsi untuk menangani upload gambar
+  // Fungsi untuk menangani upload gambar dengan kompresi
   const handleImageUpload = async (e, type) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -543,22 +550,91 @@ function AdminOrderDetailPage() {
       return;
     }
     
-    // Konversi type ke format yang digunakan API
-    const imageTypeMap = {
-      readyForPickup: 'ready_for_pickup',
-      pickedUp: 'picked_up',
-      received: 'delivered'
-    };
-    
-    // Tampilkan preview gambar
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setUploadedImages(prev => ({
+    try {
+      // Tampilkan indikator loading
+      toast({
+        title: "Mengoptimasi gambar",
+        description: "Sedang memproses...",
+        status: "info",
+        duration: 2000,
+        isClosable: true,
+      });
+      
+      // Opsi kompresi gambar
+      const options = {
+        maxSizeMB: 1,              // Maksimal 1 MB setelah kompresi
+        maxWidthOrHeight: 1200,     // Resize maksimal ke 1200px width/height
+        useWebWorker: true,         // Gunakan Web Worker untuk proses di background
+        initialQuality: 0.8,        // Kualitas awal 80%
+      };
+      
+      console.log('Ukuran file sebelum kompresi:', (file.size / 1024 / 1024).toFixed(2) + ' MB');
+      
+      // Kompresi gambar menggunakan browser-image-compression
+      const compressedFile = await imageCompression(file, options);
+      
+      console.log('Ukuran file setelah kompresi:', (compressedFile.size / 1024 / 1024).toFixed(2) + ' MB');
+      console.log('Rasio kompresi:', (file.size / compressedFile.size).toFixed(2) + 'x');
+      
+      // Konversi type ke format yang digunakan API
+      const imageTypeMap = {
+        readyForPickup: 'ready_for_pickup',
+        pickedUp: 'picked_up',
+        received: 'delivered'
+      };
+      
+      // Tampilkan preview gambar hasil kompresi
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setUploadedImages(prev => ({
+          ...prev,
+          [type]: e.target.result
+        }));
+        
+        // Notifikasi sukses
+        toast({
+          title: "Optimasi gambar berhasil",
+          description: `Ukuran file berkurang dari ${(file.size / 1024 / 1024).toFixed(2)} MB menjadi ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`,
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      };
+      reader.readAsDataURL(compressedFile);
+      
+      // Simpan file hasil kompresi untuk diupload nantinya
+      // File disimpan dengan nama yang sama tetapi sudah dioptimasi ukurannya
+      const optimizedFile = new File([compressedFile], file.name, {
+        type: compressedFile.type,
+        lastModified: new Date().getTime(),
+      });
+      
+      // Update state untuk form submission (gunakan file hasil kompresi)
+      setCompressedImages(prev => ({
         ...prev,
-        [type]: e.target.result
+        [type]: optimizedFile
       }));
-    };
-    reader.readAsDataURL(file);
+      
+    } catch (error) {
+      console.error('Error saat kompresi gambar:', error);
+      toast({
+        title: "Gagal mengoptimasi gambar",
+        description: error.message || "Terjadi kesalahan saat mengoptimasi gambar",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      
+      // Fallback ke metode tanpa kompresi jika terjadi error
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setUploadedImages(prev => ({
+          ...prev,
+          [type]: e.target.result
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // Fungsi untuk menghapus gambar shipping
@@ -726,15 +802,6 @@ function AdminOrderDetailPage() {
       setIsUploading(false);
     }
   };
-      status: "error",
-      duration: 5000,
-      isClosable: true,
-    });
-  }
-  
-  // Reset selected files after uploading
-  setFiles({});
-};
 
 // Fungsi untuk menghapus catatan admin
 const handleDeleteNote = async () => {
@@ -877,12 +944,14 @@ const handleDeleteNote = async () => {
       // Tampilkan preview gambar
       const reader = new FileReader();
       reader.onload = async (e) => {
-        // Update state untuk preview lokal
-        setUploadedImages(prev => {
-          const newState = {
-            ...prev,
-            [type]: e.target.result
-          };
+        try {
+          // Update state untuk preview lokal
+          setUploadedImages(prev => {
+            return {
+              ...prev,
+              [type]: e.target.result
+            };
+          });
           
           // Tidak perlu menyimpan ke localStorage karena sudah di state
           // dan gambar sudah diupload ke server
