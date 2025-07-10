@@ -22,6 +22,12 @@ import axios from 'axios';
 
 function AdminOrderDetailPage() {
   const { id } = useParams();
+  // Defensive logging untuk mendeteksi ID yang tidak valid
+  console.log(`🔍 Order ID dari URL params: "${id}"`); 
+  
+  // Validasi ID untuk mencegah penggunaan placeholder
+  const isValidOrderId = id && typeof id === 'string' && !id.includes('[') && !id.includes(']');
+  console.log(`🔍 Order ID valid: ${isValidOrderId}`);
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -81,7 +87,20 @@ function AdminOrderDetailPage() {
   const isPublicOrderPage = id && id.startsWith('ORDER-');
   
   const loadAllData = useCallback(async () => {
-    if (!id) return;
+    if (!id) {
+      console.error('❌ ID pesanan tidak ditemukan dalam URL params');
+      setError('ID pesanan tidak ditemukan');
+      setLoading(false);
+      return;
+    }
+    
+    // Validasi untuk mencegah penggunaan placeholder ID
+    if (!isValidOrderId) {
+      console.error(`❌ ID pesanan tidak valid: "${id}". Mungkin placeholder [ORDER-ID] atau format lain yang tidak valid`);
+      setError(`ID pesanan tidak valid: "${id}". Mohon gunakan ID pesanan yang benar.`);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -104,13 +123,10 @@ function AdminOrderDetailPage() {
         console.log(`🌐 Menggunakan API URL: ${apiUrl}`);
         
         try {
-          // Tambahkan timestamp dan headers no-cache untuk memaksa refresh data dari API
-          const response = await axios.get(`${apiUrl}/api/orders/${id}?_nocache=${Date.now()}`, {
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Expires': '0'
-            }
-          });
+          // Tambahkan timestamp untuk memaksa refresh data dari API tanpa header cache control
+          // Hapus header Cache-Control dan Expires untuk mencegah CORS error di Chrome
+          const response = await axios.get(`${apiUrl}/api/orders/${id}?_nocache=${Date.now()}`);
+          console.log('🌐 Request dibuat tanpa header cache untuk mencegah CORS error di Chrome');
           console.log('📦 Respons API (Lengkap):', JSON.stringify(response.data, null, 2));
           console.log('🔍 Shipping Area dari API:', response.data.data?.shipping_area || response.data.order?.shipping_area || 'tidak ada');
           

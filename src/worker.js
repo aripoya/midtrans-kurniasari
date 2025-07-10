@@ -16,7 +16,8 @@ const corsHeaders = {
     'Access-Control-Allow-Origin': 'https://tagihan.kurniasari.co.id',
     'Vary': 'Origin',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cache-Control, X-Requested-With',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Cache-Control, Pragma, expires',
+    'Access-Control-Allow-Credentials': 'true',
 };
 
 // Handle CORS preflight requests
