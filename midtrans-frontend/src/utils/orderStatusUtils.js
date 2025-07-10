@@ -25,12 +25,15 @@ export const normalizeShippingStatus = (status) => {
              lowercaseStatus === "dalam pengiriman" ||
              lowercaseStatus === "dikirim") {
     return "dalam pengiriman";
-  } else if (lowercaseStatus === "siap diambil" || 
-             lowercaseStatus === "siap dikirim" || 
-             lowercaseStatus === "siap kirim" ||
-             lowercaseStatus === "siap di ambil") {
-    console.log(`[normalizeShippingStatus] Matched siap di ambil -> siap kirim`);
+  } else if (lowercaseStatus === "siap dikirim" || 
+             lowercaseStatus === "siap kirim") {
+    console.log(`[normalizeShippingStatus] Matched -> siap kirim`);
     return "siap kirim";
+  } else if (lowercaseStatus === "siap diambil" || 
+             lowercaseStatus === "siap ambil" ||
+             lowercaseStatus === "siap di ambil") {
+    console.log(`[normalizeShippingStatus] Matched -> siap ambil`);
+    return "siap ambil";
   } else if (lowercaseStatus === "dikemas" || 
              lowercaseStatus === "diproses") {
     return "dikemas";
@@ -51,6 +54,7 @@ export const getShippingStatusConfig = (status) => {
     "diterima": { color: "green", text: "Diterima" },
     "dalam pengiriman": { color: "orange", text: "Dalam Pengiriman" },
     "siap kirim": { color: "purple", text: "Siap Kirim" },
+    "siap ambil": { color: "teal", text: "Siap Ambil" },
     "dikemas": { color: "blue", text: "Dikemas" },
     "menunggu diproses": { color: "gray", text: "Menunggu Diproses" }
   };
@@ -66,6 +70,7 @@ export const getShippingStatusOptions = () => [
   { value: "menunggu diproses", label: "Menunggu Diproses" },
   { value: "dikemas", label: "Dikemas" },
   { value: "siap kirim", label: "Siap Kirim" },
+  { value: "siap ambil", label: "Siap Ambil" },
   { value: "dalam pengiriman", label: "Dalam Pengiriman" },
   { value: "diterima", label: "Diterima" }
 ];

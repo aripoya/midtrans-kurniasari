@@ -673,7 +673,7 @@ export async function updateOrderDetails(request, env) {
       const allowedStatuses = [
         'menunggu diproses', 'pending', // backward compatibility
         'dikemas', 'diproses',
-        'siap kirim', 'siap diambil', 'siap di ambil',
+        'siap kirim', 'siap diambil', 'siap di ambil', 'siap ambil',
         'dalam pengiriman', 'sedang dikirim', 'dikirim',
         'diterima', 'received', 'sudah di terima'
       ];
@@ -681,7 +681,7 @@ export async function updateOrderDetails(request, env) {
         return new Response(JSON.stringify({ 
           success: false, 
           error: `Invalid status value: ${status}`, 
-          allowedValues: ['menunggu diproses', 'dikemas', 'siap kirim', 'dalam pengiriman', 'diterima'] 
+          allowedValues: ['menunggu diproses', 'dikemas', 'siap kirim', 'siap ambil', 'dalam pengiriman', 'diterima'] 
         }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       updateFields.push('shipping_status = ?'); 
