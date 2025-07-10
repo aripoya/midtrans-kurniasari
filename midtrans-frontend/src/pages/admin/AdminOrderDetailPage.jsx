@@ -811,34 +811,39 @@ const handleDeleteNote = async () => {
     
     if (response.error) {
       throw new Error(response.error);
-    try {
-      const response = await adminApi.updateOrderStatus(id, order.shipping_status, '');
-      
-      if (response.error) {
-        throw new Error(response.error);
-      }
-      
-      // Reset notes
-      setAdminNote('');
-      setSavedAdminNote('');
-      setIsEditingNote(false);
-      
-      // Update order state
-      setOrder(prev => ({
-        ...prev,
-        admin_note: ''
-      }));
-      
-      toast({
-        title: "Catatan berhasil dihapus",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setIsDeletingNote(false);
     }
-  };
+    
+    // Reset notes
+    setAdminNote('');
+    setSavedAdminNote('');
+    setIsEditingNote(false);
+    
+    // Update order state
+    setOrder(prev => ({
+      ...prev,
+      admin_note: ''
+    }));
+
+    toast({
+      title: "Catatan dihapus",
+      description: "Catatan admin berhasil dihapus",
+      status: "success",
+      duration: 5000,
+      isClosable: true,
+    });
+  } catch (error) {
+    console.error('Error deleting note:', error);
+    toast({
+      title: "Gagal menghapus catatan",
+      description: error.message || "Terjadi kesalahan saat menghapus catatan admin",
+      status: "error",
+      duration: 5000,
+      isClosable: true,
+    });
+  } finally {
+    setIsDeletingNote(false);
+  }
+};
 
   // Fungsi untuk beralih ke mode edit
   const handleEditNote = () => {
