@@ -632,7 +632,7 @@ export async function updateOrderDetails(request, env) {
 
     const {
       status,
-      // shipping_area sekarang sudah ada di database, bisa digunakan kembali
+      shipping_area, // tambahkan shipping_area ke daftar variabel yang di-destructure
       pickup_method,
       admin_note,
       tracking_number,
