@@ -74,31 +74,32 @@ function AdminOrderDetailPage() {
 
   const transformURL = (url) => {
     if (!url) return ""; // Mengembalikan string kosong, bukan null
-    if (url.includes('kurniasari-shipping-images.kurniasari.co.id')) {
-      const fileName = url.split('/').pop().split('?')[0];
-      return `https://proses.kurniasari.co.id/${fileName}?t=${Date.now()}`;
+    
+    // Remove any existing timestamp parameter
+    let cleanUrl = url;
+    if (url.includes('?')) {
+      cleanUrl = url.split('?')[0];
     }
-    if (url.includes('proses.kurniasari.co.id') && !url.includes('?t=')) {
-      return `${url}?t=${Date.now()}`;
+    
+    // Always add a new timestamp parameter to prevent caching
+    const timestamp = Date.now();
+    
+    if (cleanUrl.includes('kurniasari-shipping-images.kurniasari.co.id')) {
+      const fileName = cleanUrl.split('/').pop();
+      return `https://proses.kurniasari.co.id/${fileName}?t=${timestamp}`;
     }
-    return url;
+    
+    // Always add timestamp parameter
+    return `${cleanUrl}?t=${timestamp}`;
   };
 
   // Periksa apakah ini adalah public order (format ORDER-xxx)  
   const isPublicOrderPage = id && id.startsWith('ORDER-');
   
   const loadAllData = useCallback(async () => {
-    if (!id) {
-      console.error('❌ ID pesanan tidak ditemukan dalam URL params');
-      setError('ID pesanan tidak ditemukan');
-      setLoading(false);
-      return;
-    }
-    
-    // Validasi untuk mencegah penggunaan placeholder ID
     if (!isValidOrderId) {
-      console.error(`❌ ID pesanan tidak valid: "${id}". Mungkin placeholder [ORDER-ID] atau format lain yang tidak valid`);
-      setError(`ID pesanan tidak valid: "${id}". Mohon gunakan ID pesanan yang benar.`);
+      console.error('🚫 Invalid Order ID:', id);
+      setError('ID Pesanan tidak valid');
       setLoading(false);
       return;
     }
@@ -106,9 +107,15 @@ function AdminOrderDetailPage() {
     setLoading(true);
     setError(null);
     
-    console.log(`🔍 Mencoba mengambil pesanan dengan ID: ${id}`);
-
     try {
+      // Reset all state to ensure fresh data
+      setUploadedImages({
+        readyForPickup: null,
+        pickedUp: null,
+        received: null,
+        shipmentProof: null
+      });
+      
       // 1. Get locations first (always use adminApi)
       const locationsRes = await adminApi.getLocations();
       if (!locationsRes.success) throw new Error('Gagal memuat daftar lokasi.');

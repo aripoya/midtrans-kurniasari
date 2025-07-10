@@ -214,15 +214,21 @@ export const adminApi = {
   // Mendapatkan gambar status pengiriman
   getShippingImages: async (orderId) => {
     try {
+      // Add cache-busting parameter to ensure fresh data after refresh
+      const timestamp = Date.now();
       const response = await axios.get(
-        `${API_BASE_URL}/api/shipping/images/${orderId}`,
+        `${API_BASE_URL}/api/shipping/images/${orderId}?_nocache=${timestamp}`,
         {
           headers: {
-            Authorization: `Bearer ${getAdminToken()}`
+            Authorization: `Bearer ${getAdminToken()}`,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           }
         }
       );
       
+      console.log('DEBUG: Shipping images fetched with timestamp:', timestamp, response.data);
       return { success: true, data: response.data.data, error: null };
     } catch (error) {
       console.error('Error getting shipping images:', error);
