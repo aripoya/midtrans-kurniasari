@@ -290,7 +290,13 @@ function AdminOrderDetailPage() {
       const normalizedLokasiPengambilan = lokasi_pengambilan?.trim() || null;
       
       // Validasi status sebelum mengirim ke server
-      const allowedStatuses = ['pending', 'dikemas', 'siap kirim', 'siap di ambil', 'sedang dikirim', 'received'];
+      const allowedStatuses = [
+        'menunggu diproses', 'pending', 
+        'dikemas', 'diproses',
+        'siap kirim', 'siap diambil', 'siap di ambil',
+        'dalam pengiriman', 'sedang dikirim', 'dikirim',
+        'diterima', 'received', 'sudah di terima'
+      ];
       if (normalizedStatus && !allowedStatuses.includes(normalizedStatus)) {
         console.error(`[ERROR] Invalid status: '${normalizedStatus}'. Allowed values:`, allowedStatuses);
         throw new Error(`Status tidak valid. Nilai yang diperbolehkan: ${allowedStatuses.join(', ')}`);
