@@ -1340,12 +1340,8 @@ return (
                                         size={220}
                                         level="H"
                                         includeMargin={true}
-                                        imageSettings={{
-                                          src: "https://kurniasaripayment.netlify.app/logo192.png",
-                                          height: 40,
-                                          width: 40,
-                                          excavate: true,
-                                        }}
+                                        // Logo dihapus untuk menghindari 404 error
+                                        // Jika ingin menggunakan logo, gunakan path relatif seperti '/src/assets/react.svg'
                                       />
                                       <Text pt={2} fontSize="sm" fontWeight="bold">Order #{order.id}</Text>
                                     </VStack>
