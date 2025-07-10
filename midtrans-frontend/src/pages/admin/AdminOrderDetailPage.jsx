@@ -69,7 +69,7 @@ function AdminOrderDetailPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const [shippingArea, setShippingArea] = useState('dalam-kota'); // Default: dalam-kota (dalam-kota | luar-kota)
-  const [pickupMethod, setPickupMethod] = useState('sendiri'); // Default: sendiri (sendiri | ojek-online)
+  const [pickupMethod, setPickupMethod] = useState('deliveryman'); // Default: deliveryman (deliveryman | ojek-online)
   const [courierService, setCourierService] = useState(''); // TIKI, JNE, Travel, atau custom
   const [trackingNumber, setTrackingNumber] = useState(''); // Nomor Resi
   const [trackingNumberError, setTrackingNumberError] = useState(''); // Error untuk validasi nomor resi
@@ -214,9 +214,9 @@ function AdminOrderDetailPage() {
         setPickupMethod(finalOrder.pickup_method);
         console.log('DEBUG - Setting pickup method from order:', finalOrder.pickup_method);
       } else {
-        // Default ke 'sendiri' jika tidak ada di order
-        setPickupMethod('sendiri');
-        console.log('DEBUG - No pickup_method in order data, defaulting to "sendiri"');
+        // Default ke 'deliveryman' jika tidak ada di order
+        setPickupMethod('deliveryman');
+        console.log('DEBUG - No pickup_method in order data, defaulting to "deliveryman"');
       }
       if (finalOrder.tipe_pesanan === 'Pesan Antar') {
         setMetodePengiriman('kurir-toko');
@@ -346,7 +346,7 @@ function AdminOrderDetailPage() {
       
       // Validasi pickup method jika shipping area adalah dalam-kota
       if (normalizedShippingArea === 'dalam-kota') {
-        const allowedPickupMethods = ['sendiri', 'ojek-online'];
+        const allowedPickupMethods = ['deliveryman', 'ojek-online'];
         if (normalizedPickupMethod && !allowedPickupMethods.includes(normalizedPickupMethod)) {
           throw new Error(`Metode pengambilan tidak valid. Nilai yang diperbolehkan: ${allowedPickupMethods.join(', ')}`);
         }
@@ -1157,7 +1157,7 @@ return (
                 {order.tipe_pesanan === 'Pesan Antar' && (
                   <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman || '-'}</Text>
                 )}
-                <Text><strong>Metode {order.tipe_pesanan === 'Pesan Ambil' ? 'Ambil' : 'Antar'}:</strong> {order.pickup_method === 'sendiri' ? 'Ambil Sendiri' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : order.pickup_method === 'team-delivery' ? 'Deliveryman' : '-'}</Text>
+                <Text><strong>Metode {order.tipe_pesanan === 'Pesan Ambil' ? 'Ambil' : 'Antar'}:</strong> {order.pickup_method === 'deliveryman' || order.pickup_method === 'sendiri' ? 'Deliveryman' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : order.pickup_method === 'team-delivery' ? 'Deliveryman' : '-'}</Text>
                 {order.shipping_area === 'luar-kota' && (
                   <>
                     <Text><strong>Jasa Kurir:</strong> {order.courier_service || '-'}</Text>
@@ -1571,7 +1571,7 @@ return (
                     >
                       {tipe_pesanan === 'Pesan Ambil' ? (
                         <>
-                          <option value="sendiri">Ambil sendiri</option>
+                          <option value="deliveryman">Di Antar Deliveryman</option>
                           <option value="ojek-online">Di Ambil Driver Ojek Online</option>
                         </>
                       ) : (
@@ -1666,7 +1666,7 @@ return (
                         setFormChanged(true);
                       }}
                     >
-                      <option value="sendiri">Ambil Sendiri</option>
+                      <option value="deliveryman">Deliveryman</option>
                       <option value="ojek-online">Ojek Online</option>
                     </Select>
                   </FormControl>
