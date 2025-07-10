@@ -479,7 +479,7 @@ function OrderDetailPage() {
                 <Text><strong>Metode:</strong> <Tag>{order.payment_method || 'N/A'}</Tag></Text>
                 {isPublicOrderPage && (
                   <>
-                    <Text mt={4}><strong>Status Pengiriman:</strong> {getShippingStatusBadge()}</Text>
+                    <Text mt={4}><strong>Status Pengiriman:</strong> {getShippingStatusBadge(order)}</Text>
                     {order.shipping_area && (
                       <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                     )}
