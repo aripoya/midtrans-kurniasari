@@ -276,12 +276,16 @@ export async function getOrderById(request, env) {
       lokasiPengambilanNama = loc ? loc.nama_lokasi : order.lokasi_pengambilan; // Fallback to the stored value
     }
 
+    // Log shipping_area untuk debugging
+    console.log(`[getOrderById] Order ${orderId} shipping_area: ${order.shipping_area}`);
+
     const finalOrder = {
       ...order,
       lokasi_pengiriman: lokasiPengirimanNama,
       lokasi_pengambilan: lokasiPengambilanNama,
       items,
       shipping_images
+      // shipping_area sudah termasuk dalam ...order
     };
 
     return new Response(JSON.stringify({ success: true, data: finalOrder }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
