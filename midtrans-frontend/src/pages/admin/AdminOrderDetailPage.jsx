@@ -223,14 +223,25 @@ function AdminOrderDetailPage() {
         const imagesRes = await adminApi.getShippingImages(id);
         console.log('DEBUG-IMAGES Shipping images response:', imagesRes);
         if (imagesRes.success && imagesRes.data) {
-          const imagesData = imagesRes.data.reduce((acc, img) => {
+          // Create a mapping object to convert database image_type to component state keys
+          const typeMapping = {
+            'ready_for_pickup': 'readyForPickup',
+            'picked_up': 'pickedUp',
+            'delivered': 'received'
+          };
+          
+          const imagesData = {};
+          imagesRes.data.forEach(img => {
+            // Map the database image_type to the component state key
+            const componentKey = typeMapping[img.image_type] || img.image_type;
             // Transform URL to include a timestamp to bypass cache
-            acc[img.image_type] = transformURL(img.image_url);
-            return acc;
-          }, {});
+            imagesData[componentKey] = transformURL(img.image_url);
+            console.log(`DEBUG-IMAGES Mapping ${img.image_type} → ${componentKey}:`, imagesData[componentKey]);
+          });
+          
           // Update the state with the images fetched from the backend
-          setUploadedImages(prevImages => ({ ...prevImages, ...imagesData }));
-          console.log('DEBUG-IMAGES Processed images data:', imagesData);
+          setUploadedImages(imagesData);
+          console.log('DEBUG-IMAGES Final processed images data:', imagesData);
         }
       } catch (imageErr) {
         console.error('Error loading shipping images:', imageErr);
