@@ -99,8 +99,7 @@ export const adminApi = {
       // Gunakan axios untuk permintaan yang lebih sederhana
       const response = await axios.get(requestUrl, {
         headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache'
+          'Accept': 'application/json'
         }
       });
       
@@ -314,8 +313,7 @@ export const adminApi = {
         `${API_BASE_URL}/api/locations`,
         {
           headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
+            'Accept': 'application/json'
           },
           // Timeout setelah 5 detik untuk mencegah loading yang terlalu lama
           timeout: 5000
