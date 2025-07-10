@@ -14,6 +14,7 @@ import { orderService } from '../api/orderService';
 import { refreshOrderStatus, markOrderAsReceived, getShippingImages } from '../api/api';
 import { useAuth } from '../auth/AuthContext';
 import axios from 'axios';
+import { normalizeShippingStatus, getShippingStatusConfig } from '../utils/orderStatusUtils';
 
 function OrderDetailPage() {
   const { id } = useParams();
@@ -307,44 +308,19 @@ function OrderDetailPage() {
     }
   };
   
-  // Helper untuk normalisasi status pengiriman ke 5 status utama
-  const normalizeShippingStatus = (status) => {
-    if (!status) return "menunggu diproses";
-    
-    // Lowercase untuk konsistensi perbandingan
-    const lowercaseStatus = status.toLowerCase();
-    
-    if (lowercaseStatus === "received" || lowercaseStatus === "sudah di terima" || lowercaseStatus === "diterima") {
-      return "diterima";
-    } else if (lowercaseStatus === "sedang dikirim" || lowercaseStatus === "dalam pengiriman") {
-      return "dalam pengiriman";
-    } else if (lowercaseStatus === "siap diambil" || lowercaseStatus === "siap dikirim" || lowercaseStatus === "siap kirim") {
-      return "siap kirim";
-    } else if (lowercaseStatus === "dikemas" || lowercaseStatus === "diproses") {
-      return "dikemas";
-    } else {
-      return "menunggu diproses";
-    }
-  };
-  
   // Fungsi untuk mendapatkan status pengiriman
-  const getShippingStatusBadge = () => {
+  const getShippingStatusBadge = (order) => {
     if (!order || !order.shipping_status) return <Badge colorScheme="gray">Menunggu Diproses</Badge>;
     
-    const normalizedStatus = normalizeShippingStatus(order.shipping_status);
+    // Debug log untuk membantu troubleshooting
+    console.log(`[getShippingStatusBadge] Raw shipping_status: "${order.shipping_status}"`);
     
-    switch (normalizedStatus) {
-      case "diterima":
-        return <Badge colorScheme="green">Diterima</Badge>;
-      case "dalam pengiriman":
-        return <Badge colorScheme="blue">Dalam Pengiriman</Badge>;
-      case "siap kirim":
-        return <Badge colorScheme="orange">Siap Kirim</Badge>;
-      case "dikemas":
-        return <Badge colorScheme="yellow">Dikemas</Badge>;
-      default:
-        return <Badge colorScheme="gray">Menunggu Diproses</Badge>;
-    }
+    // Selalu gunakan shared utility agar konsisten dengan admin page
+    const normalizedStatus = normalizeShippingStatus(order.shipping_status);
+    console.log(`[getShippingStatusBadge] Normalized status: "${normalizedStatus}"`);
+    
+    const statusConfig = getShippingStatusConfig(normalizedStatus);
+    return <Badge colorScheme={statusConfig.color}>{statusConfig.text}</Badge>;
   };
 
   const getPaymentSteps = () => {

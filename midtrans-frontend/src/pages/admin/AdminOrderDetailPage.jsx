@@ -19,6 +19,7 @@ import { adminApi } from '../../api/adminApi';
 import html2canvas from 'html2canvas';
 import { formatDate } from '../../utils/date';
 import axios from 'axios';
+import { normalizeShippingStatus, getShippingStatusConfig, getShippingStatusOptions } from '../../utils/orderStatusUtils';
 
 function AdminOrderDetailPage() {
   const { id } = useParams();
@@ -825,18 +826,8 @@ function AdminOrderDetailPage() {
   };
 
   const getShippingStatusBadge = (status) => {
-    const statusMap = {
-      "dikemas": { color: "blue", text: "Dikemas" },
-      "siap kirim": { color: "purple", text: "Siap Kirim" },
-      "siap di ambil": { color: "teal", text: "Siap Di Ambil" },
-      "dikirim": { color: "orange", text: "Dikirim" },
-      "sedang dikirim": { color: "orange", text: "Sedang Dikirim" },
-      "received": { color: "green", text: "Diterima" },
-    };
-
-    const statusInfo = statusMap[status?.toLowerCase()] || { color: "gray", text: status || "Menunggu Diproses" };
-    
-    return <Badge colorScheme={statusInfo.color}>{statusInfo.text}</Badge>;
+    const statusConfig = getShippingStatusConfig(status);
+    return <Badge colorScheme={statusConfig.color}>{statusConfig.text}</Badge>;
   };
 
   // Handler untuk memilih gambar dan langsung upload ke server
@@ -845,24 +836,24 @@ function AdminOrderDetailPage() {
       return;
     }
     
-    // Validasi ukuran file (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "File terlalu besar",
-        description: "Ukuran maksimal file adalah 5MB",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
-      return;
-    }
-
     // Validasi tipe file
     const validMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!validMimeTypes.includes(file.type)) {
       toast({
         title: "Format file tidak didukung",
         description: "Gunakan format JPG, PNG, WebP, atau GIF",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    // Validasi ukuran file (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File terlalu besar",
+        description: "Ukuran maksimal file adalah 5MB",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -1438,21 +1429,16 @@ return (
             </CardHeader>
             <CardBody>
               <VStack spacing={4} align="stretch">
-                <FormControl>
+                <FormControl id="shipping_status" isRequired>
                   <FormLabel>Status Pengiriman</FormLabel>
                   <Select 
                     value={shippingStatus} 
-                    onChange={e => {
-                      setShippingStatus(e.target.value);
-                      setFormChanged(true);
-                    }}
+                    onChange={(e) => setShippingStatus(e.target.value)}
+                    placeholder="Pilih status"
                   >
-                    <option value="pending">Menunggu Diproses</option>
-                    <option value="dikemas">Dikemas</option>
-                    <option value="siap kirim">Siap Kirim</option>
-                    <option value="siap di ambil">Siap Di Ambil</option>
-                    <option value="sedang dikirim">Dalam Pengiriman</option>
-                    <option value="received">Diterima</option>
+                    {getShippingStatusOptions().map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                   </Select>
                 </FormControl>
 

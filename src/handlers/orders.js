@@ -584,9 +584,20 @@ export async function updateOrderStatus(request, env) {
       return new Response(JSON.stringify({ success: false, error: 'Order ID and status are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const allowedStatuses = ['pending', 'dikemas', 'siap kirim', 'siap di ambil', 'sedang dikirim', 'received'];
-    if (!allowedStatuses.includes(status)) {
-      return new Response(JSON.stringify({ success: false, error: 'Invalid status value' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // Updated to match frontend utility normalization
+    const allowedStatuses = [
+      'menunggu diproses', 'pending', // backward compatibility
+      'dikemas', 'diproses',
+      'siap kirim', 'siap diambil', 'siap di ambil',
+      'dalam pengiriman', 'sedang dikirim', 'dikirim',
+      'diterima', 'received', 'sudah di terima'
+    ];
+    if (!allowedStatuses.includes(status.toLowerCase())) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Invalid status value', 
+        allowedValues: ['menunggu diproses', 'dikemas', 'siap kirim', 'dalam pengiriman', 'diterima'] 
+      }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (!env.DB) {
@@ -658,9 +669,20 @@ export async function updateOrderDetails(request, env) {
     // Update shipping status jika ada
     if (status !== undefined) { 
       // Validasi status harus valid sebelum diupdate
-      const allowedStatuses = ['pending', 'dikemas', 'siap kirim', 'siap di ambil', 'sedang dikirim', 'received'];
-      if (!allowedStatuses.includes(status)) {
-        return new Response(JSON.stringify({ success: false, error: `Invalid status value: ${status}. Allowed values: ${allowedStatuses.join(', ')}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      // Updated to match frontend utility normalization
+      const allowedStatuses = [
+        'menunggu diproses', 'pending', // backward compatibility
+        'dikemas', 'diproses',
+        'siap kirim', 'siap diambil', 'siap di ambil',
+        'dalam pengiriman', 'sedang dikirim', 'dikirim',
+        'diterima', 'received', 'sudah di terima'
+      ];
+      if (!allowedStatuses.includes(status.toLowerCase())) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: `Invalid status value: ${status}`, 
+          allowedValues: ['menunggu diproses', 'dikemas', 'siap kirim', 'dalam pengiriman', 'diterima'] 
+        }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       updateFields.push('shipping_status = ?'); 
       updateParams.push(status); 
