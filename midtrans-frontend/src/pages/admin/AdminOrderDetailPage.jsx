@@ -1219,14 +1219,24 @@ return (
                                   {uploadedImages.readyForPickup ? 'Ganti Foto' : 'Upload Foto'}
                                 </Button>
                                 {uploadedImages.readyForPickup && (
-                                  <Button
-                                    size="sm"
-                                    colorScheme="red"
-                                    isLoading={isUploading}
-                                    onClick={() => handleDeleteImage('readyForPickup')}
-                                  >
-                                    Hapus
-                                  </Button>
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="green"
+                                      isLoading={isUploading}
+                                      onClick={() => setFormChanged(true)}
+                                    >
+                                      Simpan Foto
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="red"
+                                      isLoading={isUploading}
+                                      onClick={() => handleDeleteImage('readyForPickup')}
+                                    >
+                                      Hapus
+                                    </Button>
+                                  </>
                                 )}
                               </HStack>
                               <Input
@@ -1254,14 +1264,24 @@ return (
                                   {uploadedImages.pickedUp ? 'Ganti Foto' : 'Upload Foto'}
                                 </Button>
                                 {uploadedImages.pickedUp && (
-                                  <Button
-                                    size="sm"
-                                    colorScheme="red"
-                                    isLoading={isUploading}
-                                    onClick={() => handleDeleteImage('pickedUp')}
-                                  >
-                                    Hapus
-                                  </Button>
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="green"
+                                      isLoading={isUploading}
+                                      onClick={() => setFormChanged(true)}
+                                    >
+                                      Simpan Foto
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="red"
+                                      isLoading={isUploading}
+                                      onClick={() => handleDeleteImage('pickedUp')}
+                                    >
+                                      Hapus
+                                    </Button>
+                                  </>
                                 )}
                               </HStack>
                               <Input
@@ -1287,14 +1307,24 @@ return (
                                   {uploadedImages.received ? 'Ganti Foto' : 'Upload Foto'}
                                 </Button>
                                 {uploadedImages.received && (
-                                  <Button
-                                    size="sm"
-                                    colorScheme="red"
-                                    isLoading={isUploading}
-                                    onClick={() => handleDeleteImage('received')}
-                                  >
-                                    Hapus
-                                  </Button>
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="green"
+                                      isLoading={isUploading}
+                                      onClick={() => setFormChanged(true)}
+                                    >
+                                      Simpan Foto
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="red"
+                                      isLoading={isUploading}
+                                      onClick={() => handleDeleteImage('received')}
+                                    >
+                                      Hapus
+                                    </Button>
+                                  </>
                                 )}
                               </HStack>
                               <Input
