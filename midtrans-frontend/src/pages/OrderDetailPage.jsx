@@ -11,7 +11,7 @@ import {
 } from '@chakra-ui/react';
 import { CheckIcon } from '@chakra-ui/icons';
 import { orderService } from '../api/orderService';
-import { refreshOrderStatus, markOrderAsReceived, getShippingImages } from '../api/api';
+import { refreshOrderStatus, markOrderAsReceived } from '../api/api';
 import { useAuth } from '../auth/AuthContext';
 import axios from 'axios';
 import { normalizeShippingStatus, getShippingStatusConfig } from '../utils/orderStatusUtils';
@@ -142,10 +142,10 @@ function OrderDetailPage() {
 
   // Fetch shipping images when order is loaded
   useEffect(() => {
-    if (order && isPublicOrderPage) {
-      fetchShippingImages();
+    if (order && order.shipping_images) {
+      processShippingImages(order.shipping_images);
     }
-  }, [order, isPublicOrderPage]);
+  }, [order]);
 
   useEffect(() => {
     // Auto-refresh status jika ada parameter dari redirect pembayaran
@@ -272,27 +272,25 @@ function OrderDetailPage() {
     'delivered': 'received'
   };
 
-  const fetchShippingImages = async () => {
+  const processShippingImages = (shippingImagesData) => {
     try {
       setLoadingImages(true);
-      const response = await getShippingImages(id);
+      // Initialize with both backend and frontend keys for maximum compatibility
+      const images = {
+        // Backend keys
+        ready_for_pickup: null,
+        picked_up: null,
+        delivered: null,
+        // Frontend keys
+        readyForPickup: null,
+        pickedUp: null,
+        received: null
+      };
       
-      if (response.data && response.data.success) {
-        // Initialize with both backend and frontend keys for maximum compatibility
-        const images = {
-          // Backend keys
-          ready_for_pickup: null,
-          picked_up: null,
-          delivered: null,
-          // Frontend keys
-          readyForPickup: null,
-          pickedUp: null,
-          received: null
-        };
-        
-        console.log('DEBUG-PUBLIC-IMAGES: Received shipping images:', response.data.data);
-        
-        response.data.data.forEach(image => {
+      console.log('DEBUG-PUBLIC-IMAGES: Processing shipping images from order:', shippingImagesData);
+      
+      if (Array.isArray(shippingImagesData)) {
+        shippingImagesData.forEach(image => {
           // Transform URL to include timestamp for cache busting
           const transformedURL = transformURL(image.image_url);
           
@@ -310,12 +308,14 @@ function OrderDetailPage() {
             images[frontendType] = transformedURL;
           }
         });
-        
-        console.log('DEBUG-PUBLIC-IMAGES: Final images state:', images);
-        setShippingImages(images);
+      } else {
+        console.log('DEBUG-PUBLIC-IMAGES: No shipping images found in order response or invalid format');
       }
+      
+      console.log('DEBUG-PUBLIC-IMAGES: Final images state:', images);
+      setShippingImages(images);
     } catch (err) {
-      console.error('Error fetching shipping images:', err);
+      console.error('Error processing shipping images:', err);
     } finally {
       setLoadingImages(false);
     }
