@@ -402,7 +402,7 @@ function OrderDetailPage() {
                           transition="all 0.3s ease-in-out"
                           clipPath={
                             normalizeShippingStatus(order.shipping_status) === "dikemas" ? "polygon(0 0, 25% 0, 25% 100%, 0 100%)" :
-                            normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "polygon(0 0, 50% 0, 50% 100%, 0 100%)" :
+                            normalizeShippingStatus(order.shipping_status) === "siap kirim" || normalizeShippingStatus(order.shipping_status) === "siap di ambil" ? "polygon(0 0, 50% 0, 50% 100%, 0 100%)" :
                             normalizeShippingStatus(order.shipping_status) === "dalam pengiriman" ? "circle(50%)" :
                             "circle(0%)"
                           }
@@ -446,6 +446,7 @@ function OrderDetailPage() {
                             switch(normalizedStatus) {
                               case "dikemas": return "Dikemas";
                               case "siap kirim": return "Siap Kirim";
+                              case "siap di ambil": return "Siap Ambil";
                               case "dalam pengiriman": return "Dalam Pengiriman";
                               case "diterima": return "Diterima";
                               default: return "Menunggu Diproses";
