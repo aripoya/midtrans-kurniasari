@@ -459,6 +459,9 @@ function AdminOrderDetailPage() {
         admin_note: adminNote
       }));
       
+      // Refresh all order data to ensure consistency
+      await loadAllData();
+      
       toast({
         title: "Catatan berhasil disimpan",
         status: "success",
@@ -693,36 +696,39 @@ function AdminOrderDetailPage() {
       setUploadedImages(updatedImages);
       
       // Simpan ke localStorage untuk persistensi
-      try {
-        localStorage.setItem(`shipping_images_${id}`, JSON.stringify(updatedImages));
-        console.log('[DEBUG-UPLOAD] Saved updated images to localStorage after upload');
-      } catch (storageErr) {
-        console.error('[DEBUG-UPLOAD] Failed to save to localStorage:', storageErr);
-      }
-      
-      // Segera ambil ulang data gambar dari API setelah upload berhasil
-      await fetchShippingImages(id);
-      
-      toast({
-        title: "Foto berhasil disimpan",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
-      
-    } catch (err) {
-      console.error('[DEBUG-UPLOAD] Error in handleSaveImages:', err);
-      toast({
-        title: "Gagal menyimpan foto",
-        description: err.message,
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setIsUploading(false);
+    try {
+      localStorage.setItem(`shipping_images_${id}`, JSON.stringify(updatedImages));
+      console.log('[DEBUG-UPLOAD] Saved updated images to localStorage after upload');
+    } catch (storageErr) {
+      console.error('[DEBUG-UPLOAD] Failed to save to localStorage:', storageErr);
     }
-  };
+    
+    // Segera ambil ulang data gambar dari API setelah upload berhasil
+    await adminApi.getShippingImages(id);
+    
+    // Refresh all order data to ensure consistency
+    await loadAllData();
+    
+    toast({
+      title: "Foto berhasil disimpan",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+    
+  } catch (err) {
+    console.error('[DEBUG-UPLOAD] Error in handleSaveImages:', err);
+    toast({
+      title: "Gagal menyimpan foto",
+      description: err.message,
+      status: "error",
+      duration: 5000,
+      isClosable: true,
+    });
+  } finally {
+    setIsUploading(false);
+  }
+};
 
   // Fungsi untuk menghapus catatan admin
   const handleDeleteNote = async () => {
@@ -744,6 +750,9 @@ function AdminOrderDetailPage() {
         ...prev,
         admin_note: ''
       }));
+      
+      // Refresh all order data to ensure consistency
+      await loadAllData();
       
       toast({
         title: "Catatan berhasil dihapus",
