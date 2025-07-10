@@ -89,7 +89,7 @@ function OrdersPage() {
         return <Badge colorScheme="blue">Dikemas</Badge>;
       case 'siap kirim':
         return <Badge colorScheme="cyan">Siap Kirim</Badge>;
-      case 'siap ambil':
+      case 'siap di ambil':
         return <Badge colorScheme="teal">Siap Ambil</Badge>;
       case 'sedang dikirim':
         return <Badge colorScheme="orange">Sedang Dikirim</Badge>;
