@@ -108,7 +108,6 @@ function AdminOrderDetailPage() {
           const response = await axios.get(`${apiUrl}/api/orders/${id}?_nocache=${Date.now()}`, {
             headers: {
               'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
               'Expires': '0'
             }
           });
