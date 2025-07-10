@@ -581,6 +581,9 @@ function AdminOrderDetailPage() {
           duration: 3000,
           isClosable: true,
         });
+        
+        // Enable Update button after successful image deletion
+        setFormChanged(true);
       } else {
         throw new Error(result.error || 'Gagal menghapus gambar');
       }
@@ -757,21 +760,10 @@ function AdminOrderDetailPage() {
         admin_note: ''
       }));
       
-      // Refresh all order data to ensure consistency
-      await loadAllData();
-      
       toast({
         title: "Catatan berhasil dihapus",
         status: "success",
         duration: 3000,
-        isClosable: true,
-      });
-    } catch (err) {
-      toast({
-        title: "Gagal menghapus catatan",
-        description: err.message,
-        status: "error",
-        duration: 5000,
         isClosable: true,
       });
     } finally {
@@ -950,6 +942,9 @@ function AdminOrderDetailPage() {
                 duration: 2000,
                 isClosable: true,
               });
+              
+              // Enable Update button after successful image upload
+              setFormChanged(true);
             }
           } else {
             throw new Error(result.error || 'Gagal mengupload gambar');
