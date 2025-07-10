@@ -104,8 +104,16 @@ function AdminOrderDetailPage() {
         console.log(`🌐 Menggunakan API URL: ${apiUrl}`);
         
         try {
-          const response = await axios.get(`${apiUrl}/api/orders/${id}`);
-          console.log('📦 Respons API:', response.data);
+          // Tambahkan timestamp dan headers no-cache untuk memaksa refresh data dari API
+          const response = await axios.get(`${apiUrl}/api/orders/${id}?_nocache=${Date.now()}`, {
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          });
+          console.log('📦 Respons API (Lengkap):', JSON.stringify(response.data, null, 2));
+          console.log('🔍 Shipping Area dari API:', response.data.data?.shipping_area || response.data.order?.shipping_area || 'tidak ada');
           
           // Check response structure (could be order or data)
           if (response.data.success) {
