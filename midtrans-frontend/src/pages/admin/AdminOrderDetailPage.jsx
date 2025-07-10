@@ -380,13 +380,8 @@ function AdminOrderDetailPage() {
         return updated;
       });
       
-      // Refresh order data setelah update
-      setTimeout(() => {
-        fetchOrderData();
-      }, 500);
+      // Set saved admin note dan reset form changed state
       setSavedAdminNote(normalizedAdminNote || '');
-      
-      // Reset form changed state setelah update berhasil
       setFormChanged(false);
       
       // Show success notification
@@ -398,10 +393,14 @@ function AdminOrderDetailPage() {
         isClosable: true,
       });
       
-      // Force page reload to fetch fresh data after update
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      // Refresh hanya jika perlu update data tambahan seperti shipping images
+      // tapi TIDAK reload seluruh halaman
+      if (shippingStatus === 'ready_for_pickup' || shippingStatus === 'picked_up') {
+        setTimeout(() => {
+          // Hanya update bagian yang perlu direfresh, tidak reload semua
+          fetchShippingImages();
+        }, 500);
+      }
     } catch (err) {
       console.error('Error saat memperbarui status pesanan:', err);
       toast({
