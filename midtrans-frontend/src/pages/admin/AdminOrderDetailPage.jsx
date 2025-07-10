@@ -1203,12 +1203,14 @@ return (
                         {/* Tab Dalam Kota */}
                         <TabPanel>
                           <VStack spacing={4} align="stretch">
-                            <Text fontWeight="medium">Status Foto - Dalam Kota</Text>
+                            <Text fontWeight="medium">Status Foto - Dalam Kota ({normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Pengiriman" : "Pengambilan"})</Text>
                             <Text fontSize="sm" color="gray.500">Unggah foto untuk setiap tahap pengiriman. Foto akan otomatis tersimpan.</Text>
 
                             {/* Foto Siap Ambil */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>1. Siap Diambil</Heading>
+                              <Heading size="sm" mb={2}>
+                                1. {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Siap Dikirim" : "Siap Diambil"}
+                              </Heading>
                               {renderUploadedImage('readyForPickup')}
                               <HStack mt={2} spacing={2}>
                                 <Button
@@ -1241,7 +1243,9 @@ return (
 
                             {/* Foto Sudah Diambil */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>2. Sudah Diambil</Heading>
+                              <Heading size="sm" mb={2}>
+                                2. {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Sudah Dikirim" : "Sudah Diambil"}
+                              </Heading>
                               {renderUploadedImage('pickedUp')}
                               <HStack mt={2} spacing={2}>
                                 <Button

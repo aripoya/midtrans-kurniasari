@@ -546,21 +546,21 @@ function OrderDetailPage() {
             {/* Tampilkan link ke foto status pengiriman jika ada */}
             {isPublicOrderPage && (Object.values(shippingImages).some(Boolean)) && (
               <Box mt={6}>
-                <Heading size="sm" mb={4}>Status Pengiriman</Heading>
+                <Heading size="sm" mb={4}>Status {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Pengiriman" : "Pengambilan"}</Heading>
                 <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={4}>
                   {shippingImages.ready_for_pickup && (
                     <GridItem>
-                      <Text mb={2}><strong>Siap Diambil:</strong></Text>
+                      <Text mb={2}><strong>{normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Siap Dikirim:" : "Siap Diambil:"}</strong></Text>
                       <Link href={shippingImages.ready_for_pickup} isExternal color="blue.500" fontWeight="medium">
-                        Lihat Foto Siap Diambil
+                        Lihat Foto {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Siap Dikirim" : "Siap Diambil"}
                       </Link>
                     </GridItem>
                   )}
                   {shippingImages.picked_up && (
                     <GridItem>
-                      <Text mb={2}><strong>Sudah Diambil:</strong></Text>
+                      <Text mb={2}><strong>{normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Sudah Dikirim:" : "Sudah Diambil:"}</strong></Text>
                       <Link href={shippingImages.picked_up} isExternal color="blue.500" fontWeight="medium">
-                        Lihat Foto Sudah Diambil
+                        Lihat Foto {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Sudah Dikirim" : "Sudah Diambil"}
                       </Link>
                     </GridItem>
                   )}
