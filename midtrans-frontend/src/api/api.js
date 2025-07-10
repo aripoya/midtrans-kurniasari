@@ -48,7 +48,9 @@ export const markOrderAsReceived = (orderId) => {
 
 // Get shipping images for customers (public endpoint)
 export const getShippingImages = (orderId) => {
-  return apiClient.get(`/api/shipping/images/${orderId}`);
+  // Add cache-busting parameter to prevent browser caching
+  const timestamp = Date.now();
+  return apiClient.get(`/api/orders/${orderId}/shipping-images?_nocache=${timestamp}`);
 };
 
 export default apiClient;

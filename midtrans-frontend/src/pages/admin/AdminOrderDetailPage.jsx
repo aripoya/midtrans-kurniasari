@@ -235,8 +235,14 @@ function AdminOrderDetailPage() {
             // Map the database image_type to the component state key
             const componentKey = typeMapping[img.image_type] || img.image_type;
             // Transform URL to include a timestamp to bypass cache
-            imagesData[componentKey] = transformURL(img.image_url);
-            console.log(`DEBUG-IMAGES Mapping ${img.image_type} → ${componentKey}:`, imagesData[componentKey]);
+            const transformedURL = transformURL(img.image_url);
+            
+            // Store the image URL under BOTH keys (frontend and backend format)
+            // This ensures compatibility with both admin and public views
+            imagesData[componentKey] = transformedURL;
+            imagesData[img.image_type] = transformedURL;
+            
+            console.log(`DEBUG-IMAGES Double mapping ${img.image_type} → ${componentKey}:`, transformedURL);
           });
           
           // Update the state with the images fetched from the backend
@@ -680,88 +686,64 @@ function AdminOrderDetailPage() {
         }
       }
       
-      // Jika tidak ada foto yang perlu diupload
-      if (uploadPromises.length === 0) {
-        console.log('[DEBUG-UPLOAD] No new images to upload');
-        toast({
-          title: "Tidak ada foto baru untuk disimpan",
-          description: "Tidak ada perubahan yang perlu disimpan",
-          status: "info",
-          duration: 3000,
-          isClosable: true,
-        });
-        setIsUploading(false);
-        return;
-      }
-      
-      // Upload semua gambar sekaligus
-      console.log(`[DEBUG-UPLOAD] Uploading ${uploadPromises.length} images...`);
-      const results = await Promise.all(uploadPromises);
-      console.log('[DEBUG-UPLOAD] Upload results:', results);
-      
-      // Periksa hasil upload
-      const failedUploads = results.filter(result => !result.success);
-      
-      if (failedUploads.length > 0) {
-        throw new Error(`Gagal mengupload ${failedUploads.length} gambar`);
-      }
-      
-      // Update URL gambar setelah upload berhasil
-      const updatedImages = {...uploadedImages}; // Clone state saat ini
-      
-      for (let i = 0; i < results.length; i++) {
-        const { success, image_url } = results[i];
-        const { type } = uploadDetails[i];
-        
-        if (success && image_url) {
-          console.log(`[DEBUG-UPLOAD] Setting new URL for ${type}:`, image_url);
-          // Tambahkan cache busting ke URL
-          const imageUrlWithCacheBusting = `${image_url}?t=${Date.now()}`;
-          updatedImages[type] = imageUrlWithCacheBusting;
-        }
-      }
+      // Tunggu semua promise upload selesai
+      await Promise.all(uploadPromises);
       
       // Update state sekali dengan semua perubahan
       setUploadedImages(updatedImages);
+      console.log('[DEBUG-UPLOAD] Updated images with both keys:', updatedImages);
       
       // Simpan ke localStorage untuk persistensi
-    try {
-      localStorage.setItem(`shipping_images_${id}`, JSON.stringify(updatedImages));
-      console.log('[DEBUG-UPLOAD] Saved updated images to localStorage after upload');
-    } catch (storageErr) {
-      console.error('[DEBUG-UPLOAD] Failed to save to localStorage:', storageErr);
+      try {
+        localStorage.setItem(`shipping_images_${id}`, JSON.stringify(updatedImages));
+        console.log('[DEBUG-UPLOAD] Saved updated images to localStorage after upload');
+      } catch (storageErr) {
+        console.error('[DEBUG-UPLOAD] Failed to save to localStorage:', storageErr);
+      }
+      
+      // Segera ambil ulang data gambar dari API setelah upload berhasil
+      await adminApi.getShippingImages(id);
+      
+      // Refresh all order data to ensure consistency
+      await loadAllData();
+      
+      toast({
+        title: "Foto berhasil disimpan",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (err) {
+      console.error('[DEBUG-UPLOAD] Error in handleSaveImages:', err);
+      toast({
+        title: "Gagal menyimpan foto",
+        description: err.message,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsUploading(false);
     }
-    
-    // Segera ambil ulang data gambar dari API setelah upload berhasil
-    await adminApi.getShippingImages(id);
-    
-    // Refresh all order data to ensure consistency
-    await loadAllData();
-    
-    toast({
-      title: "Foto berhasil disimpan",
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
-    
-  } catch (err) {
-    console.error('[DEBUG-UPLOAD] Error in handleSaveImages:', err);
-    toast({
-      title: "Gagal menyimpan foto",
-      description: err.message,
+  };
       status: "error",
       duration: 5000,
       isClosable: true,
     });
-  } finally {
-    setIsUploading(false);
   }
+  
+  // Reset selected files after uploading
+  setFiles({});
 };
 
-  // Fungsi untuk menghapus catatan admin
-  const handleDeleteNote = async () => {
-    setIsDeletingNote(true);
+// Fungsi untuk menghapus catatan admin
+const handleDeleteNote = async () => {
+  setIsDeletingNote(true);
+  try {
+    const response = await adminApi.updateOrderStatus(id, order.shipping_status, '');
+    
+    if (response.error) {
+      throw new Error(response.error);
     try {
       const response = await adminApi.updateOrderStatus(id, order.shipping_status, '');
       
@@ -904,71 +886,6 @@ function AdminOrderDetailPage() {
           
           // Tidak perlu menyimpan ke localStorage karena sudah di state
           // dan gambar sudah diupload ke server
-          // Ini mencegah error quota exceeded
-          console.log(`[DEBUG-IMAGE] Using state for ${type} preview instead of localStorage`);
-          
-          // Hapus item lama jika ada untuk menghindari penumpukan di localStorage
-          try {
-            localStorage.removeItem(`shipping_images_${id}`);
-          } catch (err) {
-            console.error('[DEBUG-IMAGE] Error clearing localStorage:', err);
-          }
-          
-          return newState;
-        });
-        
-        // Upload gambar ke server
-        try {
-          // Konversi type ke format yang digunakan API
-          const apiTypeMap = {
-            readyForPickup: 'ready_for_pickup',
-            pickedUp: 'picked_up',
-            received: 'delivered',
-            shipmentProof: 'shipment_proof'
-          };
-          
-          const apiType = apiTypeMap[type];
-          console.log(`[DEBUG-IMAGE] Uploading image for ${type} (${apiType})`);
-          
-          const result = await adminApi.uploadShippingImage(id, apiType, file);
-          
-          if (result.success) {
-            console.log(`[DEBUG-IMAGE] Upload success for ${type}:`, result);
-            
-            // Update URL gambar setelah upload berhasil
-            if (result.image_url) {
-              // Tambahkan cache busting ke URL
-              const imageUrlWithCacheBusting = `${result.image_url}?t=${Date.now()}`;
-              
-              setUploadedImages(prev => {
-                const updatedState = {
-                  ...prev,
-                  [type]: imageUrlWithCacheBusting
-                };
-                
-                // Update localStorage dengan URL baru
-                try {
-                  localStorage.setItem(`shipping_images_${id}`, JSON.stringify(updatedState));
-                } catch (storageErr) {
-                  console.error('[DEBUG-IMAGE] Failed to update localStorage after upload:', storageErr);
-                }
-                
-                return updatedState;
-              });
-              
-              toast({
-                title: "Foto berhasil disimpan",
-                status: "success",
-                duration: 2000,
-                isClosable: true,
-              });
-              
-              // Enable Update button after successful image upload
-              setFormChanged(true);
-            }
-          } else {
-            throw new Error(result.error || 'Gagal mengupload gambar');
-          }
         } catch (uploadError) {
           console.error(`[DEBUG-IMAGE] Error uploading ${type} image:`, uploadError);
           toast({
@@ -998,8 +915,23 @@ function AdminOrderDetailPage() {
   };
 
   // Fungsi untuk menampilkan gambar yang diupload
+  // Helper to convert backend types to frontend types
+  const mapTypeToBackendFormat = (type) => {
+    // Map frontend types to backend format
+    const typeMapping = {
+      'readyForPickup': 'ready_for_pickup',
+      'pickedUp': 'picked_up',
+      'received': 'delivered',
+      'shipmentProof': 'shipment_proof'
+    };
+    return typeMapping[type] || type;
+  };
+  
   const renderUploadedImage = (type) => {
-    const imageUrl = uploadedImages[type];
+    // Find by either frontend or backend type format for maximum compatibility
+    const imageUrl = uploadedImages[type] || uploadedImages[mapTypeToBackendFormat(type)];
+    
+    console.log(`[RENDER-DEBUG] Rendering image for type: ${type}, URL:`, imageUrl);
     
     if (!imageUrl || imageUrl === "") {
       return (

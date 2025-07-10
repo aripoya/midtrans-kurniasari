@@ -245,41 +245,73 @@ function OrderDetailPage() {
   };
 
   // Fungsi untuk mengambil gambar status pengiriman
+  // Helper function untuk transformasi URL yang konsisten dengan admin page
+  const transformURL = (url) => {
+    // Tambahkan cache busting dengan timestamp
+    if (!url) return "";
+    
+    // Ganti domain lama dengan domain baru jika diperlukan
+    if (url.includes('kurniasari-shipping-images.kurniasari.co.id')) {
+      const fileName = url.split('/').pop().split('?')[0];
+      url = `https://proses.kurniasari.co.id/${fileName}`;
+    }
+    
+    // Tambahkan timestamp untuk cache busting
+    return `${url}?t=${Date.now()}`;
+  };
+
+  // Mapping antara format frontend dan backend untuk tipe gambar
+  const imageTypeMapping = {
+    // Frontend → Backend
+    'readyForPickup': 'ready_for_pickup',
+    'pickedUp': 'picked_up',
+    'received': 'delivered',
+    // Backend → Frontend
+    'ready_for_pickup': 'readyForPickup',
+    'picked_up': 'pickedUp',
+    'delivered': 'received'
+  };
+
   const fetchShippingImages = async () => {
     try {
       setLoadingImages(true);
       const response = await getShippingImages(id);
       
       if (response.data && response.data.success) {
+        // Initialize with both backend and frontend keys for maximum compatibility
         const images = {
+          // Backend keys
           ready_for_pickup: null,
           picked_up: null,
-          delivered: null
+          delivered: null,
+          // Frontend keys
+          readyForPickup: null,
+          pickedUp: null,
+          received: null
         };
         
+        console.log('DEBUG-PUBLIC-IMAGES: Received shipping images:', response.data.data);
+        
         response.data.data.forEach(image => {
-          // Transform URLs jika diperlukan
-          let imageUrl = image.image_url;
+          // Transform URL to include timestamp for cache busting
+          const transformedURL = transformURL(image.image_url);
           
-          // Ganti domain lama dengan domain baru jika diperlukan
-          if (imageUrl.includes('kurniasari-shipping-images.kurniasari.co.id')) {
-            const fileName = imageUrl.split('/').pop().split('?')[0];
-            imageUrl = `https://proses.kurniasari.co.id/${fileName}?t=${Date.now()}`;
-          }
+          // Get the backend image type
+          const backendType = image.image_type;
           
-          switch(image.image_type) {
-            case 'ready_for_pickup':
-              images.ready_for_pickup = imageUrl;
-              break;
-            case 'picked_up':
-              images.picked_up = imageUrl;
-              break;
-            case 'delivered':
-              images.delivered = imageUrl;
-              break;
+          // Get the corresponding frontend type
+          const frontendType = imageTypeMapping[backendType];
+          
+          console.log(`DEBUG-PUBLIC-IMAGES: Mapping ${backendType} → ${frontendType}:`, transformedURL);
+          
+          // Store URL under both types for maximum compatibility
+          images[backendType] = transformedURL;
+          if (frontendType) {
+            images[frontendType] = transformedURL;
           }
         });
         
+        console.log('DEBUG-PUBLIC-IMAGES: Final images state:', images);
         setShippingImages(images);
       }
     } catch (err) {
@@ -548,26 +580,42 @@ function OrderDetailPage() {
               <Box mt={6}>
                 <Heading size="sm" mb={4}>Status {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Pengiriman" : "Pengambilan"}</Heading>
                 <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={4}>
-                  {shippingImages.ready_for_pickup && (
+                  {/* Cek kedua format kunci (frontend dan backend) untuk maksimum kompatibilitas */}
+                  {(shippingImages.ready_for_pickup || shippingImages.readyForPickup) && (
                     <GridItem>
                       <Text mb={2}><strong>{normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Siap Dikirim:" : "Siap Diambil:"}</strong></Text>
-                      <Link href={shippingImages.ready_for_pickup} isExternal color="blue.500" fontWeight="medium">
+                      <Link 
+                        href={shippingImages.ready_for_pickup || shippingImages.readyForPickup} 
+                        isExternal 
+                        color="blue.500" 
+                        fontWeight="medium"
+                      >
                         Lihat Foto {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Siap Dikirim" : "Siap Diambil"}
                       </Link>
                     </GridItem>
                   )}
-                  {shippingImages.picked_up && (
+                  {(shippingImages.picked_up || shippingImages.pickedUp) && (
                     <GridItem>
                       <Text mb={2}><strong>{normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Sudah Dikirim:" : "Sudah Diambil:"}</strong></Text>
-                      <Link href={shippingImages.picked_up} isExternal color="blue.500" fontWeight="medium">
+                      <Link 
+                        href={shippingImages.picked_up || shippingImages.pickedUp} 
+                        isExternal 
+                        color="blue.500" 
+                        fontWeight="medium"
+                      >
                         Lihat Foto {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Sudah Dikirim" : "Sudah Diambil"}
                       </Link>
                     </GridItem>
                   )}
-                  {shippingImages.delivered && (
+                  {(shippingImages.delivered || shippingImages.received) && (
                     <GridItem>
                       <Text mb={2}><strong>Sudah Diterima:</strong></Text>
-                      <Link href={shippingImages.delivered} isExternal color="blue.500" fontWeight="medium">
+                      <Link 
+                        href={shippingImages.delivered || shippingImages.received} 
+                        isExternal 
+                        color="blue.500" 
+                        fontWeight="medium"
+                      >
                         Lihat Foto Sudah Diterima
                       </Link>
                     </GridItem>
