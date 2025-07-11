@@ -1711,7 +1711,6 @@ return (
                       </HStack>
                     </Box>
                   </Box>
-                </Box>
               )}
               
               {/* Metode Kirim - hanya muncul jika Pesan Kirim aktif dan Pesan Ambil tidak aktif */}
@@ -1731,7 +1730,7 @@ return (
                   </Select>
                 </FormControl>
               )}
-              
+                
               {shippingArea === 'luar-kota' && (
                 <>
                   <FormControl>
@@ -1747,129 +1746,98 @@ return (
                           // Reset error ketika layanan berubah
                           if (trackingNumber) {
                             if (newService === 'TIKI' && (trackingNumber.length < 10 || trackingNumber.length > 16)) {
-                    <FormLabel>Metode Kirim</FormLabel>
-                    <Select
-                      value={metodePengiriman}
-                      onChange={(e) => {
-                        setMetodePengiriman(e.target.value);
-                        setFormChanged(true);
-                      }}
-                      placeholder="Pilih metode pengiriman"
-                    >
-                      <option value="ojek-online">Ojek Online</option>
-                      <option value="team-delivery">Team Delivery</option>
-                    </Select>
-                  </FormControl>
-                )}
-                
-                {shippingArea === 'luar-kota' && (
-                  <>
-                    <FormControl>
-                      <FormLabel>Jasa Kurir</FormLabel>
-                      <HStack spacing={4}>
-                        <Checkbox 
-                          isChecked={courierService === 'TIKI'}
-                          onChange={(e) => {
-                            const newService = e.target.checked ? 'TIKI' : '';
-                            setCourierService(newService);
-                            setFormChanged(true);
-                            
-                            // Reset error ketika layanan berubah
-                            if (trackingNumber) {
-                              if (newService === 'TIKI' && (trackingNumber.length < 10 || trackingNumber.length > 16)) {
-                                setTrackingNumberError('Nomor resi TIKI harus 10-16 digit');
-                              } else if (newService === 'JNE' && trackingNumber.length !== 16) {
-                                setTrackingNumberError('Nomor resi JNE harus 16 karakter');
-                              } else {
-                                setTrackingNumberError('');
-                              }
-                            }
-                          }}
-                        >
-                          TIKI (10-16 digit)
-                        </Checkbox>
-                        <Checkbox 
-                          isChecked={courierService === 'JNE'}
-                          onChange={(e) => {
-                            const newService = e.target.checked ? 'JNE' : '';
-                            setCourierService(newService);
-                            setFormChanged(true);
-                            
-                            // Reset error ketika layanan berubah
-                            if (trackingNumber) {
-                              if (newService === 'TIKI' && (trackingNumber.length < 10 || trackingNumber.length > 16)) {
-                                setTrackingNumberError('Nomor resi TIKI harus 10-16 digit');
-                              } else if (newService === 'JNE' && trackingNumber.length !== 16) {
-                                setTrackingNumberError('Nomor resi JNE harus 16 karakter');
-                              } else {
-                                setTrackingNumberError('');
-                              }
-                            }
-                          }}
-                        >
-                          JNE (16-20 karakter alphanumeric)
-                        </Checkbox>
-                        <Checkbox 
-                          isChecked={courierService === 'TRAVEL'}
-                          onChange={(e) => {
-                            const newService = e.target.checked ? 'TRAVEL' : '';
-                            setCourierService(newService);
-                            setFormChanged(true);
-                            
-                            // Reset tracking number dan error jika Travel dipilih
-                            if (newService === 'TRAVEL') {
-                              setTrackingNumber(''); // Kosongkan nomor resi
-                              setTrackingNumberError('');
-                            }
-                          }}
-                        >
-                          Travel
-                        </Checkbox>
-                      </HStack>
-                    </FormControl>
-                    
-                    {/* Tampilkan input Nomor Resi hanya jika TRAVEL tidak dipilih */}
-                    {courierService !== 'TRAVEL' && (
-                      <FormControl isInvalid={trackingNumberError !== ''}>
-                        <FormLabel>Nomor Resi</FormLabel>
-                        <Input
-                          value={trackingNumber}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setTrackingNumber(value);
-                            setFormChanged(true);
-                            
-                            // Validasi karakter untuk TIKI
-                            if (courierService === 'TIKI' && value && !/^\d*$/.test(value)) {
-                              setTrackingNumberError('Nomor resi TIKI hanya boleh berisi angka');
-                              return;
-                            }
-                            
-                            // Validasi karakter alphanumeric untuk JNE
-                            if (courierService === 'JNE' && value && !/^[a-zA-Z0-9]*$/.test(value)) {
-                              setTrackingNumberError('Nomor resi JNE hanya boleh berisi huruf dan angka');
-                              return;
-                            }
-                            
-                            // Validasi panjang berdasarkan jasa kurir
-                            if (courierService === 'TIKI' && value && (value.length < 10 || value.length > 16)) {
                               setTrackingNumberError('Nomor resi TIKI harus 10-16 digit');
-                            } else if (courierService === 'JNE' && value && (value.length < 16 || value.length > 20)) {
-                              setTrackingNumberError('Nomor resi JNE harus 16-20 karakter');
+                            } else if (newService === 'JNE' && trackingNumber.length !== 16) {
+                              setTrackingNumberError('Nomor resi JNE harus 16 karakter');
                             } else {
                               setTrackingNumberError('');
                             }
-                          }}
-                          placeholder={`Masukkan nomor resi ${courierService === 'TIKI' ? 'TIKI (10-16 digit)' : courierService === 'JNE' ? 'JNE (16-20 karakter)' : 'pengiriman'}`}
-                          maxLength={courierService === 'TIKI' ? 16 : courierService === 'JNE' ? 20 : undefined}
-                        />
-                        {trackingNumberError && (
-                          <FormLabel color="red.500" fontSize="sm">{trackingNumberError}</FormLabel>
-                        )}
-                      </FormControl>
-                    )}
-                    
-                    <FormControl>
+                          }
+                        }}
+                      >
+                        TIKI (10-16 digit)
+                      </Checkbox>
+                      <Checkbox 
+                        isChecked={courierService === 'JNE'}
+                        onChange={(e) => {
+                          const newService = e.target.checked ? 'JNE' : '';
+                          setCourierService(newService);
+                          setFormChanged(true);
+                          
+                          // Reset error ketika layanan berubah
+                          if (trackingNumber) {
+                            if (newService === 'TIKI' && (trackingNumber.length < 10 || trackingNumber.length > 16)) {
+                              setTrackingNumberError('Nomor resi TIKI harus 10-16 digit');
+                            } else if (newService === 'JNE' && trackingNumber.length !== 16) {
+                              setTrackingNumberError('Nomor resi JNE harus 16 karakter');
+                            } else {
+                              setTrackingNumberError('');
+                            }
+                          }
+                        }}
+                      >
+                        JNE (16-20 karakter alphanumeric)
+                      </Checkbox>
+                      <Checkbox 
+                        isChecked={courierService === 'TRAVEL'}
+                        onChange={(e) => {
+                          const newService = e.target.checked ? 'TRAVEL' : '';
+                          setCourierService(newService);
+                          setFormChanged(true);
+                          
+                          // Reset tracking number dan error jika Travel dipilih
+                          if (newService === 'TRAVEL') {
+                            setTrackingNumber(''); // Kosongkan nomor resi
+                            setTrackingNumberError('');
+                          }
+                        }}
+                      >
+                        Travel
+                      </Checkbox>
+                    </HStack>
+                  </FormControl>
+
+                  {/* Tampilkan input Nomor Resi hanya jika TRAVEL tidak dipilih */}
+                  {courierService !== 'TRAVEL' && (
+                    <FormControl isInvalid={trackingNumberError !== ''}>
+                      <FormLabel>Nomor Resi</FormLabel>
+                      <Input
+                        value={trackingNumber}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setTrackingNumber(value);
+                          setFormChanged(true);
+                          
+                          // Validasi karakter untuk TIKI
+                          if (courierService === 'TIKI' && value && !/^\d*$/.test(value)) {
+                            setTrackingNumberError('Nomor resi TIKI hanya boleh berisi angka');
+                            return;
+                          }
+                          
+                          // Validasi karakter alphanumeric untuk JNE
+                          if (courierService === 'JNE' && value && !/^[a-zA-Z0-9]*$/.test(value)) {
+                            setTrackingNumberError('Nomor resi JNE hanya boleh berisi huruf dan angka');
+                            return;
+                          }
+                          
+                          // Validasi panjang berdasarkan jasa kurir
+                          if (courierService === 'TIKI' && value && (value.length < 10 || value.length > 16)) {
+                            setTrackingNumberError('Nomor resi TIKI harus 10-16 digit');
+                          } else if (courierService === 'JNE' && value && (value.length < 16 || value.length > 20)) {
+                            setTrackingNumberError('Nomor resi JNE harus 16-20 karakter');
+                          } else {
+                            setTrackingNumberError('');
+                          }
+                        }}
+                        placeholder="Masukkan nomor resi"
+                      />
+                      {trackingNumberError && (
+                        <FormErrorMessage>{trackingNumberError}</FormErrorMessage>
+                      )}
+                    </FormControl>
+                  )}
+                  
+                  <FormControl>
                       <FormLabel>Catatan Admin</FormLabel>
                       {isEditingNote ? (
                         <>
