@@ -55,9 +55,10 @@ function OrderDetailPage() {
       
       if (isPublicOrderPage) {
         // For public pages, use direct axios call without auth headers
-        // Menggunakan VITE_API_BASE_URL yang sesuai dengan konfigurasi di api.js
-        const isDev = import.meta.env.MODE === 'development';
-        const apiUrl = import.meta.env.VITE_API_BASE_URL || (isDev ? 'http://localhost:8787' : 'https://order-management-app-production.wahwooh.workers.dev');
+        // Selalu gunakan URL API yang valid untuk produksi
+        // PENTING: Pastikan menggunakan URL yang dapat diakses secara publik
+        // URL produksi yang benar adalah https://tagihan.kurniasari.co.id
+        const apiUrl = 'https://tagihan.kurniasari.co.id';
         
         console.log(`🌐 Menggunakan API URL: ${apiUrl}`);
         
