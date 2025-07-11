@@ -60,9 +60,10 @@ export const markOrderAsReceived = async (orderId) => {
     for (const baseUrl of apiUrls) {
       try {
         console.log(`🌐 Trying API URL for markOrderAsReceived: ${baseUrl}`);
-        const response = await axios.patch(
+        // Perbaikan: Menggunakan POST method sesuai dengan backend
+        const response = await axios.post(
           `${baseUrl}/api/orders/${orderId}/received`,
-          {},
+          {}, // empty body
           {
             headers: {
               'Accept': 'application/json',
@@ -79,6 +80,34 @@ export const markOrderAsReceived = async (orderId) => {
       } catch (err) {
         console.log(`❌ Error with ${baseUrl}:`, err.message);
         lastError = err;
+      }
+    }
+    
+    // Jika tidak berhasil dengan /received, coba dengan /mark-received (backward compatibility)
+    if (!successResponse) {
+      for (const baseUrl of apiUrls) {
+        try {
+          console.log(`🌐 Trying alternative endpoint for markOrderAsReceived: ${baseUrl}`);
+          const response = await axios.post(
+            `${baseUrl}/api/orders/${orderId}/mark-received`,
+            {},
+            {
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          if (response.data && (response.data.success || response.data.order || response.data.data)) {
+            successResponse = response;
+            console.log(`✅ Successful response from alternative endpoint: ${baseUrl}`);
+            break;
+          }
+        } catch (err) {
+          console.log(`❌ Error with alternative endpoint ${baseUrl}:`, err.message);
+          lastError = err;
+        }
       }
     }
     
