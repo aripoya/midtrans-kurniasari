@@ -1483,17 +1483,30 @@ return (
                               onClick={() => {
                                 if (order && order.id) {
                                   const publicUrl = `https://tagihan.kurniasari.co.id/orders/${order.id}`;
-                                  // Buka link di tab baru alih-alih mencoba mengunduhnya
-                                  window.open(publicUrl, '_blank');
-                                  toast({
-                                    title: "Halaman Status Pesanan Konsumen dibuka di tab baru",
-                                    status: "success",
-                                    duration: 2000,
-                                    isClosable: true,
-                                  });
+                                  // Salin link ke clipboard
+                                  navigator.clipboard.writeText(publicUrl)
+                                    .then(() => {
+                                      toast({
+                                        title: "Link berhasil disalin",
+                                        description: "Link status pesanan konsumen telah disalin ke clipboard",
+                                        status: "success",
+                                        duration: 2000,
+                                        isClosable: true,
+                                      });
+                                    })
+                                    .catch(err => {
+                                      console.error('Gagal menyalin link:', err);
+                                      toast({
+                                        title: "Gagal menyalin link",
+                                        description: "Terjadi kesalahan saat menyalin link ke clipboard",
+                                        status: "error",
+                                        duration: 3000,
+                                        isClosable: true,
+                                      });
+                                    });
                                 } else {
                                   toast({
-                                    title: "Gagal membuka halaman",
+                                    title: "Gagal menyalin link",
                                     description: "Data pesanan belum siap.",
                                     status: "error",
                                     duration: 3000,
@@ -1502,7 +1515,7 @@ return (
                                 }
                               }}
                             >
-                              Lihat Halaman Status Pesanan Konsumen
+                              Salin Link Status Pesanan Konsumen
                             </Button>
                           </VStack>
                         </TabPanel>
