@@ -323,7 +323,7 @@ function AdminOrderDetailPage() {
       const normalizedStatus = shippingStatus?.trim() || null;
       const normalizedAdminNote = adminNote?.trim() || null;
       const normalizedShippingArea = shippingArea?.trim() || null;
-      const normalizedPickupMethod = pickupMethod?.trim() || null;
+      let normalizedPickupMethod = pickupMethod?.trim() || null;
       const normalizedMetodePengiriman = metodePengiriman?.trim() || null;
       const normalizedTipePesanan = tipe_pesanan?.trim() || null;
       const normalizedLokasiPengiriman = lokasi_pengiriman?.trim() || null;
@@ -373,6 +373,10 @@ function AdminOrderDetailPage() {
       // Aktifkan kembali shipping_area karena kolom sudah ditambahkan ke database
       if (normalizedShippingArea) shippingData.shipping_area = normalizedShippingArea;
       // Kolom pickup_method sudah ditambahkan kembali ke database
+      // Re-assign nilai pickup_method dari form data jika ada
+      if (formData.pickup_method) {
+        normalizedPickupMethod = formData.pickup_method.toLowerCase();
+      }
       if (normalizedShippingArea === 'dalam-kota' && normalizedPickupMethod) {
         shippingData.pickup_method = normalizedPickupMethod;
       } else if (normalizedShippingArea === 'luar-kota') {
