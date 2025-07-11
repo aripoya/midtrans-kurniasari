@@ -1,11 +1,11 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box, Heading, Text, VStack, HStack, Badge, Button,
   Table, Tbody, Tr, Td, Th, Thead, Divider, Spinner,
   Alert, AlertIcon, Card, CardBody, CardHeader, CardFooter,
   useToast, Flex, Grid, GridItem, Select, FormControl, 
-  FormLabel, Textarea, SimpleGrid, Stack, Tag, Image,
+  FormLabel, Textarea, SimpleGrid, Stack, Tag, Image, Radio, RadioGroup,
   useDisclosure, Modal, ModalOverlay, ModalContent,
   ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   Accordion, AccordionItem, AccordionButton, 
@@ -17,15 +17,25 @@ import { orderService } from '../../api/orderService';
 import { refreshOrderStatus } from '../../api/api';
 import { adminApi } from '../../api/adminApi';
 import html2canvas from 'html2canvas';
+import { formatDate } from '../../utils/date';
+import axios from 'axios';
+import { normalizeShippingStatus, getShippingStatusConfig, getShippingStatusOptions } from '../../utils/orderStatusUtils';
 
 function AdminOrderDetailPage() {
   const { id } = useParams();
+  // Defensive logging untuk mendeteksi ID yang tidak valid
+  console.log(`🔍 Order ID dari URL params: "${id}"`); 
+  
+  // Validasi ID untuk mencegah penggunaan placeholder
+  const isValidOrderId = id && typeof id === 'string' && !id.includes('[') && !id.includes(']');
+  console.log(`🔍 Order ID valid: ${isValidOrderId}`);
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [shippingStatus, setShippingStatus] = useState('');
   const [adminNote, setAdminNote] = useState('');
   const [savedAdminNote, setSavedAdminNote] = useState('');
+  const [metodePengiriman, setMetodePengiriman] = useState('');
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [isDeletingNote, setIsDeletingNote] = useState(false);
@@ -33,16 +43,19 @@ function AdminOrderDetailPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [formChanged, setFormChanged] = useState(false);
   const [uploadedImages, setUploadedImages] = useState({
-    readyForPickup: null,
-    pickedUp: null,
-    received: null
+    readyForPickup: "",
+    pickedUp: "",
+    received: "",
+    shipmentProof: ""
   });
   const [showQRCode, setShowQRCode] = useState(false);
   const fileInputRefs = {
     readyForPickup: useRef(null),
     pickedUp: useRef(null),
-    received: useRef(null)
+    received: useRef(null),
+    shipmentProof: useRef(null)
   };
   const qrCodeRef = useRef(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -50,193 +63,216 @@ function AdminOrderDetailPage() {
   const navigate = useNavigate();
   const [shippingArea, setShippingArea] = useState('dalam-kota'); // Default: dalam-kota (dalam-kota | luar-kota)
   const [pickupMethod, setPickupMethod] = useState('sendiri'); // Default: sendiri (sendiri | ojek-online)
-  const [courierService, setCourierService] = useState(''); // TIKI, JNE, atau custom
+  const [courierService, setCourierService] = useState(''); // TIKI, JNE, Travel, atau custom
   const [trackingNumber, setTrackingNumber] = useState(''); // Nomor Resi
   const [trackingNumberError, setTrackingNumberError] = useState(''); // Error untuk validasi nomor resi
   const [tabIndex, setTabIndex] = useState(0); // State untuk mengontrol tab aktif
+  const [locations, setLocations] = useState([]); // Daftar lokasi (kode area)
+  const [lokasi_pengiriman, setLokasiPengiriman] = useState(''); // Lokasi pengiriman terpilih
+  const [lokasi_pengambilan, setLokasiPengambilan] = useState(''); // Lokasi pengambilan terpilih
+  const [tipe_pesanan, setTipePesanan] = useState(''); // Tipe pesanan (Pesan Antar/Pesan Ambil)
 
-  const fetchOrder = async () => {
+  const transformURL = (url) => {
+    if (!url) return ""; // Mengembalikan string kosong, bukan null
+    
+    // Remove any existing timestamp parameter
+    let cleanUrl = url;
+    if (url.includes('?')) {
+      cleanUrl = url.split('?')[0];
+    }
+    
+    // Always add a new timestamp parameter to prevent caching
+    const timestamp = Date.now();
+    
+    if (cleanUrl.includes('kurniasari-shipping-images.kurniasari.co.id')) {
+      const fileName = cleanUrl.split('/').pop();
+      return `https://proses.kurniasari.co.id/${fileName}?t=${timestamp}`;
+    }
+    
+    // Always add timestamp parameter
+    return `${cleanUrl}?t=${timestamp}`;
+  };
+
+  // Periksa apakah ini adalah public order (format ORDER-xxx)  
+  const isPublicOrderPage = id && id.startsWith('ORDER-');
+  
+  const loadAllData = useCallback(async () => {
+    if (!isValidOrderId) {
+      console.error('🚫 Invalid Order ID:', id);
+      setError('ID Pesanan tidak valid');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    
     try {
-      console.log('[AdminOrderDetailPage] Fetching order:', id);
-      setLoading(true);
-      setError(null);
-      const data = await orderService.getOrderById(id);
-      console.log('[AdminOrderDetailPage] API response:', data);
+      // Reset all state to ensure fresh data
+      setUploadedImages({
+        readyForPickup: null,
+        pickedUp: null,
+        received: null,
+        shipmentProof: null
+      });
       
-      if (data.success && data.order) {
-        let finalOrder = data.order;
-        console.log('[AdminOrderDetailPage] Original order data:', finalOrder);
+      // 1. Get locations first (always use adminApi)
+      const locationsRes = await adminApi.getLocations();
+      if (!locationsRes.success) throw new Error('Gagal memuat daftar lokasi.');
+      const fetchedLocations = locationsRes.data;
+      setLocations(fetchedLocations);
+      
+      // 2. Get order data with special handling for public orders
+      let orderData;
+      
+      if (isPublicOrderPage) {
+        // For public orders, use direct API call with axios
+        const apiUrl = import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev';
+        console.log(`🌐 Menggunakan API URL: ${apiUrl}`);
         
-        if (finalOrder.payment_response) {
-          try {
-            const paymentDetails = JSON.parse(finalOrder.payment_response);
-            finalOrder = {
-              ...finalOrder,
-              payment_method: paymentDetails.payment_type || finalOrder.payment_method,
-              payment_time: paymentDetails.settlement_time || finalOrder.payment_time,
-              status: paymentDetails.transaction_status || finalOrder.status,
-            };
-            console.log('[AdminOrderDetailPage] Enhanced order with payment details:', finalOrder);
-          } catch (e) {
-            console.error("Failed to parse payment_response:", e);
+        try {
+          // Tambahkan timestamp untuk memaksa refresh data dari API tanpa header cache control
+          // Hapus header Cache-Control dan Expires untuk mencegah CORS error di Chrome
+          const response = await axios.get(`${apiUrl}/api/orders/${id}?_nocache=${Date.now()}`);
+          console.log('🌐 Request dibuat tanpa header cache untuk mencegah CORS error di Chrome');
+          console.log('📦 Respons API (Lengkap):', JSON.stringify(response.data, null, 2));
+          console.log('🔍 Shipping Area dari API:', response.data.data?.shipping_area || response.data.order?.shipping_area || 'tidak ada');
+          
+          // Check response structure (could be order or data)
+          if (response.data.success) {
+            if (response.data.order) {
+              orderData = response.data.order; // Old format
+            } else if (response.data.data) {
+              orderData = response.data.data;  // New format from production API
+            } else {
+              throw new Error('Format data tidak dikenali');
+            }
+          } else {
+            throw new Error('Respons API tidak sukses');
           }
+        } catch (apiError) {
+          console.error('❌ Error saat memanggil API:', apiError);
+          throw apiError;
         }
-        setOrder(finalOrder);
-        setShippingStatus(finalOrder.shipping_status || '');
-      // Cek jika ada catatan admin yang tersimpan
-      if (finalOrder.admin_note) {
-        setSavedAdminNote(finalOrder.admin_note);
-        setAdminNote(finalOrder.admin_note);
-      }
       } else {
-        console.error('[AdminOrderDetailPage] Order not found or API returned error');
-        setError(`Pesanan tidak ditemukan.`);
+        // For admin-specific orders, use orderService
+        const serviceResponse = await orderService.getOrderById(id);
+        if (serviceResponse.success && serviceResponse.order) {
+          orderData = serviceResponse.order;
+        } else if (serviceResponse.success && serviceResponse.data) {
+          orderData = serviceResponse.data;
+        } else {
+          throw new Error('Data tidak ditemukan dari orderService');
+        }
       }
+      
+      // Process order data
+      if (!orderData) {
+        throw new Error('Data pesanan tidak ditemukan');
+      }
+      
+      let finalOrder = orderData;
+      if (finalOrder.payment_response) {
+        try {
+          const paymentDetails = JSON.parse(finalOrder.payment_response);
+          finalOrder = {
+            ...finalOrder,
+            payment_method: paymentDetails.payment_type || finalOrder.payment_method,
+            payment_time: paymentDetails.settlement_time || finalOrder.payment_time,
+            payment_status: paymentDetails.transaction_status || finalOrder.payment_status,
+          };
+        } catch (e) {
+          console.error('Error parsing payment_response:', e);
+        }
+      }
+      
+      setOrder(finalOrder);
+
+      // 3. Set lokasi pengiriman dan pengambilan berdasarkan nama lokasi
+      // Perhatikan: kita langsung menggunakan nama_lokasi, bukan kode_area yang sudah dihapus
+      setLokasiPengiriman(finalOrder.lokasi_pengiriman || '');
+      setLokasiPengambilan(finalOrder.lokasi_pengambilan || '');
+
+      // 4. Set other form states
+      setShippingStatus(finalOrder.shipping_status || '');
+      setAdminNote(finalOrder.admin_note || '');
+      setSavedAdminNote(finalOrder.admin_note || '');
+      setTipePesanan(finalOrder.tipe_pesanan);
+      // Pastikan nilai shipping_area dari database digunakan untuk state lokal
+      setShippingArea(finalOrder.shipping_area || 'dalam-kota');
+      console.log('DEBUG - Setting shipping area from order:', finalOrder.shipping_area);
+      
+      // Set pickup_method dari data order jika tersedia
+      if (finalOrder.pickup_method) {
+        setPickupMethod(finalOrder.pickup_method);
+        console.log('DEBUG - Setting pickup method from order:', finalOrder.pickup_method);
+      } else {
+        // Default ke 'sendiri' jika tidak ada di order
+        setPickupMethod('sendiri');
+        console.log('DEBUG - No pickup_method in order data, defaulting to "sendiri"');
+      }
+      if (finalOrder.tipe_pesanan === 'Pesan Antar') {
+        setMetodePengiriman('kurir-toko');
+      } else if (finalOrder.tipe_pesanan === 'Pesan Ambil') {
+        setMetodePengiriman('diambil-sendiri');
+      }
+
+      // 5. Process Shipping Images
+      // Nested try-catch for shipping images (non-critical)  
+      try {
+        const imagesRes = await adminApi.getShippingImages(id);
+        console.log('DEBUG-IMAGES Shipping images response:', imagesRes);
+        if (imagesRes.success && imagesRes.data) {
+          // Create a mapping object to convert database image_type to component state keys
+          const typeMapping = {
+            'ready_for_pickup': 'readyForPickup',
+            'picked_up': 'pickedUp',
+            'delivered': 'received'
+          };
+          
+          const imagesData = {};
+          imagesRes.data.forEach(img => {
+            // Map the database image_type to the component state key
+            const componentKey = typeMapping[img.image_type] || img.image_type;
+            // Transform URL to include a timestamp to bypass cache
+            const transformedURL = transformURL(img.image_url);
+            
+            // Store the image URL under BOTH keys (frontend and backend format)
+            // This ensures compatibility with both admin and public views
+            imagesData[componentKey] = transformedURL;
+            imagesData[img.image_type] = transformedURL;
+            
+            console.log(`DEBUG-IMAGES Double mapping ${img.image_type} → ${componentKey}:`, transformedURL);
+          });
+          
+          // Update the state with the images fetched from the backend
+          setUploadedImages(imagesData);
+          console.log('DEBUG-IMAGES Final processed images data:', imagesData);
+        }
+      } catch (imageErr) {
+        console.error('Error loading shipping images:', imageErr);
+        // Non-critical error, don't throw
+      }
+      
     } catch (err) {
-      console.error('[AdminOrderDetailPage] Error fetching order:', err);
-      setError(`Gagal memuat detail pesanan: ${err.message}.`);
+      console.error('[AdminOrderDetailPage] Error loading data:', err);
+      setError(err.message);
+      toast({ title: 'Error', description: err.message, status: 'error', duration: 5000, isClosable: true });
     } finally {
       setLoading(false);
     }
-  };
-
-  // Fungsi untuk mengubah URL dari domain lama ke domain baru
-  const transformURL = (url) => {
-    if (!url) return null;
-    
-    // Ubah domain lama ke domain baru
-    if (url.includes('kurniasari-shipping-images.kurniasari.co.id')) {
-      const fileName = url.split('/').pop().split('?')[0]; // Ambil nama file saja, hapus query params
-      return `https://proses.kurniasari.co.id/${fileName}?t=${Date.now()}`;
-    }
-    
-    // Jika sudah menggunakan domain baru, pastikan ada cache busting
-    if (url.includes('proses.kurniasari.co.id') && !url.includes('?t=')) {
-      return `${url}?t=${Date.now()}`;
-    }
-    
-    return url;
-  };
-  
-  // Fungsi untuk mengambil data gambar pengiriman
-  const fetchShippingImages = async (orderId) => {
-    try {
-      console.log('[DEBUG-SHIPPING] Fetching shipping images for order:', orderId);
-      const result = await adminApi.getShippingImages(orderId);
-      console.log('[DEBUG-SHIPPING] API response:', result);
-      
-      if (result.success && result.data) {
-        console.log('[DEBUG-SHIPPING] Shipping images found:', result.data.length);
-        console.log('[DEBUG-SHIPPING] Raw image data:', JSON.stringify(result.data));
-        
-        // Reset state uploadedImages
-        const newImages = {
-          readyForPickup: null,
-          pickedUp: null,
-          received: null
-        };
-        
-        // Map hasil API ke state uploadedImages
-        result.data.forEach(image => {
-          console.log('[DEBUG-SHIPPING] Processing image:', image);
-          switch(image.image_type) {
-            case 'ready_for_pickup':
-              console.log('[DEBUG-SHIPPING] Setting readyForPickup image URL:', image.image_url);
-              // Transform URL & tambahkan cache busting
-              newImages.readyForPickup = transformURL(image.image_url);
-              break;
-            case 'picked_up':
-              console.log('[DEBUG-SHIPPING] Setting pickedUp image URL:', image.image_url);
-              // Transform URL & tambahkan cache busting
-              newImages.pickedUp = transformURL(image.image_url);
-              break;
-            case 'delivered':
-              console.log('[DEBUG-SHIPPING] Setting received image URL:', image.image_url);
-              // Transform URL & tambahkan cache busting
-              newImages.received = transformURL(image.image_url);
-              break;
-            default:
-              console.log('[DEBUG-SHIPPING] Unknown image type:', image.image_type);
-          }
-        });
-        
-        console.log('[DEBUG-SHIPPING] Final images state to set:', newImages);
-        
-        // Update state dengan data baru (force update dengan setState function)
-        setUploadedImages(current => {
-          const updatedImages = {...newImages};
-          // Simpan ke localStorage untuk persistensi
-          try {
-            localStorage.setItem(`shipping_images_${orderId}`, JSON.stringify(updatedImages));
-            console.log('[DEBUG-SHIPPING] Saved images to localStorage');
-          } catch (storageErr) {
-            console.error('[DEBUG-SHIPPING] Failed to save to localStorage:', storageErr);
-          }
-          return updatedImages;
-        });
-        
-        // Debug untuk memverifikasi state setelah update
-        setTimeout(() => {
-          console.log('[DEBUG-SHIPPING] Verifying state after update:', uploadedImages);
-        }, 100);
-      } else {
-        console.log('[DEBUG-SHIPPING] No shipping images found or API error:', result);
-        
-        // Cek jika ada data tersimpan di localStorage
-        try {
-          const savedImages = localStorage.getItem(`shipping_images_${orderId}`);
-          if (savedImages) {
-            const parsedImages = JSON.parse(savedImages);
-            console.log('[DEBUG-SHIPPING] Found saved images in localStorage:', parsedImages);
-            setUploadedImages(parsedImages);
-          }
-        } catch (storageErr) {
-          console.error('[DEBUG-SHIPPING] Failed to retrieve from localStorage:', storageErr);
-        }
-      }
-    } catch (err) {
-      console.error('[DEBUG-SHIPPING] Error fetching shipping images:', err);
-      
-      // Cek jika ada data tersimpan di localStorage
-      try {
-        const savedImages = localStorage.getItem(`shipping_images_${orderId}`);
-        if (savedImages) {
-          const parsedImages = JSON.parse(savedImages);
-          console.log('[DEBUG-SHIPPING] Found saved images in localStorage after API error:', parsedImages);
-          setUploadedImages(parsedImages);
-        }
-      } catch (storageErr) {
-        console.error('[DEBUG-SHIPPING] Failed to retrieve from localStorage:', storageErr);
-      }
-    }
-  };
+  }, [id, toast]);
 
   useEffect(() => {
-    fetchOrder();
-    if (id) {
-      // Cek dahulu jika ada data di localStorage
-      try {
-        const savedImages = localStorage.getItem(`shipping_images_${id}`);
-        if (savedImages) {
-          const parsedImages = JSON.parse(savedImages);
-          console.log('[DEBUG-SHIPPING] Loading initial images from localStorage:', parsedImages);
-          setUploadedImages(parsedImages);
-        }
-      } catch (err) {
-        console.error('[DEBUG-SHIPPING] Error loading from localStorage:', err);
-      }
-      
-      // Kemudian ambil data terbaru dari API
-      fetchShippingImages(id);
-    }
-  }, [id]);
+    loadAllData();
+  }, [loadAllData]);
 
   const handleRefreshStatus = async () => {
     setIsRefreshing(true);
     try {
       const { data } = await refreshOrderStatus(id);
       if (data.success) {
-        await fetchOrder(); // Refetch to get all updated data
+        await loadAllData(); // Refetch all data
         toast({
           title: "Status Diperbarui",
           description: `Status pembayaran sekarang adalah: ${data.payment_status}.`,
@@ -259,6 +295,169 @@ function AdminOrderDetailPage() {
       setIsRefreshing(false);
     }
   };
+  
+  // Function for updating shipping status using adminApi
+  const handleUpdateStatus = async () => {
+    setIsUpdating(true);
+    try {
+      console.log('DEBUG - Selected location values:', {
+        lokasi_pengambilan,
+        lokasi_pengiriman
+      });
+      // Normalisasi nilai untuk memastikan sesuai dengan ekspektasi backend
+      // Backend mengharapkan nilai string yang valid atau null, bukan undefined
+      const normalizedStatus = shippingStatus?.trim() || null;
+      const normalizedAdminNote = adminNote?.trim() || null;
+      const normalizedShippingArea = shippingArea?.trim() || null;
+      const normalizedPickupMethod = pickupMethod?.trim() || null;
+      const normalizedMetodePengiriman = metodePengiriman?.trim() || null;
+      const normalizedTipePesanan = tipe_pesanan?.trim() || null;
+      const normalizedLokasiPengiriman = lokasi_pengiriman?.trim() || null;
+      const normalizedLokasiPengambilan = lokasi_pengambilan?.trim() || null;
+      
+      // Validasi status sebelum mengirim ke server
+      const allowedStatuses = [
+        'menunggu diproses', 'pending', 
+        'dikemas', 'diproses',
+        'siap kirim', 'siap diambil', 'siap di ambil',
+        'dalam pengiriman', 'sedang dikirim', 'dikirim',
+        'diterima', 'received', 'sudah di terima'
+      ];
+      if (normalizedStatus && !allowedStatuses.includes(normalizedStatus)) {
+        console.error(`[ERROR] Invalid status: '${normalizedStatus}'. Allowed values:`, allowedStatuses);
+        throw new Error(`Status tidak valid. Nilai yang diperbolehkan: ${allowedStatuses.join(', ')}`);
+      }
+      
+      // Log untuk debugging
+      console.log('[DEBUG-STATUS] Status yang akan dikirim:', normalizedStatus);
+      
+      // Validasi shipping area
+      const allowedShippingAreas = ['dalam-kota', 'luar-kota'];
+      if (normalizedShippingArea && !allowedShippingAreas.includes(normalizedShippingArea)) {
+        throw new Error(`Area pengiriman tidak valid. Nilai yang diperbolehkan: ${allowedShippingAreas.join(', ')}`);
+      }
+      
+      // Validasi pickup method jika shipping area adalah dalam-kota
+      if (normalizedShippingArea === 'dalam-kota') {
+        const allowedPickupMethods = ['sendiri', 'ojek-online'];
+        if (normalizedPickupMethod && !allowedPickupMethods.includes(normalizedPickupMethod)) {
+          throw new Error(`Metode pengambilan tidak valid. Nilai yang diperbolehkan: ${allowedPickupMethods.join(', ')}`);
+        }
+      }
+      
+      // Buat objek data dengan nilai yang sudah dinormalisasi dan validasi
+      const shippingData = {};
+      
+      // Siapkan data yang akan dikirim ke server
+      if (normalizedStatus) shippingData.status = normalizedStatus;
+      if (normalizedAdminNote !== null) shippingData.admin_note = normalizedAdminNote;
+      // Aktifkan kembali shipping_area karena kolom sudah ditambahkan ke database
+      if (normalizedShippingArea) shippingData.shipping_area = normalizedShippingArea;
+      // Kolom pickup_method sudah ditambahkan kembali ke database
+      if (normalizedShippingArea === 'dalam-kota' && normalizedPickupMethod) {
+        shippingData.pickup_method = normalizedPickupMethod;
+      }
+      if (normalizedMetodePengiriman) shippingData.metode_pengiriman = normalizedMetodePengiriman;
+      
+      // Tambahkan field lokasi
+      if (normalizedTipePesanan) shippingData.tipe_pesanan = normalizedTipePesanan;
+      
+      // Tambahkan lokasi pengiriman jika tipe pesanan adalah Pesan Antar
+      if (normalizedTipePesanan === 'Pesan Antar' && normalizedLokasiPengiriman) {
+        shippingData.lokasi_pengiriman = normalizedLokasiPengiriman;
+      }
+      
+      // Tambahkan lokasi pengambilan jika tipe pesanan adalah Pesan Ambil
+      if (normalizedTipePesanan === 'Pesan Ambil' && normalizedLokasiPengambilan) {
+        shippingData.lokasi_pengambilan = normalizedLokasiPengambilan;
+      }
+      
+      // Tambahkan tracking_number dan courier_service untuk luar kota
+      if (normalizedShippingArea === 'luar-kota') {
+        if (courierService !== 'TRAVEL') {
+          shippingData.tracking_number = trackingNumber;
+        }
+        shippingData.courier_service = courierService;
+      }
+      // Validasi apakah ada data yang akan diupdate
+      if (Object.keys(shippingData).length === 0) {
+        throw new Error('Tidak ada data yang diubah. Masukkan minimal satu field untuk diperbarui.');
+      }
+      
+      console.log('Mengirim data update ke server:', {
+        orderId: id,
+        shippingData
+      });
+      
+      const response = await adminApi.updateOrderDetails(id, shippingData);
+      console.group('handleUpdateStatus - Response Details');
+      console.log('Response dari server:', response);
+      console.log('Response data:', response.data);
+      console.log('Response error:', response.error);
+      console.groupEnd();
+      
+      if (response.error) {
+        console.error('Error response dari server:', response.error);
+        throw new Error(response.error);
+      }
+
+      // Update local state if successful
+      setOrder(prev => {
+        const updated = {
+          ...prev,
+          shipping_status: normalizedStatus || prev.shipping_status,
+          // shipping_area perlu diperbarui untuk sinkronisasi tampilan
+          shipping_area: normalizedShippingArea || prev.shipping_area,
+          pickup_method: normalizedPickupMethod || prev.pickup_method,
+          // Tambahkan field lain yang diupdate
+          tipe_pesanan: normalizedTipePesanan || prev.tipe_pesanan,
+          metode_pengiriman: normalizedMetodePengiriman || prev.metode_pengiriman,
+          admin_note: normalizedAdminNote || prev.admin_note
+        };
+        
+        // Tambahkan field kondisional
+        if (normalizedTipePesanan === 'Pesan Antar' && normalizedLokasiPengiriman) {
+          updated.lokasi_pengiriman = normalizedLokasiPengiriman;
+        }
+        
+        if (normalizedTipePesanan === 'Pesan Ambil' && normalizedLokasiPengambilan) {
+          updated.lokasi_pengambilan = normalizedLokasiPengambilan;
+        }
+        
+        // Tambahkan tracking dan courier service untuk luar kota
+        if (normalizedShippingArea === 'luar-kota') {
+          if (courierService !== 'TRAVEL') {
+            updated.tracking_number = trackingNumber || prev.tracking_number;
+          }
+          updated.courier_service = courierService || prev.courier_service;
+        }
+        
+        console.log('State order diperbarui:', updated);
+        return updated;
+      });
+      
+      // Set saved admin note dan reset form changed state
+      setSavedAdminNote(normalizedAdminNote || '');
+      setFormChanged(false);
+      
+      // Show success notification
+      toast({
+        title: "Status pesanan berhasil diperbarui",
+        description: `Data pesanan berhasil diperbarui`,
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      
+      // Refresh hanya jika perlu update data tambahan seperti shipping images
+      // tapi TIDAK reload seluruh halaman
+      if (shippingStatus === 'ready_for_pickup' || shippingStatus === 'picked_up') {
+        setTimeout(() => {
+          // Hanya update bagian yang perlu direfresh, tidak reload semua
+          fetchShippingImages();
+        }, 500);
+      }
+    } catch (err) {
       console.error('Error saat memperbarui status pesanan:', err);
       toast({
         title: "Gagal memperbarui informasi pesanan",
@@ -291,6 +490,9 @@ function AdminOrderDetailPage() {
         ...prev,
         admin_note: adminNote
       }));
+      
+      // Refresh all order data to ensure consistency
+      await loadAllData();
       
       toast({
         title: "Catatan berhasil disimpan",
@@ -361,6 +563,8 @@ function AdminOrderDetailPage() {
 
   // Fungsi untuk menghapus gambar shipping
   const handleDeleteImage = async (type) => {
+    if (!uploadedImages[type] || uploadedImages[type] === "" || !order) return;
+    
     try {
       setIsUploading(true);
       
@@ -381,7 +585,7 @@ function AdminOrderDetailPage() {
         // Update state
         setUploadedImages(prev => ({
           ...prev,
-          [type]: null
+          [type]: ""
         }));
         
         // Hapus dari localStorage untuk sinkronisasi
@@ -403,6 +607,9 @@ function AdminOrderDetailPage() {
           duration: 3000,
           isClosable: true,
         });
+        
+        // Enable Update button after successful image deletion
+        setFormChanged(true);
       } else {
         throw new Error(result.error || 'Gagal menghapus gambar');
       }
@@ -479,49 +686,12 @@ function AdminOrderDetailPage() {
         }
       }
       
-      // Jika tidak ada foto yang perlu diupload
-      if (uploadPromises.length === 0) {
-        console.log('[DEBUG-UPLOAD] No new images to upload');
-        toast({
-          title: "Tidak ada foto baru untuk disimpan",
-          description: "Tidak ada perubahan yang perlu disimpan",
-          status: "info",
-          duration: 3000,
-          isClosable: true,
-        });
-        setIsUploading(false);
-        return;
-      }
-      
-      // Upload semua gambar sekaligus
-      console.log(`[DEBUG-UPLOAD] Uploading ${uploadPromises.length} images...`);
-      const results = await Promise.all(uploadPromises);
-      console.log('[DEBUG-UPLOAD] Upload results:', results);
-      
-      // Periksa hasil upload
-      const failedUploads = results.filter(result => !result.success);
-      
-      if (failedUploads.length > 0) {
-        throw new Error(`Gagal mengupload ${failedUploads.length} gambar`);
-      }
-      
-      // Update URL gambar setelah upload berhasil
-      const updatedImages = {...uploadedImages}; // Clone state saat ini
-      
-      for (let i = 0; i < results.length; i++) {
-        const { success, image_url } = results[i];
-        const { type } = uploadDetails[i];
-        
-        if (success && image_url) {
-          console.log(`[DEBUG-UPLOAD] Setting new URL for ${type}:`, image_url);
-          // Tambahkan cache busting ke URL
-          const imageUrlWithCacheBusting = `${image_url}?t=${Date.now()}`;
-          updatedImages[type] = imageUrlWithCacheBusting;
-        }
-      }
+      // Tunggu semua promise upload selesai
+      await Promise.all(uploadPromises);
       
       // Update state sekali dengan semua perubahan
       setUploadedImages(updatedImages);
+      console.log('[DEBUG-UPLOAD] Updated images with both keys:', updatedImages);
       
       // Simpan ke localStorage untuk persistensi
       try {
@@ -532,7 +702,10 @@ function AdminOrderDetailPage() {
       }
       
       // Segera ambil ulang data gambar dari API setelah upload berhasil
-      await fetchShippingImages(id);
+      await adminApi.getShippingImages(id);
+      
+      // Refresh all order data to ensure consistency
+      await loadAllData();
       
       toast({
         title: "Foto berhasil disimpan",
@@ -540,7 +713,6 @@ function AdminOrderDetailPage() {
         duration: 3000,
         isClosable: true,
       });
-      
     } catch (err) {
       console.error('[DEBUG-UPLOAD] Error in handleSaveImages:', err);
       toast({
@@ -554,10 +726,24 @@ function AdminOrderDetailPage() {
       setIsUploading(false);
     }
   };
+      status: "error",
+      duration: 5000,
+      isClosable: true,
+    });
+  }
+  
+  // Reset selected files after uploading
+  setFiles({});
+};
 
-  // Fungsi untuk menghapus catatan admin
-  const handleDeleteNote = async () => {
-    setIsDeletingNote(true);
+// Fungsi untuk menghapus catatan admin
+const handleDeleteNote = async () => {
+  setIsDeletingNote(true);
+  try {
+    const response = await adminApi.updateOrderStatus(id, order.shipping_status, '');
+    
+    if (response.error) {
+      throw new Error(response.error);
     try {
       const response = await adminApi.updateOrderStatus(id, order.shipping_status, '');
       
@@ -580,14 +766,6 @@ function AdminOrderDetailPage() {
         title: "Catatan berhasil dihapus",
         status: "success",
         duration: 3000,
-        isClosable: true,
-      });
-    } catch (err) {
-      toast({
-        title: "Gagal menghapus catatan",
-        description: err.message,
-        status: "error",
-        duration: 5000,
         isClosable: true,
       });
     } finally {
@@ -657,17 +835,8 @@ function AdminOrderDetailPage() {
   };
 
   const getShippingStatusBadge = (status) => {
-    const statusMap = {
-      "dikemas": { color: "blue", text: "Dikemas" },
-      "siap kirim": { color: "purple", text: "Siap Kirim" },
-      "dikirim": { color: "orange", text: "Dikirim" },
-      "sedang dikirim": { color: "orange", text: "Sedang Dikirim" },
-      "received": { color: "green", text: "Diterima" },
-    };
-
-    const statusInfo = statusMap[status?.toLowerCase()] || { color: "gray", text: status || "Menunggu Diproses" };
-    
-    return <Badge colorScheme={statusInfo.color}>{statusInfo.text}</Badge>;
+    const statusConfig = getShippingStatusConfig(status);
+    return <Badge colorScheme={statusConfig.color}>{statusConfig.text}</Badge>;
   };
 
   // Handler untuk memilih gambar dan langsung upload ke server
@@ -676,24 +845,24 @@ function AdminOrderDetailPage() {
       return;
     }
     
-    // Validasi ukuran file (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "File terlalu besar",
-        description: "Ukuran maksimal file adalah 5MB",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
-      return;
-    }
-
     // Validasi tipe file
     const validMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!validMimeTypes.includes(file.type)) {
       toast({
         title: "Format file tidak didukung",
         description: "Gunakan format JPG, PNG, WebP, atau GIF",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    // Validasi ukuran file (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File terlalu besar",
+        description: "Ukuran maksimal file adalah 5MB",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -715,65 +884,8 @@ function AdminOrderDetailPage() {
             [type]: e.target.result
           };
           
-          // Simpan ke localStorage sementara (untuk preview)
-          try {
-            localStorage.setItem(`shipping_images_${id}`, JSON.stringify(newState));
-            console.log(`[DEBUG-IMAGE] Saved preview image for ${type} to localStorage`);
-          } catch (err) {
-            console.error('[DEBUG-IMAGE] Failed to save preview to localStorage:', err);
-          }
-          
-          return newState;
-        });
-        
-        // Upload gambar ke server
-        try {
-          // Konversi type ke format yang digunakan API
-          const apiTypeMap = {
-            readyForPickup: 'ready_for_pickup',
-            pickedUp: 'picked_up',
-            received: 'delivered'
-          };
-          
-          const apiType = apiTypeMap[type];
-          console.log(`[DEBUG-IMAGE] Uploading image for ${type} (${apiType})`);
-          
-          const result = await adminApi.uploadShippingImage(id, apiType, file);
-          
-          if (result.success) {
-            console.log(`[DEBUG-IMAGE] Upload success for ${type}:`, result);
-            
-            // Update URL gambar setelah upload berhasil
-            if (result.image_url) {
-              // Tambahkan cache busting ke URL
-              const imageUrlWithCacheBusting = `${result.image_url}?t=${Date.now()}`;
-              
-              setUploadedImages(prev => {
-                const updatedState = {
-                  ...prev,
-                  [type]: imageUrlWithCacheBusting
-                };
-                
-                // Update localStorage dengan URL baru
-                try {
-                  localStorage.setItem(`shipping_images_${id}`, JSON.stringify(updatedState));
-                } catch (storageErr) {
-                  console.error('[DEBUG-IMAGE] Failed to update localStorage after upload:', storageErr);
-                }
-                
-                return updatedState;
-              });
-              
-              toast({
-                title: "Foto berhasil disimpan",
-                status: "success",
-                duration: 2000,
-                isClosable: true,
-              });
-            }
-          } else {
-            throw new Error(result.error || 'Gagal mengupload gambar');
-          }
+          // Tidak perlu menyimpan ke localStorage karena sudah di state
+          // dan gambar sudah diupload ke server
         } catch (uploadError) {
           console.error(`[DEBUG-IMAGE] Error uploading ${type} image:`, uploadError);
           toast({
@@ -803,13 +915,44 @@ function AdminOrderDetailPage() {
   };
 
   // Fungsi untuk menampilkan gambar yang diupload
+  // Helper to convert backend types to frontend types
+  const mapTypeToBackendFormat = (type) => {
+    // Map frontend types to backend format
+    const typeMapping = {
+      'readyForPickup': 'ready_for_pickup',
+      'pickedUp': 'picked_up',
+      'received': 'delivered',
+      'shipmentProof': 'shipment_proof'
+    };
+    return typeMapping[type] || type;
+  };
+  
   const renderUploadedImage = (type) => {
-    if (!uploadedImages[type]) return null;
+    // Find by either frontend or backend type format for maximum compatibility
+    const imageUrl = uploadedImages[type] || uploadedImages[mapTypeToBackendFormat(type)];
+    
+    console.log(`[RENDER-DEBUG] Rendering image for type: ${type}, URL:`, imageUrl);
+    
+    if (!imageUrl || imageUrl === "") {
+      return (
+        <Box 
+          w="100%" 
+          h="150px" 
+          border="2px dashed" 
+          borderColor="gray.200"
+          borderRadius="md"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+        >
+          <Text color="gray.500">Belum ada foto</Text>
+        </Box>
+      );
+    }
     
     // Tambahkan key dengan timestamp untuk memaksa re-render komponen Image
     // saat URL berubah (bahkan jika base URL sama)
     const imageKey = `${type}-${Date.now()}`;
-    const imageUrl = uploadedImages[type];
     
     return (
       <Image 
@@ -841,10 +984,43 @@ if (loading) {
 
 if (error || !order) {
   return (
-    <Alert status="warning">
-      <AlertIcon />
-      {error || "Pesanan tidak ditemukan."}
-    </Alert>
+    <Box p={4} maxW="1200px" mx="auto">
+      {loading ? (
+        <Flex justify="center" align="center" minH="60vh">
+          <Spinner size="xl" />
+        </Flex>
+      ) : error ? (
+        <Box textAlign="center" py={10} px={6}>
+          <Alert status="error" variant="solid" mb={6}>
+            <AlertIcon />
+            {error}
+          </Alert>
+          
+          <Heading as="h2" size="xl" mt={6} mb={2}>
+            Pesanan tidak ditemukan
+          </Heading>
+          
+          <Text color={"gray.500"} mb={6}>
+            Pesanan dengan ID <strong>{id}</strong> tidak dapat ditemukan di database. 
+            Silakan periksa ID pesanan atau kembali ke daftar pesanan.
+          </Text>
+
+          <Button
+            colorScheme="blue"
+            onClick={() => navigate('/admin/orders')}
+            size="lg"
+            mt={4}
+          >
+            Kembali ke Daftar Pesanan
+          </Button>
+        </Box>
+      ) : (
+        <Alert status="warning">
+          <AlertIcon />
+          Pesanan tidak ditemukan.
+        </Alert>
+      )}
+    </Box>
   );
 }
 
@@ -856,13 +1032,26 @@ return (
       <Heading size="lg">
         Detail Pesanan #{order.id.substring(0, 8)}
       </Heading>
-      <Button 
-        as={RouterLink} 
-        to="/admin/orders" 
-        variant="outline"
-      >
-        Kembali ke Daftar
-      </Button>
+      <HStack spacing={4}>
+        <Button 
+          as={RouterLink} 
+          to="/admin/orders" 
+          variant="outline"
+        >
+          Kembali ke Daftar
+        </Button>
+        {isPublicOrderPage && (
+          <Button
+            as={RouterLink}
+            to={`/orders/${id}`}
+            colorScheme="blue"
+            variant="outline"
+            leftIcon={<span role="img" aria-label="eye">👁️</span>}
+          >
+            Lihat sebagai Pelanggan
+          </Button>
+        )}
+      </HStack>
     </HStack>
 
     <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
@@ -876,6 +1065,7 @@ return (
             <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={6}>
               <GridItem>
                 <Heading size="sm" mb={4}>Informasi Pelanggan</Heading>
+                <Text><strong>Tanggal Pesanan:</strong> {formatDate(order.created_at)}</Text>
                 <Text><strong>Nama:</strong> {order.customer_name}</Text>
                 <Text><strong>Email:</strong> {order.customer_email}</Text>
                 <Text><strong>Telepon:</strong> {order.customer_phone}</Text>
@@ -884,21 +1074,28 @@ return (
                 )}
               </GridItem>
               <GridItem>
-                <Heading size="sm" mb={4}>Detail Pembayaran</Heading>
+                <Heading size="sm" mb={4}>Detail Teknis Pengiriman</Heading>
                 <Text><strong>Total:</strong> Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
-                <HStack mt={2}>
-                  <Text><strong>Status Pembayaran:</strong></Text>
-                  {getPaymentStatusBadge(order.payment_status)}
-                </HStack>
                 <HStack mt={2}>
                   <Text><strong>Status Pengiriman:</strong></Text>
                   {getShippingStatusBadge(order.shipping_status)}
                 </HStack>
-                <Text mt={2}><strong>Metode:</strong> <Tag>{order.payment_method || 'N/A'}</Tag></Text>
-                {order.payment_time && (
-                  <Text><strong>Waktu Pembayaran:</strong> {order.payment_time ? `${new Date(order.payment_time).getDate().toString().padStart(2, '0')}-${(new Date(order.payment_time).getMonth() + 1).toString().padStart(2, '0')}-${new Date(order.payment_time).getFullYear()}` : '-'}</Text>
+                <Text><strong>Tipe Pesanan:</strong> {order.tipe_pesanan || '-'}</Text>
+                <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
+                {order.tipe_pesanan === 'Pesan Ambil' && (
+                  <Text><strong>Lokasi Pengambilan:</strong> {order.lokasi_pengambilan || '-'}</Text>
                 )}
-                <Text><strong>Dibuat:</strong> {order.created_at ? `${new Date(order.created_at).getDate().toString().padStart(2, '0')}-${(new Date(order.created_at).getMonth() + 1).toString().padStart(2, '0')}-${new Date(order.created_at).getFullYear()}` : '-'}</Text>
+                {order.tipe_pesanan === 'Pesan Antar' && (
+                  <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman || '-'}</Text>
+                )}
+                <Text><strong>Metode {order.tipe_pesanan === 'Pesan Ambil' ? 'Ambil' : 'Antar'}:</strong> {order.pickup_method === 'sendiri' ? 'Ambil Sendiri' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : order.pickup_method === 'team-delivery' ? 'Deliveryman' : '-'}</Text>
+                {order.shipping_area === 'luar-kota' && (
+                  <>
+                    <Text><strong>Jasa Kurir:</strong> {order.courier_service || '-'}</Text>
+                    <Text><strong>No. Resi:</strong> {order.tracking_number || '-'}</Text>
+                  </>
+                )}
+                <Text><strong>Dibuat:</strong> {formatDate(order.created_at)}</Text>
               </GridItem>
             </Grid>
 
@@ -947,20 +1144,23 @@ return (
                       <TabList>
                         <Tab isDisabled={shippingArea !== 'dalam-kota'}>Dalam Kota</Tab>
                         <Tab isDisabled={shippingArea !== 'luar-kota'}>Luar Kota</Tab>
-                        <Tab>QR Code Pengambilan</Tab>
+                        {tipe_pesanan === 'Pesan Ambil' && <Tab>QR Code Pengambilan</Tab>}
                       </TabList>
                       <TabPanels>
                         {/* Tab Dalam Kota */}
                         <TabPanel>
                           <VStack spacing={4} align="stretch">
-                            <Text fontWeight="medium">Status Foto - Dalam Kota</Text>
+                            <Text fontWeight="medium">Status Foto - Dalam Kota ({normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Pengiriman" : "Pengambilan"})</Text>
+                            <Text fontSize="sm" color="gray.500">Unggah foto untuk setiap tahap pengiriman. Foto akan otomatis tersimpan.</Text>
+
                             {/* Foto Siap Ambil */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>Siap Ambil</Heading>
+                              <Heading size="sm" mb={2}>
+                                1. {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Siap Dikirim" : "Siap Diambil"}
+                              </Heading>
                               {renderUploadedImage('readyForPickup')}
-                              
                               <HStack mt={2} spacing={2}>
-                                <Button 
+                                <Button
                                   onClick={() => fileInputRefs.readyForPickup.current.click()}
                                   isLoading={isUploading}
                                   size="sm"
@@ -969,32 +1169,43 @@ return (
                                   {uploadedImages.readyForPickup ? 'Ganti Foto' : 'Upload Foto'}
                                 </Button>
                                 {uploadedImages.readyForPickup && (
-                                  <Button 
-                                    size="sm" 
-                                    colorScheme="red"
-                                    isLoading={isUploading}
-                                    onClick={() => handleDeleteImage('readyForPickup')}
-                                  >
-                                    Hapus
-                                  </Button>
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="green"
+                                      isLoading={isUploading}
+                                      onClick={() => setFormChanged(true)}
+                                    >
+                                      Simpan Foto
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="red"
+                                      isLoading={isUploading}
+                                      onClick={() => handleDeleteImage('readyForPickup')}
+                                    >
+                                      Hapus
+                                    </Button>
+                                  </>
                                 )}
                               </HStack>
-                              <Input 
-                                type="file" 
-                                accept="image/*" 
-                                hidden 
-                                ref={fileInputRefs.readyForPickup} 
+                              <Input
+                                type="file"
+                                accept="image/*"
+                                hidden
+                                ref={fileInputRefs.readyForPickup}
                                 onChange={(e) => handleImageSelect('readyForPickup', e.target.files[0])}
                               />
                             </Box>
-                            
+
                             {/* Foto Sudah Diambil */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>Sudah Diambil</Heading>
+                              <Heading size="sm" mb={2}>
+                                2. {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Sudah Dikirim" : "Sudah Diambil"}
+                              </Heading>
                               {renderUploadedImage('pickedUp')}
-                              
                               <HStack mt={2} spacing={2}>
-                                <Button 
+                                <Button
                                   onClick={() => fileInputRefs.pickedUp.current.click()}
                                   isLoading={isUploading}
                                   size="sm"
@@ -1003,32 +1214,41 @@ return (
                                   {uploadedImages.pickedUp ? 'Ganti Foto' : 'Upload Foto'}
                                 </Button>
                                 {uploadedImages.pickedUp && (
-                                  <Button 
-                                    size="sm" 
-                                    colorScheme="red"
-                                    isLoading={isUploading}
-                                    onClick={() => handleDeleteImage('pickedUp')}
-                                  >
-                                    Hapus
-                                  </Button>
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="green"
+                                      isLoading={isUploading}
+                                      onClick={() => setFormChanged(true)}
+                                    >
+                                      Simpan Foto
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="red"
+                                      isLoading={isUploading}
+                                      onClick={() => handleDeleteImage('pickedUp')}
+                                    >
+                                      Hapus
+                                    </Button>
+                                  </>
                                 )}
                               </HStack>
-                              <Input 
-                                type="file" 
-                                accept="image/*" 
-                                hidden 
-                                ref={fileInputRefs.pickedUp} 
+                              <Input
+                                type="file"
+                                accept="image/*"
+                                hidden
+                                ref={fileInputRefs.pickedUp}
                                 onChange={(e) => handleImageSelect('pickedUp', e.target.files[0])}
                               />
                             </Box>
-                            
+
                             {/* Foto Sudah Diterima */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>Sudah Diterima</Heading>
+                              <Heading size="sm" mb={2}>3. Sudah Diterima</Heading>
                               {renderUploadedImage('received')}
-                              
                               <HStack mt={2} spacing={2}>
-                                <Button 
+                                <Button
                                   onClick={() => fileInputRefs.received.current.click()}
                                   isLoading={isUploading}
                                   size="sm"
@@ -1037,294 +1257,156 @@ return (
                                   {uploadedImages.received ? 'Ganti Foto' : 'Upload Foto'}
                                 </Button>
                                 {uploadedImages.received && (
-                                  <Button 
-                                    size="sm" 
-                                    colorScheme="red"
-                                    isLoading={isUploading}
-                                    onClick={() => handleDeleteImage('received')}
-                                  >
-                                    Hapus
-                                  </Button>
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="green"
+                                      isLoading={isUploading}
+                                      onClick={() => setFormChanged(true)}
+                                    >
+                                      Simpan Foto
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      colorScheme="red"
+                                      isLoading={isUploading}
+                                      onClick={() => handleDeleteImage('received')}
+                                    >
+                                      Hapus
+                                    </Button>
+                                  </>
                                 )}
                               </HStack>
-                              <Input 
-                                type="file" 
-                                accept="image/*" 
-                                hidden 
-                                ref={fileInputRefs.received} 
+                              <Input
+                                type="file"
+                                accept="image/*"
+                                hidden
+                                ref={fileInputRefs.received}
                                 onChange={(e) => handleImageSelect('received', e.target.files[0])}
                               />
                             </Box>
-                            
-                            <Button 
-                              colorScheme="blue" 
-                              onClick={handleSaveImages}
-                              isLoading={isUploading}
-                            >
-                              Simpan Semua Foto
-                            </Button>
                           </VStack>
                         </TabPanel>
                         {/* Tab Luar Kota */}
                         <TabPanel>
                           <VStack spacing={4} align="stretch">
                             <Text fontWeight="medium">Status Foto - Luar Kota</Text>
-                            {/* Foto Siap Kirim */}
-                            <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>Siap Kirim</Heading>
-                              {renderUploadedImage('readyForPickup')}
-                              
-                              <HStack mt={2} spacing={2}>
-                                <Button 
-                                  onClick={() => fileInputRefs.readyForPickup.current.click()}
-                                  isLoading={isUploading}
-                                  size="sm"
-                                  colorScheme="blue"
-                                >
-                                  {uploadedImages.readyForPickup ? 'Ganti Foto' : 'Upload Foto'}
-                                </Button>
-                                {uploadedImages.readyForPickup && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="ghost"
-                                    colorScheme="red"
-                                    onClick={() => {
-                                      setUploadedImages(prev => ({
-                                        ...prev,
-                                        readyForPickup: null
-                                      }));
-                                    }}
-                                  >
-                                    Hapus
-                                  </Button>
-                                )}
-                              </HStack>
-                              <Input 
-                                ref={fileInputRefs.readyForPickup}
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => handleImageSelect('readyForPickup', e.target.files[0])}
-                                display="none"
-                              />
-                            </Box>
+                            <Text fontSize="sm" color="gray.500">Unggah satu foto sebagai bukti pengiriman untuk pesanan luar kota.</Text>
                             
-                            {/* Foto Sudah Dikirim */}
+                            {/* Bukti Pengiriman */}
                             <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>Sudah Dikirim</Heading>
-                              {renderUploadedImage('pickedUp')}
-                              
+                              <Heading size="sm" mb={2}>Bukti Pengiriman</Heading>
+                              {renderUploadedImage('shipmentProof')}
                               <HStack mt={2} spacing={2}>
-                                <Button 
-                                  onClick={() => fileInputRefs.pickedUp.current.click()}
+                                <Button
+                                  onClick={() => fileInputRefs.shipmentProof.current.click()}
                                   isLoading={isUploading}
                                   size="sm"
                                   colorScheme="blue"
                                 >
-                                  {uploadedImages.pickedUp ? 'Ganti Foto' : 'Upload Foto'}
+                                  {uploadedImages.shipmentProof ? 'Ganti Foto' : 'Upload Foto'}
                                 </Button>
-                                {uploadedImages.pickedUp && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="ghost"
+                                {uploadedImages.shipmentProof && (
+                                  <Button
+                                    size="sm"
                                     colorScheme="red"
-                                    onClick={() => {
-                                      setUploadedImages(prev => ({
-                                        ...prev,
-                                        pickedUp: null
-                                      }));
-                                    }}
+                                    isLoading={isUploading}
+                                    onClick={() => handleDeleteImage('shipmentProof')}
                                   >
                                     Hapus
                                   </Button>
                                 )}
                               </HStack>
-                              <Input 
-                                ref={fileInputRefs.pickedUp}
+                              <Input
                                 type="file"
                                 accept="image/*"
-                                onChange={(e) => handleImageSelect('pickedUp', e.target.files[0])}
-                                display="none"
-                              />
-                            </Box>
-                            
-                            {/* Foto Sudah Diterima */}
-                            <Box borderWidth="1px" borderRadius="lg" p={4}>
-                              <Heading size="sm" mb={2}>Sudah Diterima</Heading>
-                              {renderUploadedImage('received')}
-                              
-                              <HStack mt={2} spacing={2}>
-                                <Button 
-                                  onClick={() => fileInputRefs.received.current.click()}
-                                  isLoading={isUploading}
-                                  size="sm"
-                                  colorScheme="blue"
-                                >
-                                  {uploadedImages.received ? 'Ganti Foto' : 'Upload Foto'}
-                                </Button>
-                                {uploadedImages.received && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="ghost"
-                                    colorScheme="red"
-                                    onClick={() => {
-                                      setUploadedImages(prev => ({
-                                        ...prev,
-                                        received: null
-                                      }));
-                                    }}
-                                  >
-                                    Hapus
-                                  </Button>
-                                )}
-                              </HStack>
-                              <Input 
-                                ref={fileInputRefs.received}
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => handleImageSelect('received', e.target.files[0])}
-                                display="none"
+                                hidden
+                                ref={fileInputRefs.shipmentProof}
+                                onChange={(e) => handleImageSelect('shipmentProof', e.target.files[0])}
                               />
                             </Box>
                           </VStack>
                         </TabPanel>
                         {/* Tab QR Code */}
-                        <TabPanel>
-                          <Box mb={4}>
-                            <Heading size="sm" mb={2}>QR Code untuk Pengambilan</Heading>
-                            <Text fontSize="sm" mb={4}>QR code ini bisa ditunjukkan oleh pelanggan saat mengambil pesanan di outlet.</Text>
-                            
-                            <Flex justifyContent="center" mb={4}>
-                              <Box
-                                p={4}
-                                borderWidth="1px"
-                                borderRadius="lg"
-                                width="fit-content"
-                                textAlign="center"
-                                id="qrcode-container"
-                                ref={qrCodeRef}
-                              >
-                                <QRCodeSVG 
-                                  value={`https://tagihan.kurniasari.co.id/orders/${order.id}`}
-                                  size={200}
-                                  level="H"
-                                  includeMargin={true}
-                                  imageSettings={{
-                                    src: "https://kurniasaripayment.netlify.app/logo192.png",
-                                    x: undefined,
-                                    y: undefined,
-                                    height: 40,
-                                    width: 40,
-                                    excavate: true,
-                                  }}
-                                />
-                                <Text mt={2} fontSize="sm" fontWeight="bold">Order #{order.id}</Text>
-                              </Box>
-                            </Flex>
-                            
-                            <Button
-                              onClick={() => {
-                                const container = qrCodeRef.current;
-                                if (!container) return;
-                
-                                html2canvas(container, { scale: 2 }).then(canvas => {
-                                  const link = document.createElement('a');
-                                  link.download = `qrcode-order-${order.id}.png`;
-                                  link.href = canvas.toDataURL();
-                                  link.click();
-                                });
-                              }}
-                              colorScheme="blue"
-                              size="md"
-                              width="full"
-                            >
-                              Download QR Code
-                            </Button>
-                          </Box>
-                        </TabPanel>
-                        <TabPanel>
-                          <VStack spacing={4} align="center">
-                            <Heading size="sm">QR Code Pengambilan</Heading>
-                            <Box id="qr-code-container" p={4} borderWidth="1px" borderRadius="lg" bg="white">
-                              <QRCodeSVG 
-                                value={`https://tagihan.kurniasari.co.id/orders/${order.id}`} 
-                                size={200}
-                                includeMargin={true}
-                                level="H"
-                                ref={qrCodeRef}
-                              />
-                            </Box>
-                            <Text fontSize="sm">URL: https://tagihan.kurniasari.co.id/orders/{order.id}</Text>
-                            <Button colorScheme="blue" onClick={() => {
-                              try {
-                                // Gunakan element QR code container untuk screenshot
-                                const qrCodeContainer = document.getElementById('qr-code-container');
-                                if (!qrCodeContainer) {
-                                  toast({
-                                    title: "Gagal mengunduh QR Code",
-                                    description: "QR Code tidak tersedia",
-                                    status: "error",
-                                    duration: 3000,
-                                    isClosable: true
-                                  });
-                                  return;
-                                }
-                                
-                                // Gunakan html2canvas untuk mengambil screenshot elemen
-                                html2canvas(qrCodeContainer, {
-                                  backgroundColor: "#ffffff",
-                                  scale: 2, // Scale untuk kualitas lebih baik
-                                  logging: false
-                                }).then(canvas => {
-                                  try {
-                                    // Konversi canvas ke URL dan download
+                        {tipe_pesanan === 'Pesan Ambil' && (
+                          <TabPanel>
+                            <VStack spacing={4} align="stretch">
+                              <Heading size="sm">QR Code untuk Pengambilan</Heading>
+                              <Text fontSize="sm" color="gray.500">Tunjukkan QR code ini saat mengambil pesanan di outlet.</Text>
+                              
+                              <Flex justifyContent="center" my={4}>
+                                <Box
+                                  p={4}
+                                  borderWidth="1px"
+                                  borderRadius="lg"
+                                  bg="white"
+                                  ref={qrCodeRef}
+                                  id="qrcode-container"
+                                >
+                                  {order && order.id ? (
+                                    <VStack>
+                                      <QRCodeSVG 
+                                        value={`https://tagihan.kurniasari.co.id/orders/${order.id}`}
+                                        size={220}
+                                        level="H"
+                                        includeMargin={true}
+                                        // Logo dihapus untuk menghindari 404 error
+                                        // Jika ingin menggunakan logo, gunakan path relatif seperti '/src/assets/react.svg'
+                                      />
+                                      <Text pt={2} fontSize="sm" fontWeight="bold">Order #{order.id}</Text>
+                                    </VStack>
+                                  ) : (
+                                    <Text>Order ID tidak tersedia.</Text>
+                                  )}
+                                </Box>
+                              </Flex>
+                              
+                              <Button
+                                onClick={() => {
+                                  const qrCodeElement = qrCodeRef.current;
+                                  if (!qrCodeElement || !order || !order.id) {
+                                    toast({
+                                      title: "Gagal mengunduh QR Code",
+                                      description: "Data QR Code belum siap.",
+                                      status: "error",
+                                      duration: 3000,
+                                      isClosable: true,
+                                    });
+                                    return;
+                                  }
+                                  
+                                  html2canvas(qrCodeElement, { 
+                                    scale: 3,
+                                    backgroundColor: '#ffffff',
+                                    useCORS: true,
+                                  }).then(canvas => {
                                     const link = document.createElement('a');
-                                    link.download = `QR-${order.id}.png`;
+                                    link.download = `QR-Code-Order-${order.id}.png`;
                                     link.href = canvas.toDataURL('image/png');
-                                    document.body.appendChild(link);
                                     link.click();
-                                    document.body.removeChild(link);
-                                    
                                     toast({
                                       title: "QR Code berhasil diunduh",
                                       status: "success",
                                       duration: 2000,
-                                      isClosable: true
+                                      isClosable: true,
                                     });
-                                  } catch (downloadErr) {
-                                    console.error('Error downloading QR code:', downloadErr);
+                                  }).catch(err => {
+                                    console.error("Error generating QR code image:", err);
                                     toast({
-                                      title: "Gagal mengunduh QR Code",
-                                      description: downloadErr.message,
+                                      title: "Gagal membuat gambar QR Code",
+                                      description: err.message,
                                       status: "error",
                                       duration: 3000,
-                                      isClosable: true
+                                      isClosable: true,
                                     });
-                                  }
-                                }).catch(err => {
-                                  console.error('Error capturing QR code with html2canvas:', err);
-                                  toast({
-                                    title: "Gagal mengambil gambar QR Code",
-                                    description: err.message,
-                                    status: "error",
-                                    duration: 3000,
-                                    isClosable: true
                                   });
-                                });
-                              } catch (err) {
-                                console.error('Error creating QR code download:', err);
-                                toast({
-                                  title: "Gagal mengunduh QR Code",
-                                  description: err.message,
-                                  status: "error",
-                                  duration: 3000,
-                                  isClosable: true
-                                });
-                              }
-                            }}>
-                              Download QR Code
-                            </Button>
-                          </VStack>
-                        </TabPanel>
+                                }}
+                              >
+                                Download QR Code
+                              </Button>
+                            </VStack>
+                          </TabPanel>
+                        )}
                       </TabPanels>
                     </Tabs>
                   </AccordionPanel>
@@ -1343,17 +1425,19 @@ return (
             </CardHeader>
             <CardBody>
               <VStack spacing={4} align="stretch">
-                <FormControl>
+                <FormControl id="shipping_status" isRequired>
                   <FormLabel>Status Pengiriman</FormLabel>
                   <Select 
                     value={shippingStatus} 
-                    onChange={e => setShippingStatus(e.target.value)}
+                    onChange={(e) => {
+                      setShippingStatus(e.target.value);
+                      setFormChanged(true);
+                    }}
+                    placeholder="Pilih status"
                   >
-                    <option value="">Menunggu Diproses</option>
-                    <option value="dikemas">Dikemas</option>
-                    <option value="siap kirim">Siap Kirim</option>
-                    <option value="sedang dikirim">Dalam Pengiriman</option>
-                    <option value="received">Diterima</option>
+                    {getShippingStatusOptions().map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                   </Select>
                 </FormControl>
 
@@ -1363,12 +1447,21 @@ return (
                     value={shippingArea} 
                     onChange={(e) => {
                       const newValue = e.target.value;
+                      console.log('DEBUG - Changing shipping area from', shippingArea, 'to', newValue);
                       setShippingArea(newValue);
+                      setFormChanged(true);
                       // Atur tab aktif berdasarkan area pengiriman
                       if (newValue === 'dalam-kota') {
                         setTabIndex(0); // Tab Dalam Kota
+                        // Reset state jika sebelumnya luar kota
+                        setCourierService('');
+                        setTrackingNumber('');
+                        setTrackingNumberError('');
                       } else if (newValue === 'luar-kota') {
                         setTabIndex(1); // Tab Luar Kota
+                        // Reset state tipe pesanan untuk luar kota
+                        setPickupMethod(''); // Nonaktifkan Pesan Ambil
+                        setMetodePengiriman(''); // Reset Metode Kirim
                       }
                     }}
                   >
@@ -1377,15 +1470,153 @@ return (
                   </Select>
                 </FormControl>
                 
+                {/* Tipe Pesanan selection - hanya tampil jika area pengiriman Dalam Kota */}
                 {shippingArea === 'dalam-kota' && (
-                  <FormControl>
-                    <FormLabel>Metode Pengambilan</FormLabel>
+                  <FormControl mt={4}>
+                    <FormLabel>Tipe Pesanan</FormLabel>
+                    <Select
+                      value={tipe_pesanan}
+                      onChange={(e) => {
+                        setTipePesanan(e.target.value);
+                        setFormChanged(true);
+                      }}
+                    >
+                      <option value="">Pilih Tipe Pesanan</option>
+                      <option value="Pesan Antar">Pesan Antar</option>
+                      <option value="Pesan Ambil">Pesan Ambil</option>
+                    </Select>
+                  </FormControl>
+                )}
+                
+                {/* Metode dinamis berdasarkan tipe pesanan */}
+                {tipe_pesanan && (
+                  <FormControl mt={4}>
+                    <FormLabel>{tipe_pesanan === 'Pesan Ambil' ? 'Metode Ambil' : 'Metode Antar'}</FormLabel>
+                    <Select
+                      placeholder={`Pilih ${tipe_pesanan === 'Pesan Ambil' ? 'Metode Ambil' : 'Metode Antar'}`}
+                      value={pickupMethod}
+                      onChange={(e) => {
+                        setPickupMethod(e.target.value);
+                        setFormChanged(true);
+                      }}
+                    >
+                      {tipe_pesanan === 'Pesan Ambil' ? (
+                        <>
+                          <option value="sendiri">Ambil sendiri</option>
+                          <option value="ojek-online">Di Ambil Driver Ojek Online</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="team-delivery">Di Antar Deliveryman</option>
+                          <option value="ojek-online">Di Antar Driver Ojek Online</option>
+                        </>
+                      )}
+                    </Select>
+                  </FormControl>
+                )}
+                
+                {/* Lokasi Pengiriman selection - shown when tipe_pesanan is "Pesan Antar" */}
+                {tipe_pesanan === 'Pesan Antar' && (
+                  <FormControl mt={4}>
+                    <FormLabel>Lokasi Pengiriman</FormLabel>
+                    <Select
+                      placeholder="Pilih Lokasi Pengiriman"
+                      value={lokasi_pengiriman}
+                      onChange={(e) => {
+                        setLokasiPengiriman(e.target.value);
+                        setFormChanged(true);
+                      }}
+                    >
+                      {locations.map((loc) => (
+                        <option key={loc.id} value={loc.nama_lokasi}>
+                          {loc.nama_lokasi}
+                        </option>
+                      ))}
+                    </Select>
+                    {locations.length === 0 && <Text mt={2} color="red.500">Tidak ada data lokasi</Text>}
+                  </FormControl>
+                )}
+                
+                {/* Lokasi Pengambilan selection - shown when tipe_pesanan is "Pesan Ambil" and area is Dalam Kota */}
+                {tipe_pesanan === 'Pesan Ambil' && shippingArea === 'dalam-kota' && (
+                  <FormControl mt={4}>
+                    <FormLabel>Lokasi Pengambilan</FormLabel>
+                    <Select
+                      placeholder="Pilih Lokasi Pengambilan"
+                      value={lokasi_pengambilan}
+                      onChange={(e) => {
+                        setLokasiPengambilan(e.target.value);
+                        setFormChanged(true);
+                      }}
+                    >
+                      {locations.map((loc) => (
+                        <option key={loc.id} value={loc.nama_lokasi}>
+                          {loc.nama_lokasi}
+                        </option>
+                      ))}
+                    </Select>
+                    {locations.length === 0 && <Text mt={2} color="red.500">Tidak ada data lokasi</Text>}
+                  </FormControl>
+                )}
+                
+                {/* UI Tipe Pesanan telah dihapus karena sudah ada di dropdown */}
+                
+                {/* UI Tipe Pesanan untuk Luar Kota - hanya menampilkan Pesan Kirim */}
+                {shippingArea === 'luar-kota' && (
+                  <Box mt={4}>
+                    <Heading as="h3" size="md" mb={3}>Tipe Pesanan</Heading>
+                    <Box
+                      p={4}
+                      borderWidth="1px"
+                      borderRadius="lg"
+                      borderColor="green.500"
+                      bg="green.50"
+                      width="100%"
+                    >
+                      <HStack spacing={3}>
+                        <Box boxSize="30px">
+                          <Box as="span" fontSize="24px">🚚</Box>
+                        </Box>
+                        <Box>
+                          <Text fontWeight="bold">Pesan Kirim (Luar Kota)</Text>
+                          <Text fontSize="sm" color="gray.600">Kirim ke alamat</Text>
+                        </Box>
+                      </HStack>
+                    </Box>
+                  </Box>
+                )}
+                
+                {/* Metode Ambil - hanya muncul jika Pesan Ambil aktif dan Pesan Kirim tidak aktif dan bukan Luar Kota */}
+                {pickupMethod !== '' && metodePengiriman === '' && shippingArea !== 'luar-kota' && (
+                  <FormControl mt={4}>
+                    <FormLabel>Metode Ambil</FormLabel>
                     <Select
                       value={pickupMethod}
-                      onChange={(e) => setPickupMethod(e.target.value)}
+                      onChange={(e) => {
+                        setPickupMethod(e.target.value);
+                        setFormChanged(true);
+                      }}
                     >
                       <option value="sendiri">Ambil Sendiri</option>
                       <option value="ojek-online">Ojek Online</option>
+                    </Select>
+                  </FormControl>
+                )}
+                
+                {/* Metode Kirim - hanya muncul jika Pesan Kirim aktif dan Pesan Ambil tidak aktif */}
+                {metodePengiriman !== '' && pickupMethod === '' && (
+                  <FormControl mt={4}>
+                    <FormLabel>Metode Kirim</FormLabel>
+                    <Select
+                      value={metodePengiriman}
+                      onChange={(e) => {
+                        setMetodePengiriman(e.target.value);
+                        setFormChanged(true);
+                      }}
+                      placeholder="Pilih metode pengiriman"
+                    >
+                      <option value="ojek-online">Ojek Online</option>
+                      <option value="team-delivery">Team Delivery</option>
                     </Select>
                   </FormControl>
                 )}
@@ -1400,140 +1631,171 @@ return (
                           onChange={(e) => {
                             const newService = e.target.checked ? 'TIKI' : '';
                             setCourierService(newService);
+                            setFormChanged(true);
                             
                             // Reset error ketika layanan berubah
                             if (trackingNumber) {
-                              if (newService === 'TIKI' && trackingNumber.length !== 16) {
-                                setTrackingNumberError('Nomor resi TIKI harus 16 digit');
-                              } else if (newService === 'JNE' && trackingNumber.length !== 15) {
-                                setTrackingNumberError('Nomor resi JNE harus 15 digit');
+                              if (newService === 'TIKI' && (trackingNumber.length < 10 || trackingNumber.length > 16)) {
+                                setTrackingNumberError('Nomor resi TIKI harus 10-16 digit');
+                              } else if (newService === 'JNE' && trackingNumber.length !== 16) {
+                                setTrackingNumberError('Nomor resi JNE harus 16 karakter');
                               } else {
                                 setTrackingNumberError('');
                               }
                             }
                           }}
                         >
-                          TIKI (16 digit)
+                          TIKI (10-16 digit)
                         </Checkbox>
                         <Checkbox 
                           isChecked={courierService === 'JNE'}
                           onChange={(e) => {
                             const newService = e.target.checked ? 'JNE' : '';
                             setCourierService(newService);
+                            setFormChanged(true);
                             
                             // Reset error ketika layanan berubah
                             if (trackingNumber) {
-                              if (newService === 'TIKI' && trackingNumber.length !== 16) {
-                                setTrackingNumberError('Nomor resi TIKI harus 16 digit');
-                              } else if (newService === 'JNE' && trackingNumber.length !== 15) {
-                                setTrackingNumberError('Nomor resi JNE harus 15 digit');
+                              if (newService === 'TIKI' && (trackingNumber.length < 10 || trackingNumber.length > 16)) {
+                                setTrackingNumberError('Nomor resi TIKI harus 10-16 digit');
+                              } else if (newService === 'JNE' && trackingNumber.length !== 16) {
+                                setTrackingNumberError('Nomor resi JNE harus 16 karakter');
                               } else {
                                 setTrackingNumberError('');
                               }
                             }
                           }}
                         >
-                          JNE (15 digit)
+                          JNE (16-20 karakter alphanumeric)
+                        </Checkbox>
+                        <Checkbox 
+                          isChecked={courierService === 'TRAVEL'}
+                          onChange={(e) => {
+                            const newService = e.target.checked ? 'TRAVEL' : '';
+                            setCourierService(newService);
+                            setFormChanged(true);
+                            
+                            // Reset tracking number dan error jika Travel dipilih
+                            if (newService === 'TRAVEL') {
+                              setTrackingNumber(''); // Kosongkan nomor resi
+                              setTrackingNumberError('');
+                            }
+                          }}
+                        >
+                          Travel
                         </Checkbox>
                       </HStack>
                     </FormControl>
                     
-                    <FormControl isInvalid={trackingNumberError !== ''}>
-                      <FormLabel>Nomor Resi</FormLabel>
-                      <Input
-                        value={trackingNumber}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setTrackingNumber(value);
-                          
-                          // Hanya izinkan karakter angka
-                          if (value && !/^\d*$/.test(value)) {
-                            setTrackingNumberError('Nomor resi hanya boleh berisi angka');
-                            return;
-                          }
-                          
-                          // Validasi panjang berdasarkan jasa kurir
-                          if (courierService === 'TIKI' && value && value.length !== 16) {
-                            setTrackingNumberError('Nomor resi TIKI harus 16 digit');
-                          } else if (courierService === 'JNE' && value && value.length !== 15) {
-                            setTrackingNumberError('Nomor resi JNE harus 15 digit');
-                          } else {
-                            setTrackingNumberError('');
-                          }
-                        }}
-                        placeholder={`Masukkan nomor resi ${courierService === 'TIKI' ? 'TIKI (16 digit)' : courierService === 'JNE' ? 'JNE (15 digit)' : 'pengiriman'}`}
-                        maxLength={courierService === 'TIKI' ? 16 : courierService === 'JNE' ? 15 : undefined}
-                      />
-                      {trackingNumberError && (
-                        <FormLabel color="red.500" fontSize="sm">{trackingNumberError}</FormLabel>
+                    {/* Tampilkan input Nomor Resi hanya jika TRAVEL tidak dipilih */}
+                    {courierService !== 'TRAVEL' && (
+                      <FormControl isInvalid={trackingNumberError !== ''}>
+                        <FormLabel>Nomor Resi</FormLabel>
+                        <Input
+                          value={trackingNumber}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setTrackingNumber(value);
+                            setFormChanged(true);
+                            
+                            // Validasi karakter untuk TIKI
+                            if (courierService === 'TIKI' && value && !/^\d*$/.test(value)) {
+                              setTrackingNumberError('Nomor resi TIKI hanya boleh berisi angka');
+                              return;
+                            }
+                            
+                            // Validasi karakter alphanumeric untuk JNE
+                            if (courierService === 'JNE' && value && !/^[a-zA-Z0-9]*$/.test(value)) {
+                              setTrackingNumberError('Nomor resi JNE hanya boleh berisi huruf dan angka');
+                              return;
+                            }
+                            
+                            // Validasi panjang berdasarkan jasa kurir
+                            if (courierService === 'TIKI' && value && (value.length < 10 || value.length > 16)) {
+                              setTrackingNumberError('Nomor resi TIKI harus 10-16 digit');
+                            } else if (courierService === 'JNE' && value && (value.length < 16 || value.length > 20)) {
+                              setTrackingNumberError('Nomor resi JNE harus 16-20 karakter');
+                            } else {
+                              setTrackingNumberError('');
+                            }
+                          }}
+                          placeholder={`Masukkan nomor resi ${courierService === 'TIKI' ? 'TIKI (10-16 digit)' : courierService === 'JNE' ? 'JNE (16-20 karakter)' : 'pengiriman'}`}
+                          maxLength={courierService === 'TIKI' ? 16 : courierService === 'JNE' ? 20 : undefined}
+                        />
+                        {trackingNumberError && (
+                          <FormLabel color="red.500" fontSize="sm">{trackingNumberError}</FormLabel>
+                        )}
+                      </FormControl>
+                    )}
+                    
+                    <FormControl>
+                      <FormLabel>Catatan Admin</FormLabel>
+                      {isEditingNote ? (
+                        <>
+                          <Textarea 
+                            value={adminNote}
+                            onChange={e => {
+                              setAdminNote(e.target.value);
+                              setFormChanged(true);
+                            }}
+                            placeholder="Tambahkan catatan terkait pesanan (opsional)"
+                          />
+                          <HStack mt={2} spacing={2}>
+                            <Button 
+                              colorScheme="green" 
+                              onClick={handleSaveNote}
+                              isLoading={isSavingNote}
+                              size="sm"
+                            >
+                              Simpan Catatan
+                            </Button>
+                            <Button 
+                              onClick={handleCancelEdit}
+                              size="sm"
+                            >
+                              Batal
+                            </Button>
+                          </HStack>
+                        </>
+                      ) : (
+                        <>
+                          <Box p={3} borderWidth="1px" borderRadius="md" minHeight="100px" bg="gray.50">
+                            {savedAdminNote ? (
+                              <Text>{savedAdminNote}</Text>
+                            ) : (
+                              <Text color="gray.500" fontStyle="italic">Belum ada catatan</Text>
+                            )}
+                          </Box>
+                          <HStack mt={2} spacing={2}>
+                            <Button 
+                              colorScheme="blue" 
+                              onClick={handleEditNote}
+                              size="sm"
+                            >
+                              Edit Catatan
+                            </Button>
+                            {savedAdminNote && (
+                              <Button 
+                                colorScheme="red" 
+                                onClick={handleDeleteNote}
+                                isLoading={isDeletingNote}
+                                size="sm"
+                              >
+                                Hapus Catatan
+                              </Button>
+                            )}
+                          </HStack>
+                        </>
                       )}
                     </FormControl>
                   </>
                 )}
 
-                <FormControl>
-                  <FormLabel>Catatan Admin</FormLabel>
-                  {isEditingNote ? (
-                    <>
-                      <Textarea 
-                        value={adminNote}
-                        onChange={e => setAdminNote(e.target.value)}
-                        placeholder="Tambahkan catatan terkait pesanan (opsional)"
-                      />
-                      <HStack mt={2} spacing={2}>
-                        <Button 
-                          colorScheme="green" 
-                          onClick={handleSaveNote}
-                          isLoading={isSavingNote}
-                          size="sm"
-                        >
-                          Simpan Catatan
-                        </Button>
-                        <Button 
-                          onClick={handleCancelEdit}
-                          size="sm"
-                        >
-                          Batal
-                        </Button>
-                      </HStack>
-                    </>
-                  ) : (
-                    <>
-                      <Box p={3} borderWidth="1px" borderRadius="md" minHeight="100px" bg="gray.50">
-                        {savedAdminNote ? (
-                          <Text>{savedAdminNote}</Text>
-                        ) : (
-                          <Text color="gray.500" fontStyle="italic">Belum ada catatan</Text>
-                        )}
-                      </Box>
-                      <HStack mt={2} spacing={2}>
-                        <Button 
-                          colorScheme="blue" 
-                          onClick={handleEditNote}
-                          size="sm"
-                        >
-                          Edit Catatan
-                        </Button>
-                        {savedAdminNote && (
-                          <Button 
-                            colorScheme="red" 
-                            onClick={handleDeleteNote}
-                            isLoading={isDeletingNote}
-                            size="sm"
-                          >
-                            Hapus Catatan
-                          </Button>
-                        )}
-                      </HStack>
-                    </>
-                  )}
-                </FormControl>
-
                 <Button 
                   colorScheme="blue" 
                   onClick={handleUpdateStatus}
                   isLoading={isUpdating}
-                  isDisabled={order.shipping_status === shippingStatus}
+                  isDisabled={!formChanged}
                   mt={4}
                 >
                   Perbarui Status Pesanan
