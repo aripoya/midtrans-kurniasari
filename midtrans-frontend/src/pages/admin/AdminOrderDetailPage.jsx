@@ -273,6 +273,13 @@ function AdminOrderDetailPage() {
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);
+  
+  // Reset pickup method when shipping area changes to 'luar-kota'
+  useEffect(() => {
+    if (shippingArea === 'luar-kota' && pickupMethod) {
+      setPickupMethod('');
+    }
+  }, [shippingArea, pickupMethod]);
 
   const handleRefreshStatus = async () => {
     setIsRefreshing(true);
@@ -352,6 +359,11 @@ function AdminOrderDetailPage() {
         }
       }
       
+      // Reset pickup_method jika shipping area adalah luar-kota
+      if (normalizedShippingArea === 'luar-kota') {
+        normalizedPickupMethod = null;
+      }
+      
       // Buat objek data dengan nilai yang sudah dinormalisasi dan validasi
       const shippingData = {};
       
@@ -363,6 +375,9 @@ function AdminOrderDetailPage() {
       // Kolom pickup_method sudah ditambahkan kembali ke database
       if (normalizedShippingArea === 'dalam-kota' && normalizedPickupMethod) {
         shippingData.pickup_method = normalizedPickupMethod;
+      } else if (normalizedShippingArea === 'luar-kota') {
+        // Kosongkan pickup_method jika luar kota
+        shippingData.pickup_method = null;
       }
       if (normalizedMetodePengiriman) shippingData.metode_pengiriman = normalizedMetodePengiriman;
       
@@ -1600,8 +1615,8 @@ return (
                   </FormControl>
                 )}
                 
-                {/* Metode dinamis berdasarkan tipe pesanan */}
-                {tipe_pesanan && (
+                {/* Metode dinamis berdasarkan tipe pesanan - tidak ditampilkan untuk Luar Kota */}
+                {tipe_pesanan && shippingArea !== 'luar-kota' && (
                   <FormControl mt={4}>
                     <FormLabel>{tipe_pesanan === 'Pesan Ambil' ? 'Metode Ambil' : 'Metode Antar'}</FormLabel>
                     <Select
@@ -1696,28 +1711,42 @@ return (
                       </HStack>
                     </Box>
                   </Box>
-                )}
-                
-                {/* Metode Ambil - hanya muncul jika Pesan Ambil aktif dan Pesan Kirim tidak aktif dan bukan Luar Kota */}
-                {pickupMethod !== '' && metodePengiriman === '' && shippingArea !== 'luar-kota' && (
-                  <FormControl mt={4}>
-                    <FormLabel>Metode Ambil</FormLabel>
-                    <Select
-                      value={pickupMethod}
-                      onChange={(e) => {
-                        setPickupMethod(e.target.value);
-                        setFormChanged(true);
-                      }}
-                    >
-                      <option value="deliveryman">Deliveryman</option>
-                      <option value="ojek-online">Ojek Online</option>
-                    </Select>
-                  </FormControl>
-                )}
-                
-                {/* Metode Kirim - hanya muncul jika Pesan Kirim aktif dan Pesan Ambil tidak aktif */}
-                {metodePengiriman !== '' && pickupMethod === '' && (
-                  <FormControl mt={4}>
+                </Box>
+              )}
+              
+              {/* Metode Kirim - hanya muncul jika Pesan Kirim aktif dan Pesan Ambil tidak aktif */}
+              {metodePengiriman !== '' && pickupMethod === '' && (
+                <FormControl mt={4}>
+                  <FormLabel>Metode Kirim</FormLabel>
+                  <Select
+                    value={metodePengiriman}
+                    onChange={(e) => {
+                      setMetodePengiriman(e.target.value);
+                      setFormChanged(true);
+                    }}
+                    placeholder="Pilih metode pengiriman"
+                  >
+                    <option value="ojek-online">Ojek Online</option>
+                    <option value="team-delivery">Team Delivery</option>
+                  </Select>
+                </FormControl>
+              )}
+              
+              {shippingArea === 'luar-kota' && (
+                <>
+                  <FormControl>
+                    <FormLabel>Jasa Kurir</FormLabel>
+                    <HStack spacing={4}>
+                      <Checkbox 
+                        isChecked={courierService === 'TIKI'}
+                        onChange={(e) => {
+                          const newService = e.target.checked ? 'TIKI' : '';
+                          setCourierService(newService);
+                          setFormChanged(true);
+                          
+                          // Reset error ketika layanan berubah
+                          if (trackingNumber) {
+                            if (newService === 'TIKI' && (trackingNumber.length < 10 || trackingNumber.length > 16)) {
                     <FormLabel>Metode Kirim</FormLabel>
                     <Select
                       value={metodePengiriman}
