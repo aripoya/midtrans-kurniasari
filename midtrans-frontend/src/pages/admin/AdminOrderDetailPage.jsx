@@ -1483,19 +1483,17 @@ return (
                               onClick={() => {
                                 if (order && order.id) {
                                   const publicUrl = `https://tagihan.kurniasari.co.id/orders/${order.id}`;
-                                  const link = document.createElement('a');
-                                  link.href = publicUrl;
-                                  link.download = `Halaman-Status-Pesanan-${order.id}.html`;
-                                  link.click();
+                                  // Buka link di tab baru alih-alih mencoba mengunduhnya
+                                  window.open(publicUrl, '_blank');
                                   toast({
-                                    title: "Link Halaman Status Pesanan Konsumen diunduh",
+                                    title: "Halaman Status Pesanan Konsumen dibuka di tab baru",
                                     status: "success",
                                     duration: 2000,
                                     isClosable: true,
                                   });
                                 } else {
                                   toast({
-                                    title: "Gagal mengunduh link",
+                                    title: "Gagal membuka halaman",
                                     description: "Data pesanan belum siap.",
                                     status: "error",
                                     duration: 3000,
@@ -1504,7 +1502,7 @@ return (
                                 }
                               }}
                             >
-                              Download Halaman Status Pesanan Konsumen
+                              Lihat Halaman Status Pesanan Konsumen
                             </Button>
                           </VStack>
                         </TabPanel>
