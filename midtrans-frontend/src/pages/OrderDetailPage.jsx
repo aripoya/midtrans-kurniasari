@@ -687,6 +687,36 @@ function OrderDetailPage() {
                 >
                   Download QR Code
                 </Button>
+                <Button
+                  variant="outline"
+                  colorScheme="blue"
+                  size="sm"
+                  onClick={() => {
+                    if (order && order.id) {
+                      const publicUrl = `https://tagihan.kurniasari.co.id/orders/${order.id}`;
+                      const link = document.createElement('a');
+                      link.href = publicUrl;
+                      link.download = `Halaman-Status-Pesanan-${order.id}.html`;
+                      link.click();
+                      toast({
+                        title: "Link Halaman Status Pesanan Konsumen diunduh",
+                        status: "success",
+                        duration: 2000,
+                        isClosable: true,
+                      });
+                    } else {
+                      toast({
+                        title: "Gagal mengunduh link",
+                        description: "Data pesanan belum siap.",
+                        status: "error",
+                        duration: 3000,
+                        isClosable: true,
+                      });
+                    }
+                  }}
+                >
+                  Download Halaman Status Pesanan Konsumen
+                </Button>
               </Box>
             )}
 
