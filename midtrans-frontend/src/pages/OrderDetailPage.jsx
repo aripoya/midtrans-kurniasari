@@ -253,7 +253,13 @@ function OrderDetailPage() {
   const handleMarkAsReceived = useCallback(async () => {
     setIsMarkingAsReceived(true);
     try {
-      await orderService.markOrderAsReceived(id);
+      console.log('📦 Menandai pesanan sebagai sudah diterima:', id);
+      const result = await markOrderAsReceived(id);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Gagal menandai pesanan sebagai diterima');
+      }
+      
       toast({
         title: "Pesanan diterima",
         description: "Pesanan telah berhasil ditandai sebagai diterima.",
@@ -261,8 +267,11 @@ function OrderDetailPage() {
         duration: 3000,
         isClosable: true,
       });
-      fetchOrder(); // Refresh order data
+      
+      // Delay sedikit sebelum refresh untuk memastikan data terupdate di server
+      setTimeout(() => fetchOrder(), 500); // Refresh order data setelah delay pendek
     } catch (err) {
+      console.error('❌ Error menandai pesanan sebagai diterima:', err);
       toast({
         title: "Gagal menandai pesanan",
         description: err.message,
@@ -273,7 +282,7 @@ function OrderDetailPage() {
     } finally {
       setIsMarkingAsReceived(false);
     }
-  }, [id, toast]);
+  }, [id, toast, fetchOrder]);
 
   const handleDownloadQRCode = useCallback(() => {
     const qrCodeElement = qrCodeRef.current;
