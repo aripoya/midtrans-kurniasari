@@ -17,6 +17,7 @@ import axios from 'axios';
 import { normalizeShippingStatus, getShippingStatusConfig } from '../utils/orderStatusUtils';
 import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas';
+import { adminApi } from '../api/adminApi';
 
 function OrderDetailPage() {
   const { id } = useParams();
@@ -54,19 +55,56 @@ function OrderDetailPage() {
       let orderData;
       
       if (isPublicOrderPage) {
-        // For public pages, use direct axios call without auth headers
-        // Selalu gunakan URL API yang valid untuk produksi
-        // PENTING: Pastikan menggunakan URL yang dapat diakses secara publik
-        // URL produksi yang benar adalah https://tagihan.kurniasari.co.id
-        const apiUrl = 'https://tagihan.kurniasari.co.id';
-        
-        console.log(`🌐 Menggunakan API URL: ${apiUrl}`);
+        // For public order pages, use adminApi directly but without authentication
+        // This ensures we use the same API endpoint structure consistently
+        console.log(`🔍 Fetching public order with ID: ${id}`);
         
         try {
-          const response = await axios.get(`${apiUrl}/api/orders/${id}`);
+          // Gunakan adminApi yang sudah terbukti berfungsi
+          // Tetapi buat instance axios baru tanpa autentikasi untuk halaman publik
+          const isDev = import.meta.env.MODE === 'development';
+          // Use multiple possible backend URLs to maximize chances of success
+          const apiUrls = [
+            'https://tagihan.kurniasari.co.id',
+            'https://order-management-app-production.wahwooh.workers.dev',
+            isDev ? 'http://localhost:8787' : null
+          ].filter(Boolean);
+          
+          let lastError = null;
+          let orderResponse = null;
+          
+          // Try each URL until one works
+          for (const baseUrl of apiUrls) {
+            try {
+              console.log(`🌐 Trying API URL: ${baseUrl}`);
+              const response = await axios.get(`${baseUrl}/api/orders/${id}`, {
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (response.data && (response.data.success || response.data.order || response.data.data)) {
+                orderResponse = response;
+                console.log(`✅ Successful response from ${baseUrl}`);
+                break;
+              }
+            } catch (err) {
+              console.log(`❌ Error with ${baseUrl}:`, err.message);
+              lastError = err;
+            }
+          }
+          
+          if (!orderResponse && lastError) {
+            throw lastError;
+          } else if (!orderResponse) {
+            throw new Error('Tidak bisa terhubung ke server');
+          }
+          
+          const response = orderResponse;
           console.log('📦 Respons API:', response.data);
           
-          // Periksa struktur data respons (bisa data.order atau data.data)
+          // Handle different response formats
           if (response.data.success) {
             if (response.data.order) {
               orderData = response.data.order; // Format lama
@@ -75,11 +113,15 @@ function OrderDetailPage() {
             } else {
               throw new Error('Format data tidak dikenali');
             }
+          } else if (response.data.order) {
+            orderData = response.data.order; // Format alternatif
+          } else if (response.data.data) {
+            orderData = response.data.data;  // Format alternatif
           } else {
-            throw new Error('Respons API tidak sukses');
+            throw new Error('Format respons tidak dikenali');
           }
         } catch (apiError) {
-          console.error('❌ Error saat memanggil API:', apiError);
+          console.error('❌ Error dalam mengambil data pesanan:', apiError);
           throw apiError;
         }
       } else {
