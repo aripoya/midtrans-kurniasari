@@ -15,6 +15,8 @@ import { refreshOrderStatus, markOrderAsReceived } from '../api/api';
 import { useAuth } from '../auth/AuthContext';
 import axios from 'axios';
 import { normalizeShippingStatus, getShippingStatusConfig } from '../utils/orderStatusUtils';
+import { QRCodeSVG } from 'qrcode.react';
+import html2canvas from 'html2canvas';
 
 function OrderDetailPage() {
   const { id } = useParams();
@@ -28,9 +30,11 @@ function OrderDetailPage() {
   const [shippingImages, setShippingImages] = useState({
     ready_for_pickup: null,
     picked_up: null,
-    delivered: null
+    delivered: null,
   });
   const [loadingImages, setLoadingImages] = useState(false);
+  const [showQRCode, setShowQRCode] = useState(false);
+  const qrCodeRef = useRef(null);
   const toast = useToast();
   const stepperOrientation = useBreakpointValue({ base: 'vertical', md: 'horizontal' });
   const stepperSize = useBreakpointValue({ base: 'sm', md: 'md' });
@@ -203,46 +207,70 @@ function OrderDetailPage() {
     }
   };
 
-  const handleMarkAsReceived = async () => {
+  const handleMarkAsReceived = useCallback(async () => {
     setIsMarkingAsReceived(true);
     try {
-      let data;
-      
-      if (isPublicOrderPage) {
-        // For public pages, use direct axios call
-        const apiUrl = import.meta.env.VITE_API_URL || 'https://pesanan.kurniasari.co.id';
-        const response = await axios.post(`${apiUrl}/api/orders/${id}/received`);
-        data = response.data;
-      } else {
-        // For protected pages, use the service with auth
-        const response = await markOrderAsReceived(id);
-        data = response.data;
-      }
-      
-      if (data.success) {
-        await fetchOrder(); // Refetch to get all updated data
-        toast({
-          title: "Pesanan Diterima",
-          description: "Status pesanan berhasil diperbarui menjadi 'Sudah Diterima'.",
-          status: "success",
-          duration: 5000,
-          isClosable: true,
-        });
-      } else {
-        throw new Error(data.error || 'Gagal memperbarui status pesanan.');
-      }
+      await orderService.markOrderAsReceived(id);
+      toast({
+        title: "Pesanan diterima",
+        description: "Pesanan telah berhasil ditandai sebagai diterima.",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      fetchOrder(); // Refresh order data
     } catch (err) {
       toast({
-        title: "Gagal Memperbarui",
+        title: "Gagal menandai pesanan",
         description: err.message,
         status: "error",
-        duration: 5000,
+        duration: 3000,
         isClosable: true,
       });
     } finally {
       setIsMarkingAsReceived(false);
     }
-  };
+  }, [id, toast]);
+
+  const handleDownloadQRCode = useCallback(() => {
+    const qrCodeElement = qrCodeRef.current;
+    if (!qrCodeElement || !order || !order.id) {
+      toast({
+        title: "Gagal mengunduh QR Code",
+        description: "Data QR Code belum siap.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    html2canvas(qrCodeElement, { 
+      scale: 3,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+    }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `QR-Code-Order-${order.id}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      toast({
+        title: "QR Code berhasil diunduh",
+        status: "success",
+        duration: 2000,
+        isClosable: true,
+      });
+    }).catch(err => {
+      console.error("Error generating QR code image:", err);
+      toast({
+        title: "Gagal membuat gambar QR Code",
+        description: err.message,
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    });
+  }, [order, toast]);
 
   // Fungsi untuk mengambil gambar status pengiriman
   // Helper function untuk transformasi URL yang konsisten dengan admin page
@@ -621,6 +649,44 @@ function OrderDetailPage() {
                     </GridItem>
                   )}
                 </Grid>
+              </Box>
+            )}
+
+            {order.tipe_pesanan === 'Pesan Ambil' && (
+              <Box mt={4}>
+                <Heading size="sm" mb={2}>QR Code untuk Pengambilan</Heading>
+                <Text fontSize="sm" color="gray.500" mb={4}>Tunjukkan QR code ini saat mengambil pesanan di outlet.</Text>
+                <Flex justifyContent="center" my={4}>
+                  <Box
+                    p={4}
+                    borderWidth="1px"
+                    borderRadius="lg"
+                    bg="white"
+                    ref={qrCodeRef}
+                    id="qrcode-container"
+                  >
+                    {order && order.id ? (
+                      <VStack>
+                        <QRCodeSVG 
+                          value={`https://tagihan.kurniasari.co.id/orders/${order.id}`}
+                          size={220}
+                          level="H"
+                          includeMargin={true}
+                        />
+                        <Text pt={2} fontSize="sm" fontWeight="bold">Order #{order.id}</Text>
+                      </VStack>
+                    ) : (
+                      <Text>Order ID tidak tersedia.</Text>
+                    )}
+                  </Box>
+                </Flex>
+                <Button
+                  onClick={handleDownloadQRCode}
+                  colorScheme="blue"
+                  size="sm"
+                >
+                  Download QR Code
+                </Button>
               </Box>
             )}
 

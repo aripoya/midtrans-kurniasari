@@ -1218,7 +1218,7 @@ return (
                       <TabList>
                         <Tab isDisabled={shippingArea !== 'dalam-kota'}>Dalam Kota</Tab>
                         <Tab isDisabled={shippingArea !== 'luar-kota'}>Luar Kota</Tab>
-                        {tipe_pesanan === 'Pesan Ambil' && <Tab>QR Code Pengambilan</Tab>}
+                        <Tab>QR Code Pengambilan</Tab>
                       </TabList>
                       <TabPanels>
                         {/* Tab Dalam Kota */}
@@ -1402,85 +1402,83 @@ return (
                           </VStack>
                         </TabPanel>
                         {/* Tab QR Code */}
-                        {tipe_pesanan === 'Pesan Ambil' && (
-                          <TabPanel>
-                            <VStack spacing={4} align="stretch">
-                              <Heading size="sm">QR Code untuk Pengambilan</Heading>
-                              <Text fontSize="sm" color="gray.500">Tunjukkan QR code ini saat mengambil pesanan di outlet.</Text>
-                              
-                              <Flex justifyContent="center" my={4}>
-                                <Box
-                                  p={4}
-                                  borderWidth="1px"
-                                  borderRadius="lg"
-                                  bg="white"
-                                  ref={qrCodeRef}
-                                  id="qrcode-container"
-                                >
-                                  {order && order.id ? (
-                                    <VStack>
-                                      <QRCodeSVG 
-                                        value={`https://tagihan.kurniasari.co.id/orders/${order.id}`}
-                                        size={220}
-                                        level="H"
-                                        includeMargin={true}
-                                        // Logo dihapus untuk menghindari 404 error
-                                        // Jika ingin menggunakan logo, gunakan path relatif seperti '/src/assets/react.svg'
-                                      />
-                                      <Text pt={2} fontSize="sm" fontWeight="bold">Order #{order.id}</Text>
-                                    </VStack>
-                                  ) : (
-                                    <Text>Order ID tidak tersedia.</Text>
-                                  )}
-                                </Box>
-                              </Flex>
-                              
-                              <Button
-                                onClick={() => {
-                                  const qrCodeElement = qrCodeRef.current;
-                                  if (!qrCodeElement || !order || !order.id) {
-                                    toast({
-                                      title: "Gagal mengunduh QR Code",
-                                      description: "Data QR Code belum siap.",
-                                      status: "error",
-                                      duration: 3000,
-                                      isClosable: true,
-                                    });
-                                    return;
-                                  }
-                                  
-                                  html2canvas(qrCodeElement, { 
-                                    scale: 3,
-                                    backgroundColor: '#ffffff',
-                                    useCORS: true,
-                                  }).then(canvas => {
-                                    const link = document.createElement('a');
-                                    link.download = `QR-Code-Order-${order.id}.png`;
-                                    link.href = canvas.toDataURL('image/png');
-                                    link.click();
-                                    toast({
-                                      title: "QR Code berhasil diunduh",
-                                      status: "success",
-                                      duration: 2000,
-                                      isClosable: true,
-                                    });
-                                  }).catch(err => {
-                                    console.error("Error generating QR code image:", err);
-                                    toast({
-                                      title: "Gagal membuat gambar QR Code",
-                                      description: err.message,
-                                      status: "error",
-                                      duration: 3000,
-                                      isClosable: true,
-                                    });
-                                  });
-                                }}
+                        <TabPanel>
+                          <VStack spacing={4} align="stretch">
+                            <Heading size="sm">QR Code untuk Pengambilan</Heading>
+                            <Text fontSize="sm" color="gray.500">Tunjukkan QR code ini saat mengambil pesanan di outlet.</Text>
+                            
+                            <Flex justifyContent="center" my={4}>
+                              <Box
+                                p={4}
+                                borderWidth="1px"
+                                borderRadius="lg"
+                                bg="white"
+                                ref={qrCodeRef}
+                                id="qrcode-container"
                               >
-                                Download QR Code
-                              </Button>
-                            </VStack>
-                          </TabPanel>
-                        )}
+                                {order && order.id ? (
+                                  <VStack>
+                                    <QRCodeSVG 
+                                      value={`https://tagihan.kurniasari.co.id/orders/${order.id}`}
+                                      size={220}
+                                      level="H"
+                                      includeMargin={true}
+                                      // Logo dihapus untuk menghindari 404 error
+                                      // Jika ingin menggunakan logo, gunakan path relatif seperti '/src/assets/react.svg'
+                                    />
+                                    <Text pt={2} fontSize="sm" fontWeight="bold">Order #{order.id}</Text>
+                                  </VStack>
+                                ) : (
+                                  <Text>Order ID tidak tersedia.</Text>
+                                )}
+                              </Box>
+                            </Flex>
+                            
+                            <Button
+                              onClick={() => {
+                                const qrCodeElement = qrCodeRef.current;
+                                if (!qrCodeElement || !order || !order.id) {
+                                  toast({
+                                    title: "Gagal mengunduh QR Code",
+                                    description: "Data QR Code belum siap.",
+                                    status: "error",
+                                    duration: 3000,
+                                    isClosable: true,
+                                  });
+                                  return;
+                                }
+                                
+                                html2canvas(qrCodeElement, { 
+                                  scale: 3,
+                                  backgroundColor: '#ffffff',
+                                  useCORS: true,
+                                }).then(canvas => {
+                                  const link = document.createElement('a');
+                                  link.download = `QR-Code-Order-${order.id}.png`;
+                                  link.href = canvas.toDataURL('image/png');
+                                  link.click();
+                                  toast({
+                                    title: "QR Code berhasil diunduh",
+                                    status: "success",
+                                    duration: 2000,
+                                    isClosable: true,
+                                  });
+                                }).catch(err => {
+                                  console.error("Error generating QR code image:", err);
+                                  toast({
+                                    title: "Gagal membuat gambar QR Code",
+                                    description: err.message,
+                                    status: "error",
+                                    duration: 3000,
+                                    isClosable: true,
+                                  });
+                                });
+                              }}
+                            >
+                              Download QR Code
+                            </Button>
+                          </VStack>
+                        </TabPanel>
                       </TabPanels>
                     </Tabs>
                   </AccordionPanel>
