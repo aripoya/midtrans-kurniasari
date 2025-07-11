@@ -41,9 +41,61 @@ export const refreshOrderStatus = (orderId) => {
   return apiClient.post(`/api/orders/${orderId}/refresh-status`);
 };
 
-// New service for customers to mark an order as received
-export const markOrderAsReceived = (orderId) => {
-  return apiClient.post(`/api/orders/${orderId}/mark-received`);
+// New service for customers to// Menandai pesanan sebagai sudah diterima oleh pelanggan
+export const markOrderAsReceived = async (orderId) => {
+  try {
+    // Gunakan multiple API URLs, sama seperti di OrderDetailPage
+    const isDev = import.meta.env.MODE === 'development';
+    // Use multiple possible backend URLs to maximize chances of success
+    const apiUrls = [
+      'https://tagihan.kurniasari.co.id',
+      'https://order-management-app-production.wahwooh.workers.dev',
+      isDev ? 'http://localhost:8787' : null
+    ].filter(Boolean);
+    
+    let lastError = null;
+    let successResponse = null;
+    
+    // Try each URL until one works
+    for (const baseUrl of apiUrls) {
+      try {
+        console.log(`🌐 Trying API URL for markOrderAsReceived: ${baseUrl}`);
+        const response = await axios.patch(
+          `${baseUrl}/api/orders/${orderId}/received`,
+          {},
+          {
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        if (response.data && (response.data.success || response.data.order || response.data.data)) {
+          successResponse = response;
+          console.log(`✅ Successful response from ${baseUrl}`);
+          break;
+        }
+      } catch (err) {
+        console.log(`❌ Error with ${baseUrl}:`, err.message);
+        lastError = err;
+      }
+    }
+    
+    if (!successResponse && lastError) {
+      throw lastError;
+    } else if (!successResponse) {
+      throw new Error('Tidak bisa terhubung ke server');
+    }
+    
+    return { success: true, data: successResponse.data };
+  } catch (error) {
+    console.error('Error marking order as received:', error);
+    return { 
+      success: false, 
+      error: error.response?.data?.error || error.message || 'Gagal menandai pesanan sebagai diterima'
+    };
+  }
 };
 
 // Get shipping images for customers (public endpoint)
