@@ -1181,7 +1181,7 @@ return (
                 {order.tipe_pesanan === 'Pesan Antar' && (
                   <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman || '-'}</Text>
                 )}
-                <Text><strong>Metode {order.tipe_pesanan === 'Pesan Ambil' ? 'Ambil' : 'Antar'}:</strong> {order.pickup_method === 'deliveryman' || order.pickup_method === 'sendiri' ? 'Deliveryman' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : order.pickup_method === 'team-delivery' ? 'Deliveryman' : '-'}</Text>
+                <Text><strong>Metode {order.tipe_pesanan === 'Pesan Ambil' ? 'Ambil' : 'Antar'}:</strong> {order.pickup_method === 'deliveryman' || order.pickup_method === 'sendiri' ? (order.tipe_pesanan === 'Pesan Ambil' ? 'Di Ambil Konsumen' : 'Di Antar Deliveryman') : order.pickup_method === 'ojek-online' ? (order.tipe_pesanan === 'Pesan Ambil' ? 'Di Ambil Driver Ojek Online' : 'Di Antar Driver Ojek Online') : order.pickup_method === 'team-delivery' ? 'Deliveryman' : '-'}</Text>
                 {order.shipping_area === 'luar-kota' && (
                   <>
                     <Text><strong>Jasa Kurir:</strong> {order.courier_service || '-'}</Text>
@@ -1633,7 +1633,7 @@ return (
                     >
                       {tipe_pesanan === 'Pesan Ambil' ? (
                         <>
-                          <option value="deliveryman">Di Antar Deliveryman</option>
+                          <option value="deliveryman">Di Ambil Konsumen</option>
                           <option value="ojek-online">Di Ambil Driver Ojek Online</option>
                         </>
                       ) : (

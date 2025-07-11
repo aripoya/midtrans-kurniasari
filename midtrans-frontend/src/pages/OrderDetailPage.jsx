@@ -597,7 +597,13 @@ function OrderDetailPage() {
                       <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                     )}
                     {order.pickup_method && (
-                      <Text><strong>Metode Antar:</strong> {order.pickup_method === 'deliveryman' || order.pickup_method === 'sendiri' ? 'Deliveryman' : 'Ojek Online'}</Text>
+                      <Text>
+                        <strong>Metode {order.tipe_pesanan === 'Pesan Ambil' ? 'Ambil' : 'Antar'}:</strong> 
+                        {order.pickup_method === 'deliveryman' || order.pickup_method === 'sendiri' ? 
+                          (order.tipe_pesanan === 'Pesan Ambil' ? 'Di Ambil Konsumen' : 'Di Antar Deliveryman') : 
+                          (order.tipe_pesanan === 'Pesan Ambil' ? 'Di Ambil Driver Ojek Online' : 'Di Antar Driver Ojek Online')
+                        }
+                      </Text>
                     )}
                     {order.tipe_pesanan && (
                       <Text><strong>Tipe Pesanan:</strong> {order.tipe_pesanan}</Text>
