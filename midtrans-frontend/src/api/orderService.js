@@ -1,4 +1,5 @@
 import apiClient from './api';
+import { markOrderAsReceived as apiMarkOrderAsReceived } from './api';
 
 // Helper function to get admin token from localStorage
 const getAdminToken = () => {
@@ -106,6 +107,23 @@ export const orderService = {
       return response.data;
     } catch (error) {
       console.error(`Error checking transaction status for ${orderId}:`, error);
+      throw error;
+    }
+  },
+  
+  // Mark order as received by customer
+  async markOrderAsReceived(orderId) {
+    try {
+      console.log(`[orderService] Marking order as received: ${orderId}`);
+      const result = await apiMarkOrderAsReceived(orderId);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Gagal menandai pesanan sebagai diterima');
+      }
+      
+      return result.data;
+    } catch (error) {
+      console.error(`Error marking order ${orderId} as received:`, error);
       throw error;
     }
   }
