@@ -1,11 +1,10 @@
-<<<<<<< HEAD
 # Order Management System
 
 A modern order management application with Midtrans payment gateway integration, built with Cloudflare Workers and a responsive frontend.
 
 ## 🚀 Live Demo
 
-**Frontend Application**: https://lxdpofbi.manus.space
+**Frontend Application**: https://tagihan.kurniasari.id
 
 ## ✨ Features
 
@@ -79,7 +78,7 @@ npx wrangler deploy
 ```
 
 ### 5. Deploy Frontend
-The frontend is already deployed at: https://lxdpofbi.manus.space
+The frontend is already deployed at: https://tagihan.kurniasari.id
 
 ## 📖 API Documentation
 
@@ -172,6 +171,3 @@ For support, email support@example.com or create an issue in this repository.
 
 **Made with ❤️ for modern order management**
 
-=======
-# midtrans-kurniasari
->>>>>>> d6e2b2501ce318de78327c7d424661ad1f2ed1e1
