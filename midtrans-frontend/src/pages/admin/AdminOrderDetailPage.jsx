@@ -387,15 +387,16 @@ function AdminOrderDetailPage() {
         // Kosongkan pickup_method jika luar kota
         shippingData.pickup_method = null;
       }
-      if (normalizedMetodePengiriman) shippingData.metode_pengiriman = normalizedMetodePengiriman;
+      // Tambahkan metode pengiriman hanya jika area pengiriman dalam kota
+    if (normalizedMetodePengiriman && normalizedShippingArea !== 'luar-kota') shippingData.metode_pengiriman = normalizedMetodePengiriman;
       
       // Tambahkan field lokasi
       if (normalizedTipePesanan) shippingData.tipe_pesanan = normalizedTipePesanan;
       
-      // Tambahkan lokasi pengiriman jika tipe pesanan adalah Pesan Antar
-      if (normalizedTipePesanan === 'Pesan Antar' && normalizedLokasiPengiriman) {
-        shippingData.lokasi_pengiriman = normalizedLokasiPengiriman;
-      }
+      // Tambahkan lokasi pengiriman jika tipe pesanan adalah Pesan Antar dan area pengiriman dalam kota
+    if (normalizedTipePesanan === 'Pesan Antar' && normalizedLokasiPengiriman && normalizedShippingArea !== 'luar-kota') {
+      shippingData.lokasi_pengiriman = normalizedLokasiPengiriman;
+    }
       
       // Tambahkan lokasi pengambilan jika tipe pesanan adalah Pesan Ambil
       if (normalizedTipePesanan === 'Pesan Ambil' && normalizedLokasiPengambilan) {
@@ -1650,8 +1651,8 @@ return (
                   </FormControl>
                 )}
                 
-                {/* Lokasi Pengiriman selection - shown when tipe_pesanan is "Pesan Antar" */}
-                {tipe_pesanan === 'Pesan Antar' && (
+                {/* Lokasi Pengiriman selection - shown when tipe_pesanan is "Pesan Antar" AND shipping area is not 'luar-kota' */}
+                {tipe_pesanan === 'Pesan Antar' && shippingArea !== 'luar-kota' && (
                   <FormControl mt={4}>
                     <FormLabel>Lokasi Pengiriman</FormLabel>
                     <Select
@@ -1721,8 +1722,8 @@ return (
                   </Box>
               )}
               
-              {/* Metode Kirim - hanya muncul jika Pesan Kirim aktif dan Pesan Ambil tidak aktif */}
-              {metodePengiriman !== '' && pickupMethod === '' && (
+              {/* Metode Kirim - hanya muncul jika Pesan Kirim aktif, Pesan Ambil tidak aktif, dan tidak di luar kota */}
+              {metodePengiriman !== '' && pickupMethod === '' && shippingArea !== 'luar-kota' && (
                 <FormControl mt={4}>
                   <FormLabel>Metode Kirim</FormLabel>
                   <Select

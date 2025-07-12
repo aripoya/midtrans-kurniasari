@@ -608,8 +608,8 @@ function OrderDetailPage() {
                     {order.tipe_pesanan && (
                       <Text><strong>Tipe Pesanan:</strong> {order.tipe_pesanan}</Text>
                     )}
-                    {/* Display location information based on order type */}
-                    {order.tipe_pesanan === 'Pesan Antar' && order.lokasi_pengiriman && (
+                    {/* Display location information based on order type and shipping area */}
+                    {order.tipe_pesanan === 'Pesan Antar' && order.lokasi_pengiriman && order.shipping_area !== 'luar-kota' && (
                       <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman}</Text>
                     )}
                     {order.tipe_pesanan === 'Pesan Ambil' && order.lokasi_pengambilan && (
