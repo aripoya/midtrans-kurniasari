@@ -1178,15 +1178,15 @@ return (
                   <Text><strong>Status Pengiriman:</strong></Text>
                   {getShippingStatusBadge(order.shipping_status)}
                 </HStack>
-                <Text><strong>Tipe Pesanan:</strong> {order.tipe_pesanan || '-'}</Text>
+                {order.shipping_area !== 'luar-kota' && <Text><strong>Tipe Pesanan:</strong> {order.tipe_pesanan || '-'}</Text>}
                 <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                 {order.tipe_pesanan === 'Pesan Ambil' && (
                   <Text><strong>Lokasi Pengambilan:</strong> {order.lokasi_pengambilan || '-'}</Text>
                 )}
-                {order.tipe_pesanan === 'Pesan Antar' && (
+                {order.tipe_pesanan === 'Pesan Antar' && order.shipping_area !== 'luar-kota' && (
                   <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman || '-'}</Text>
                 )}
-                <Text><strong>Metode {order.tipe_pesanan === 'Pesan Ambil' ? 'Ambil' : 'Antar'}:</strong> {order.pickup_method === 'deliveryman' || order.pickup_method === 'sendiri' ? (order.tipe_pesanan === 'Pesan Ambil' ? 'Di Ambil Konsumen' : 'Di Antar Deliveryman') : order.pickup_method === 'ojek-online' ? (order.tipe_pesanan === 'Pesan Ambil' ? 'Di Ambil Driver Ojek Online' : 'Di Antar Driver Ojek Online') : order.pickup_method === 'team-delivery' ? 'Deliveryman' : '-'}</Text>
+                {order.shipping_area !== 'luar-kota' && <Text><strong>Metode {order.tipe_pesanan === 'Pesan Ambil' ? 'Ambil' : 'Antar'}:</strong> {order.pickup_method === 'deliveryman' || order.pickup_method === 'sendiri' ? (order.tipe_pesanan === 'Pesan Ambil' ? 'Di Ambil Konsumen' : 'Di Antar Deliveryman') : order.pickup_method === 'ojek-online' ? (order.tipe_pesanan === 'Pesan Ambil' ? 'Di Ambil Driver Ojek Online' : 'Di Antar Driver Ojek Online') : order.pickup_method === 'team-delivery' ? 'Deliveryman' : '-'}</Text>}
                 {order.shipping_area === 'luar-kota' && (
                   <>
                     <Text><strong>Jasa Kurir:</strong> {order.courier_service || '-'}</Text>
