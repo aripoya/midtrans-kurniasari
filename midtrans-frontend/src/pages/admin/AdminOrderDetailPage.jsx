@@ -373,11 +373,14 @@ function AdminOrderDetailPage() {
       // Aktifkan kembali shipping_area karena kolom sudah ditambahkan ke database
       if (normalizedShippingArea) shippingData.shipping_area = normalizedShippingArea;
       // Kolom pickup_method sudah ditambahkan kembali ke database
-      // Re-assign nilai pickup_method dari form data jika ada
-      if (formData.pickup_method) {
-        normalizedPickupMethod = formData.pickup_method.toLowerCase();
-      }
-      if (normalizedShippingArea === 'dalam-kota' && normalizedPickupMethod) {
+      // Gunakan nilai pickupMethod dari state komponen
+      // Dengan shipping area dalam-kota, pickup_method dibutuhkan
+      if (normalizedShippingArea === 'dalam-kota') {
+        // Validasi pickup method tidak boleh kosong untuk dalam-kota
+        if (!normalizedPickupMethod) {
+          console.warn('Pickup method kosong untuk area dalam kota - default ke "deliveryman"');
+          normalizedPickupMethod = 'deliveryman';
+        }
         shippingData.pickup_method = normalizedPickupMethod;
       } else if (normalizedShippingArea === 'luar-kota') {
         // Kosongkan pickup_method jika luar kota
