@@ -1,4 +1,4 @@
-# Order Management System
+# Order Management System v1.0.0
 
 A modern order management application with Midtrans payment gateway integration, built with Cloudflare Workers and a responsive frontend.
 
