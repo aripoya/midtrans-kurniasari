@@ -596,7 +596,7 @@ function OrderDetailPage() {
                     {order.shipping_area && (
                       <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                     )}
-                    {order.pickup_method && (
+                    {order.pickup_method && order.shipping_area !== 'luar-kota' && (
                       <Text>
                         <strong>Metode {order.tipe_pesanan === 'Pesan Ambil' ? 'Ambil' : 'Antar'}:</strong> 
                         {order.pickup_method === 'deliveryman' || order.pickup_method === 'sendiri' ? 
@@ -605,7 +605,7 @@ function OrderDetailPage() {
                         }
                       </Text>
                     )}
-                    {order.tipe_pesanan && (
+                    {order.tipe_pesanan && order.shipping_area !== 'luar-kota' && (
                       <Text><strong>Tipe Pesanan:</strong> {order.tipe_pesanan}</Text>
                     )}
                     {/* Display location information based on order type and shipping area */}
