@@ -664,32 +664,32 @@ function OrderDetailPage() {
             {/* Tampilkan link ke foto status pengiriman jika ada */}
             {isPublicOrderPage && (Object.values(shippingImages).some(Boolean)) && (
               <Box mt={6}>
-                <Heading size="sm" mb={4}>Status {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Pengiriman" : "Pengambilan"}</Heading>
+                <Heading size="sm" mb={4}>Status {order.tipe_pesanan === "Pesan Antar" ? "Pengantaran" : "Pengambilan"}</Heading>
                 <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={4}>
                   {/* Cek kedua format kunci (frontend dan backend) untuk maksimum kompatibilitas */}
                   {(shippingImages.ready_for_pickup || shippingImages.readyForPickup) && (
                     <GridItem>
-                      <Text mb={2}><strong>{normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Siap Dikirim:" : "Siap Diambil:"}</strong></Text>
+                      <Text mb={2}><strong>{order.tipe_pesanan === "Pesan Antar" ? "Siap Diantar:" : "Siap Diambil:"}</strong></Text>
                       <Link 
                         href={shippingImages.ready_for_pickup || shippingImages.readyForPickup} 
                         isExternal 
                         color="blue.500" 
                         fontWeight="medium"
                       >
-                        Lihat Foto {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Siap Dikirim" : "Siap Diambil"}
+                        Lihat Foto {order.tipe_pesanan === "Pesan Antar" ? "Siap Diantar" : "Siap Diambil"}
                       </Link>
                     </GridItem>
                   )}
                   {(shippingImages.picked_up || shippingImages.pickedUp) && (
                     <GridItem>
-                      <Text mb={2}><strong>{normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Sudah Dikirim:" : "Sudah Diambil:"}</strong></Text>
+                      <Text mb={2}><strong>{order.tipe_pesanan === "Pesan Antar" ? "Sudah Diantar:" : "Sudah Diambil:"}</strong></Text>
                       <Link 
                         href={shippingImages.picked_up || shippingImages.pickedUp} 
                         isExternal 
                         color="blue.500" 
                         fontWeight="medium"
                       >
-                        Lihat Foto {normalizeShippingStatus(order.shipping_status) === "siap kirim" ? "Sudah Dikirim" : "Sudah Diambil"}
+                        Lihat Foto {order.tipe_pesanan === "Pesan Antar" ? "Sudah Diantar" : "Sudah Diambil"}
                       </Link>
                     </GridItem>
                   )}
