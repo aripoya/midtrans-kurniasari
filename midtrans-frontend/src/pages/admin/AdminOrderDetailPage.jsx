@@ -234,7 +234,8 @@ function AdminOrderDetailPage() {
           const typeMapping = {
             'ready_for_pickup': 'readyForPickup',
             'picked_up': 'pickedUp',
-            'delivered': 'received'
+            'delivered': 'received',
+            'shipment_proof': 'shipmentProof'
           };
           
           const imagesData = {};
