@@ -23,8 +23,8 @@ function AdminLayout() {
             <Link as={RouterLink} to="/admin/orders/new" fontWeight="medium">
               Pesanan Baru
             </Link>
-            <Link as={RouterLink} to="/" fontWeight="medium">
-              Halaman Publik
+            <Link as={RouterLink} to="/admin/users" fontWeight="medium">
+              User Management
             </Link>
           </HStack>
         </Flex>

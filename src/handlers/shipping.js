@@ -3,6 +3,8 @@
  * Termasuk upload gambar, update status, dan operasi lainnya
  */
 
+import { uploadToCloudflareImages, deleteFromCloudflareImages, getImageVariants } from './cloudflare-images.js';
+
 // Helper untuk respons JSON standar
 const jsonResponse = (data, status = 200) => {
   return new Response(JSON.stringify(data), {

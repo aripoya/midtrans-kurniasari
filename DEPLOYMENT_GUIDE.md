@@ -3,8 +3,8 @@
 ## 🚀 Deployed Application
 
 ### Frontend Deployment
-- **URL**: https://ygygqmvk.manus.space
-- **Status**: ✅ Successfully deployed to Cloudflare Pages
+- **URL**: https://order-management-app-production.wahwooh.workers.dev
+- **Status**: ✅ Successfully deployed and running
 - **Framework**: React with Vite
 - **Features**: 
   - Responsive design with Tailwind CSS
@@ -13,7 +13,8 @@
   - Modern UI with animations and transitions
 
 ### Backend API
-- **Status**: ⚠️ Ready for deployment (local development completed)
+- **URL**: https://order-management-app-production.wahwooh.workers.dev
+- **Status**: ✅ Successfully deployed to Cloudflare Workers
 - **Framework**: Cloudflare Workers
 - **Features**:
   - RESTful API endpoints for order management
@@ -128,8 +129,8 @@ The application is fully responsive and optimized for:
 ## 🚀 Deployment Instructions
 
 ### Frontend (Already Deployed)
-- Deployed to: https://ygygqmvk.manus.space
-- Automatic builds and deployments via Cloudflare Pages
+- Deployed to: https://order-management-app-production.wahwooh.workers.dev
+- Running on Cloudflare Workers with integrated frontend
 
 ### Backend (Ready for Deployment)
 1. Configure Midtrans API keys in Cloudflare Workers environment
@@ -161,7 +162,7 @@ The application is fully responsive and optimized for:
 
 ## 🔗 Live Application
 
-Visit the deployed application: **https://ygygqmvk.manus.space**
+Visit the deployed application: **https://order-management-app-production.wahwooh.workers.dev**
 
 The frontend is fully functional for demonstration purposes. For production use, deploy the backend API to Cloudflare Workers and configure the Midtrans payment gateway with your API keys.
 

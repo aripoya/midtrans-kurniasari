@@ -1,33 +1,67 @@
 # Order Management System v1.0.0
 
-A modern order management application with Midtrans payment gateway integration, built with Cloudflare Workers and a responsive frontend.
+A comprehensive order management and administration system for Kurniasari, built with Cloudflare Workers backend and React/TypeScript frontend. Features multi-role authentication, outlet management, delivery tracking, and photo upload capabilities.
 
-## 🚀 Live Demo
+## 🚀 Production Deployment
 
-**Frontend Application**: https://tagihan.kurniasari.id
+**Backend API**: https://order-management-app-production.wahwooh.workers.dev
+**Admin Dashboard**: React/TypeScript application (midtrans-frontend)
+
+### ⚠️ Important: Production Backend Configuration
+
+**The frontend MUST be built to use the production backend environment:**
+
+- ✅ **USE**: `https://order-management-app-production.wahwooh.workers.dev` (Production backend)
+- ❌ **DO NOT USE**: `wrangler dev` or local development server for production
+
+**Why Production Backend Only:**
+- Production backend has proper JWT secrets configured
+- Production database contains actual user data with correct bcrypt hashes
+- Production environment has all necessary environment variables and secrets
+- Local development server lacks proper authentication setup
+
+**For Windsurf IDE and Development:**
+- Frontend configuration is set to **always use production backend**
+- No local backend setup required for development
+- All API calls go directly to production environment
+- This ensures consistent authentication and data access
 
 ## ✨ Features
 
-### Frontend
-- **Modern UI/UX**: Beautiful gradient design with responsive layout
-- **Order Creation**: Easy-to-use form for creating new orders
-- **Item Management**: Add/remove multiple items with automatic total calculation
-- **Order Dashboard**: View and manage all orders with status tracking
-- **Payment Integration**: Simulated Midtrans payment link generation
-- **Real-time Notifications**: User feedback for all actions
-- **Mobile Responsive**: Works perfectly on all device sizes
+### Admin Dashboard (React/TypeScript)
+- **Multi-Role Authentication**: Admin, Outlet Manager, Deliveryman roles
+- **Order Management**: Complete CRUD operations for orders and items
+- **Outlet Management**: Multi-outlet support with outlet-specific access
+- **Delivery Tracking**: Real-time delivery status updates and assignment
+- **Photo Upload System**: Cloudflare Images integration for order photos
+- **User Management**: Create, update, and manage system users
+- **Real-time Notifications**: Live updates for order status changes
+- **Audit Trail**: Complete tracking of order status changes with user history
+- **Responsive Design**: Modern UI with Chakra UI and Tailwind CSS
 
 ### Backend (Cloudflare Workers)
-- **RESTful API**: Complete order management endpoints
-- **Midtrans Integration**: Payment gateway integration with webhook support
-- **Database Schema**: D1 database setup for orders and items
-- **CORS Support**: Cross-origin requests enabled
-- **Security**: Webhook signature verification
+- **RESTful API**: 25+ endpoints for complete system management
+- **JWT Authentication**: Role-based access control with session management
+- **Multi-Database Support**: D1 Database with relational schema
+- **Cloudflare Images**: Professional image upload and optimization
+- **Midtrans Integration**: Payment gateway with webhook support
+- **Real-time Sync**: Polling-based real-time updates
+- **CORS Support**: Cross-origin requests with security headers
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: HTML5, CSS3 (Tailwind), Vanilla JavaScript
-- **Backend**: Cloudflare Workers, D1 Database
+### Frontend
+- **Framework**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **UI Library**: Chakra UI + Tailwind CSS
+- **State Management**: React Context + Hooks
+- **Authentication**: JWT with role-based routing
+
+### Backend  
+- **Runtime**: Cloudflare Workers
+- **Database**: Cloudflare D1 (SQLite)
+- **Storage**: Cloudflare R2 + Cloudflare Images
+- **Authentication**: JWT with bcrypt password hashing
 - **Payment**: Midtrans Payment Gateway
 - **Deployment**: Cloudflare Pages & Workers
 
@@ -39,13 +73,22 @@ order-management-app/
 │   ├── worker.js                 # Main worker file
 │   └── handlers/
 │       ├── orders.js             # Order management handlers
+│       ├── auth.js               # Authentication handlers
+│       ├── admin.js              # Admin management handlers
+│       ├── notifications.js      # Notification handlers
+│       ├── cloudflare-images.js  # Image upload handlers
 │       └── webhook.js            # Payment webhook handler
-├── order-management-frontend/    # Frontend application
-│   ├── index.html               # Main HTML file (working version)
-│   ├── src/                     # React source (alternative)
+├── midtrans-frontend/            # React/TypeScript Admin Dashboard
+│   ├── src/                      # Source code
+│   │   ├── components/           # React components
+│   │   ├── pages/               # Page components
+│   │   ├── api/                 # API client services
+│   │   └── contexts/            # React contexts
+│   ├── public/                  # Static assets
 │   └── dist/                    # Built files
-├── schema.sql                   # Database schema
+├── database-schema-relational.sql # Complete database schema
 ├── wrangler.toml               # Cloudflare Workers config
+├── APP_DOCUMENTATION_COMPREHENSIVE.md # Complete system documentation
 ├── DEPLOYMENT_GUIDE.md         # Deployment instructions
 ├── MIDTRANS_GUIDE.md          # Midtrans setup guide
 └── TESTING_RESULTS.md         # Testing documentation
@@ -56,25 +99,37 @@ order-management-app/
 ### 1. Clone Repository
 ```bash
 git clone <repository-url>
-cd order-management-app
+cd midtrans-kurniasari
 ```
 
-### 2. Install Dependencies
+### 2. Install Frontend Dependencies
 ```bash
+cd midtrans-frontend
 npm install
 ```
 
-### 3. Setup Environment Variables
-Create `.env` file with your Midtrans credentials:
-```env
-MIDTRANS_SERVER_KEY=your_server_key
-MIDTRANS_CLIENT_KEY=your_client_key
-MIDTRANS_IS_PRODUCTION=false
+### 3. Frontend Configuration (Production Backend)
+**Frontend is pre-configured to use production backend:**
+- API URL: `https://order-management-app-production.wahwooh.workers.dev`
+- No local backend setup required
+- All authentication and data access through production environment
+
+### 4. Start Development Server
+```bash
+# In midtrans-frontend directory
+npm run dev
 ```
 
-### 4. Deploy Backend
+### 5. Access Admin Dashboard
+- **URL**: `http://localhost:5173/admin/login`
+- **Username**: `admin`
+- **Password**: `password123`
+
+### 6. Backend Management (Production Only)
+**Backend is managed through Cloudflare Workers:**
 ```bash
-npx wrangler deploy
+# Deploy backend changes (if needed)
+npx wrangler deploy --env production
 ```
 
 ### 5. Deploy Frontend

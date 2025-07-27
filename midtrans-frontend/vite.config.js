@@ -6,17 +6,15 @@ export default defineConfig({
   plugins: [react()],
   base: '/', // Pastikan base URL menggunakan root path di production
   server: {
-    hmr: {
-      // Perbaikan untuk WebSocket connection
-      protocol: 'ws',
-      host: 'localhost',
-      port: 5173
-    },
-    // Menggunakan host yang bisa diakses dari jaringan lokal jika diperlukan
-    host: '0.0.0.0',
-    watch: {
-      // Meningkatkan performa watching
-      usePolling: true
+    port: 5175,
+    hmr: false,  // Disable Hot Module Replacement completely
+    proxy: {
+      '/api': {
+        target: 'https://order-management-app-production.wahwooh.workers.dev',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path // Keep the /api prefix
+      }
     }
   },
   build: {

@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link as RouterLink, useLocation } from 'react-router-dom';
+import { useRealTimeSync } from '../hooks/useRealTimeSync';
 import {
-  Box, Heading, Text, VStack, HStack, Badge, Button,
-  Table, Tbody, Tr, Td, Th, Thead, Divider, Spinner,
-  Alert, AlertIcon, Card, CardBody, CardHeader,
-  useToast, Flex, Grid, GridItem, Step, StepDescription,
-  StepIcon, StepIndicator, StepNumber, StepSeparator,
-  StepStatus, StepTitle, Stepper, useBreakpointValue,
-  Tag, Container, Link, Image
+  Box, Button, Center, Divider, Flex, Grid, GridItem, Heading, HStack, Icon,
+  useToast, Step, StepDescription, StepIcon, StepIndicator, StepNumber, 
+  StepSeparator, StepStatus, StepTitle, Stepper, useBreakpointValue,
+  Tag, Container, Link, Image, SimpleGrid, Radio, RadioGroup, Stack,
+  Text, VStack, Badge, Table, Tbody, Tr, Td, Th, Thead, Spinner,
+  Alert, AlertIcon, Card, CardBody, CardHeader
 } from '@chakra-ui/react';
 import { CheckIcon } from '@chakra-ui/icons';
 import { orderService } from '../api/orderService';
@@ -18,8 +18,9 @@ import { normalizeShippingStatus, getShippingStatusConfig } from '../utils/order
 import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas';
 import { adminApi } from '../api/adminApi';
+import ShippingImageDisplay from '../components/ShippingImageDisplay';
 
-function OrderDetailPage() {
+function OrderDetailPage({ isOutletView, isDeliveryView }) {
   const { id } = useParams();
   const location = useLocation();
   const auth = useAuth();
@@ -28,6 +29,7 @@ function OrderDetailPage() {
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMarkingAsReceived, setIsMarkingAsReceived] = useState(false);
+  const [selectedPhotoType, setSelectedPhotoType] = useState('pengiriman'); // Default ke Foto Pengiriman - backend compatible
   const [shippingImages, setShippingImages] = useState({
     ready_for_pickup: null,
     picked_up: null,
@@ -37,103 +39,229 @@ function OrderDetailPage() {
   const [showQRCode, setShowQRCode] = useState(false);
   const qrCodeRef = useRef(null);
   const toast = useToast();
+  
+  // Real-time sync untuk public order detail page
+  const { syncStatus, manualRefresh } = useRealTimeSync({
+    role: 'public',
+    onUpdate: (updateInfo) => {
+      console.log('PUBLIC ORDER SYNC: New updates detected:', updateInfo);
+      // Refresh order when updates are detected
+      fetchOrderDetails();
+    },
+    pollingInterval: 60000, // Poll every 60 seconds (1 minute) - optimized for cost efficiency
+    enabled: true
+  });
+  
+  // State untuk fitur upload foto kurir
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  
+  // Fungsi untuk memilih foto
+  const handlePhotoChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      console.log('Selected photo:', file.name, file.type, file.size);
+      setPhotoFile(file);
+      
+      // Tampilkan preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  // Fungsi untuk upload foto
+  const handlePhotoUpload = async () => {
+    if (!photoFile) return;
+    
+    try {
+      setUploadLoading(true);
+      
+      // Upload foto menggunakan adminApi dengan tipe yang dipilih oleh kurir
+      const result = await adminApi.uploadShippingImage(id, selectedPhotoType, photoFile);
+      console.log('Upload result:', result);
+      
+      // Update status pengiriman jika upload berhasil
+      if (result && result.data && result.data.imageUrl) {
+        // Perbarui status pengiriman berdasarkan jenis foto yang diupload
+        let newStatus = 'dalam pengiriman';
+        
+        if (selectedPhotoType === 'siap_kirim') {
+          newStatus = 'siap kirim';
+        } else if (selectedPhotoType === 'diterima') {
+          newStatus = 'diterima';
+        }
+        
+        await adminApi.updateOrderShippingStatus(id, newStatus);
+        
+        // Perbarui state shippingImages langsung untuk menampilkan foto yang baru diunggah
+        // tanpa perlu menunggu refresh data
+        setShippingImages(prev => {
+          const newImages = { ...prev };
+          
+          // Perbarui status backend
+          newImages[selectedPhotoType] = result.data.imageUrl;
+          
+          // Perbarui juga status frontend (jika ada)
+          if (selectedPhotoType === 'siap_kirim') {
+            newImages.ready_for_pickup = result.data.imageUrl;
+            newImages.readyForPickup = result.data.imageUrl; // Legacy support
+          } else if (selectedPhotoType === 'pengiriman') {
+            newImages.picked_up = result.data.imageUrl;
+            newImages.pickedUp = result.data.imageUrl; // Legacy support
+          } else if (selectedPhotoType === 'diterima') {
+            newImages.delivered = result.data.imageUrl;
+            newImages.received = result.data.imageUrl; // Legacy support
+          }
+          
+          return newImages;
+        });
+        
+        toast({
+          title: 'Sukses',
+          description: 'Foto berhasil diunggah dan status diperbarui',
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+        
+        // Reset form dan reload data
+        setPhotoFile(null);
+        setPhotoPreview(null);
+        fetchOrder();
+      }
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      toast({
+        title: 'Error',
+        description: 'Terjadi kesalahan saat mengunggah foto',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setUploadLoading(false);
+    }
+  };
   const stepperOrientation = useBreakpointValue({ base: 'vertical', md: 'horizontal' });
   const stepperSize = useBreakpointValue({ base: 'sm', md: 'md' });
   
   // Check if this is a public order page (ID starts with ORDER-)
   const isPublicOrderPage = id && id.startsWith('ORDER-');
 
-  const fetchOrder = async () => {
+  const fetchOrder = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
-      
-      // Debug log untuk memudahkan troubleshooting
-      console.log(`🔍 Mencoba mengambil pesanan dengan ID: ${id}`);
-      
-      // Different fetch approach based on public vs protected route
+      console.log(`🔄 Fetching order with ID: ${id}`);
       let orderData;
       
-      if (isPublicOrderPage) {
-        // For public order pages, use adminApi directly but without authentication
-        // This ensures we use the same API endpoint structure consistently
+      if (isOutletView || isDeliveryView) {
+        // Check authentication first for delivery/outlet view
+        const token = sessionStorage.getItem('token');
+        const user = sessionStorage.getItem('user');
+        
+        console.log(`🔍 [${isDeliveryView ? 'DELIVERY' : 'OUTLET'}] Token exists:`, !!token);
+        console.log(`🔍 [${isDeliveryView ? 'DELIVERY' : 'OUTLET'}] User data:`, !!user);
+        
+        if (!token || !user) {
+          throw new Error(`Authentication required. Please log in as ${isDeliveryView ? 'deliveryman' : 'outlet manager'}.`);
+        }
+        
+        // Jika outlet/delivery view, gunakan adminApi untuk mendapatkan order
+        console.log(`🔍 [${isDeliveryView ? 'DELIVERY' : 'OUTLET'}] Fetching order details for:`, id);
+        const response = await adminApi.getOrderDetails(id);
+        
+        console.log(`🔍 [${isDeliveryView ? 'DELIVERY' : 'OUTLET'}] API Response:`, response);
+        
+        if (!response.success || !response.data) {
+          const errorMsg = response.error || 'Failed to fetch order details';
+          console.error(`❌ [${isDeliveryView ? 'DELIVERY' : 'OUTLET'}] API Error:`, errorMsg);
+          throw new Error(errorMsg);
+        }
+        orderData = response.data;
+      } else if (isPublicOrderPage) {
+        // For public order pages, use adminApi directly without authentication
         console.log(`🔍 Fetching public order with ID: ${id}`);
         
         try {
-          // Gunakan adminApi yang sudah terbukti berfungsi
-          // Tetapi buat instance axios baru tanpa autentikasi untuk halaman publik
-          const isDev = import.meta.env.MODE === 'development';
-          // Use multiple possible backend URLs to maximize chances of success
-          const apiUrls = [
-            'https://tagihan.kurniasari.co.id',
-            'https://order-management-app-production.wahwooh.workers.dev',
-            isDev ? 'http://localhost:8787' : null
-          ].filter(Boolean);
+          // Selalu gunakan production API untuk public order agar konsisten dengan admin/outlet/kurir
+          const API_BASE_URL = 'https://order-management-app-production.wahwooh.workers.dev';
+          console.log('🌐 Menggunakan production API URL untuk konsistensi data:', API_BASE_URL);
           
-          let lastError = null;
-          let orderResponse = null;
-          
-          // Try each URL until one works
-          for (const baseUrl of apiUrls) {
-            try {
-              console.log(`🌐 Trying API URL: ${baseUrl}`);
-              const response = await axios.get(`${baseUrl}/api/orders/${id}`, {
-                headers: {
-                  'Accept': 'application/json',
-                  'Content-Type': 'application/json'
-                }
-              });
-              
-              if (response.data && (response.data.success || response.data.order || response.data.data)) {
-                orderResponse = response;
-                console.log(`✅ Successful response from ${baseUrl}`);
-                break;
-              }
-            } catch (err) {
-              console.log(`❌ Error with ${baseUrl}:`, err.message);
-              lastError = err;
-            }
-          }
-          
-          if (!orderResponse && lastError) {
-            throw lastError;
-          } else if (!orderResponse) {
-            throw new Error('Tidak bisa terhubung ke server');
-          }
-          
-          const response = orderResponse;
-          console.log('📦 Respons API:', response.data);
+          // PERBAIKAN: Gunakan API_BASE_URL yang sudah didefinisikan dan endpoint yang benar '/api/orders/:id'
+          console.log(`🔗 Mencoba mengakses: ${API_BASE_URL}/api/orders/${id}`);
+          const response = await axios.get(`${API_BASE_URL}/api/orders/${id}`);
           
           // Handle different response formats
-          if (response.data.success) {
+          if (response.data?.success) {
             if (response.data.order) {
-              orderData = response.data.order; // Format lama
+              orderData = response.data.order;
             } else if (response.data.data) {
-              orderData = response.data.data;  // Format baru dari API produksi
-            } else {
-              throw new Error('Format data tidak dikenali');
+              orderData = response.data.data;
             }
-          } else if (response.data.order) {
-            orderData = response.data.order; // Format alternatif
-          } else if (response.data.data) {
-            orderData = response.data.data;  // Format alternatif
+          } else if (response.data?.order) {
+            orderData = response.data.order;
+          } else if (response.data?.data) {
+            orderData = response.data.data;
           } else {
+            orderData = response.data;
+          }
+          
+          if (!orderData) {
             throw new Error('Format respons tidak dikenali');
           }
         } catch (apiError) {
           console.error('❌ Error dalam mengambil data pesanan:', apiError);
-          throw apiError;
+          // Fallback to order service if direct API call fails
+          try {
+            const response = await orderService.getOrderById(id);
+            orderData = response;
+          } catch (serviceError) {
+            console.error('Fallback ke orderService juga gagal:', serviceError);
+            throw apiError; // Throw original error
+          }
         }
       } else {
         // For protected pages, use orderService which includes auth
         const serviceResponse = await orderService.getOrderById(id);
-        if (serviceResponse.success && serviceResponse.order) {
+        if (serviceResponse?.success && serviceResponse?.order) {
           orderData = serviceResponse.order;
-        } else if (serviceResponse.success && serviceResponse.data) {
+        } else if (serviceResponse?.success && serviceResponse?.data) {
           orderData = serviceResponse.data;
         } else {
+          orderData = serviceResponse; // Asumsi response langsung adalah data
+        }
+        
+        if (!orderData) {
           throw new Error('Data tidak ditemukan dari orderService');
         }
+      }
+      
+      // Pastikan kita memiliki data pesanan
+      if (orderData) {
+        let finalOrder = orderData;
+        if (finalOrder.payment_response) {
+          try {
+            const paymentDetails = JSON.parse(finalOrder.payment_response);
+            finalOrder = {
+              ...finalOrder,
+              payment_method: paymentDetails.payment_type || finalOrder.payment_method,
+              payment_time: paymentDetails.settlement_time || finalOrder.payment_time,
+              status: paymentDetails.transaction_status || finalOrder.status,
+            };
+          } catch (e) {
+            console.error("Failed to parse payment_response on initial load:", e);
+          }
+        }
+        setOrder(finalOrder);
+        console.log('✅ Berhasil memuat data pesanan:', finalOrder);
+      } else {
+        setError(`Pesanan tidak ditemukan.`);
       }
       
       // Pastikan kita memiliki data pesanan
@@ -163,7 +291,7 @@ function OrderDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, isOutletView, isDeliveryView, isPublicOrderPage]);
 
   // Special effect to ensure public order pages never show admin UI
   useEffect(() => {
@@ -216,7 +344,7 @@ function OrderDetailPage() {
       
       if (isPublicOrderPage) {
         // For public pages, use direct axios call
-        const apiUrl = import.meta.env.VITE_API_URL || 'https://pesanan.kurniasari.co.id';
+        const apiUrl = import.meta.env.VITE_API_URL || 'https://order-management-app-production.wahwooh.workers.dev';
         const response = await axios.post(`${apiUrl}/api/orders/${id}/refresh-status`);
         data = response.data;
       } else {
@@ -254,10 +382,13 @@ function OrderDetailPage() {
     setIsMarkingAsReceived(true);
     try {
       console.log('📦 Menandai pesanan sebagai sudah diterima:', id);
-      const result = await markOrderAsReceived(id);
       
-      if (!result.success) {
-        throw new Error(result.error || 'Gagal menandai pesanan sebagai diterima');
+      // Gunakan adminApi.updateOrderShippingStatus alih-alih markOrderAsReceived
+      const result = await adminApi.updateOrderShippingStatus(id, 'diterima');
+      console.log('Result from updateOrderShippingStatus:', result);
+      
+      if (!result.success && !result.data) {
+        throw new Error('Gagal menandai pesanan sebagai diterima');
       }
       
       toast({
@@ -268,8 +399,14 @@ function OrderDetailPage() {
         isClosable: true,
       });
       
+      // Segera perbarui status order di UI untuk menghindari perlu refresh
+      setOrder(prevOrder => ({
+        ...prevOrder,
+        shipping_status: 'diterima' // Update shipping status langsung di state
+      }));
+      
       // Delay sedikit sebelum refresh untuk memastikan data terupdate di server
-      setTimeout(() => fetchOrder(), 500); // Refresh order data setelah delay pendek
+      setTimeout(() => fetchOrder(), 1000); // Refresh order data setelah delay lebih lama
     } catch (err) {
       console.error('❌ Error menandai pesanan sebagai diterima:', err);
       toast({
@@ -282,7 +419,7 @@ function OrderDetailPage() {
     } finally {
       setIsMarkingAsReceived(false);
     }
-  }, [id, toast, fetchOrder]);
+  }, [id, toast]); // ✅ Removed fetchOrder to prevent infinite loop
 
   const handleDownloadQRCode = useCallback(() => {
     const qrCodeElement = qrCodeRef.current;
@@ -330,14 +467,41 @@ function OrderDetailPage() {
     // Tambahkan cache busting dengan timestamp
     if (!url) return "";
     
-    // Ganti domain lama dengan domain baru jika diperlukan
-    if (url.includes('kurniasari-shipping-images.kurniasari.co.id')) {
-      const fileName = url.split('/').pop().split('?')[0];
-      url = `https://proses.kurniasari.co.id/${fileName}`;
+    // Debug logging untuk troubleshooting
+    console.log('🖼️ [Public] Original image URL:', url);
+    
+    // Remove any existing timestamp parameter
+    let cleanUrl = url;
+    if (url.includes('?')) {
+      cleanUrl = url.split('?')[0];
     }
     
-    // Tambahkan timestamp untuk cache busting
-    return `${url}?t=${Date.now()}`;
+    // Handle kurniasari-shipping-images.kurniasari.co.id URLs
+    if (cleanUrl.includes('kurniasari-shipping-images.kurniasari.co.id')) {
+      const fileName = cleanUrl.split('/').pop();
+      const transformedUrl = `https://proses.kurniasari.co.id/${fileName}?t=${Date.now()}`;
+      console.log('🖼️ [Public] Transformed to proses.kurniasari.co.id:', transformedUrl);
+      return transformedUrl;
+    }
+    
+    // Handle R2 storage URLs
+    if (cleanUrl.includes('13b5c18f23aa268941269ea0db1d1e5a.r2.cloudflarestorage.com')) {
+      const transformedUrl = `${cleanUrl}?t=${Date.now()}`;
+      console.log('🖼️ [Public] Using R2 URL directly:', transformedUrl);
+      return transformedUrl;
+    }
+    
+    // For proses.kurniasari.co.id URLs
+    if (cleanUrl.includes('proses.kurniasari.co.id')) {
+      const transformedUrl = `${cleanUrl}?t=${Date.now()}`;
+      console.log('🖼️ [Public] Using proses.kurniasari.co.id URL:', transformedUrl);
+      return transformedUrl;
+    }
+    
+    // Default: Always add timestamp parameter
+    const finalUrl = `${cleanUrl}?t=${Date.now()}`;
+    console.log('🖼️ [Public] Default transform (add timestamp):', finalUrl);
+    return finalUrl;
   };
 
   // Mapping antara format frontend dan backend untuk tipe gambar
@@ -420,20 +584,15 @@ function OrderDetailPage() {
     }
   };
   
-  // Fungsi untuk mendapatkan status pengiriman
-  const getShippingStatusBadge = (order) => {
+  // Fungsi untuk mendapatkan status pengiriman - memoized untuk performance
+  const getShippingStatusBadge = useCallback((order) => {
     if (!order || !order.shipping_status) return <Badge colorScheme="gray">Menunggu Diproses</Badge>;
-    
-    // Debug log untuk membantu troubleshooting
-    console.log(`[getShippingStatusBadge] Raw shipping_status: "${order.shipping_status}"`);
     
     // Selalu gunakan shared utility agar konsisten dengan admin page
     const normalizedStatus = normalizeShippingStatus(order.shipping_status);
-    console.log(`[getShippingStatusBadge] Normalized status: "${normalizedStatus}"`);
-    
     const statusConfig = getShippingStatusConfig(normalizedStatus);
     return <Badge colorScheme={statusConfig.color}>{statusConfig.text}</Badge>;
-  };
+  }, []); // ✅ Memoized to prevent recreation on every render
 
   const getPaymentSteps = () => {
     const steps = [
@@ -455,7 +614,7 @@ function OrderDetailPage() {
       if (['shipped', 'delivered', 'received', 'Sudah Di Terima', 'Sudah Di Ambil'].includes(shippingStatus)) {
         activeStep = 3;
         steps[2].description = 'Pesanan dikirim';
-        if (['received', 'Sudah Di Terima', 'Sudah Di Ambil'].includes(shippingStatus)) {
+        if (['received', 'Sudah Di Terima', 'Sudah Di Ambil', 'diterima'].includes(shippingStatus)) {
           activeStep = 4;
           steps[3].description = 'Pesanan telah diterima';
         }
@@ -492,7 +651,7 @@ function OrderDetailPage() {
         <Card>
           <CardHeader>
             <Flex justify="space-between" align="center">
-              <Heading size="md">Detail Pesanan #{order.id.substring(0, 8)}</Heading>
+              <Heading size="md">Detail Pesanan {order?.id ? `#${order.id.substring(0, 8)}` : 'Loading...'}</Heading>
             </Flex>
           </CardHeader>
           <CardBody>
@@ -500,44 +659,44 @@ function OrderDetailPage() {
               {steps.map((step, index) => (
                 <Step key={index}>
                   <StepIndicator>
-                    {index === 2 && order?.shipping_status ? (
-                      <Box position="relative" width="100%" height="100%" borderRadius="50%" overflow="hidden" display="flex" alignItems="center" justifyContent="center">
-                        {/* Progress lingkaran hijau berdasarkan status pengiriman */}
-                        <Box 
-                          position="absolute" 
-                          top="0" 
-                          left="0" 
-                          width="100%" 
-                          height="100%" 
-                          bgColor="green.500" 
-                          zIndex="0"
-                          transition="all 0.3s ease-in-out"
-                          clipPath={
-                            normalizeShippingStatus(order.shipping_status) === "dikemas" ? "polygon(0 0, 25% 0, 25% 100%, 0 100%)" :
-                            normalizeShippingStatus(order.shipping_status) === "siap kirim" || normalizeShippingStatus(order.shipping_status) === "siap di ambil" ? "polygon(0 0, 50% 0, 50% 100%, 0 100%)" :
-                            normalizeShippingStatus(order.shipping_status) === "dalam pengiriman" ? "circle(50%)" :
-                            "circle(0%)"
-                          }
-                        />
-                        <Box 
-                          position="absolute"
-                          top="0"
-                          left="0"
-                          width="100%"
-                          height="100%"
-                          borderRadius="50%"
-                          display="flex"
-                          alignItems="center"
-                          justifyContent="center"
-                          zIndex="1"
-                        >
-                          {normalizeShippingStatus(order.shipping_status) === "dalam pengiriman" ? (
-                            <CheckIcon color="white" boxSize="16px" />
-                          ) : (
-                            <StepNumber fontSize="md" fontWeight="bold" color="gray.700" />
-                          )}
-                        </Box>
-                      </Box>
+                    {index === 2 && order && order.shipping_status ? (
+                       <Box position="relative" width="100%" height="100%" borderRadius="50%" overflow="hidden" display="flex" alignItems="center" justifyContent="center">
+                         {/* Progress lingkaran hijau berdasarkan status pengiriman */}
+                         <Box 
+                           position="absolute" 
+                           top="0" 
+                           left="0" 
+                           width="100%" 
+                           height="100%" 
+                           bgColor="green.500" 
+                           zIndex="0"
+                           transition="all 0.3s ease-in-out"
+                           clipPath={
+                             normalizeShippingStatus(order.shipping_status) === "dikemas" ? "polygon(0 0, 25% 0, 25% 100%, 0 100%)" :
+                             normalizeShippingStatus(order.shipping_status) === "siap kirim" || normalizeShippingStatus(order.shipping_status) === "siap di ambil" ? "polygon(0 0, 50% 0, 50% 100%, 0 100%)" :
+                             normalizeShippingStatus(order.shipping_status) === "dalam pengiriman" ? "circle(50%)" :
+                             "circle(0%)"
+                           }
+                         />
+                         <Box 
+                           position="absolute"
+                           top="0"
+                           left="0"
+                           width="100%"
+                           height="100%"
+                           borderRadius="50%"
+                           display="flex"
+                           alignItems="center"
+                           justifyContent="center"
+                           zIndex="1"
+                         >
+                           {normalizeShippingStatus(order.shipping_status) === "dalam pengiriman" ? (
+                             <CheckIcon color="white" boxSize="16px" />
+                           ) : (
+                             <StepNumber fontSize="md" fontWeight="bold" color="gray.700" />
+                           )}
+                         </Box>
+                       </Box>
                     ) : (
                       <StepStatus complete={<StepIcon />} incomplete={<StepNumber />} active={<StepNumber />} />
                     )}
@@ -554,6 +713,7 @@ function OrderDetailPage() {
                           py={0.5}
                         >
                           {(() => {
+                            if (!order?.shipping_status) return "Menunggu Diproses";
                             const normalizedStatus = normalizeShippingStatus(order.shipping_status);
                             switch(normalizedStatus) {
                               case "dikemas": return "Dikemas";
@@ -661,52 +821,153 @@ function OrderDetailPage() {
               </GridItem>
             </Grid>
 
-            {/* Tampilkan link ke foto status pengiriman jika ada */}
-            {isPublicOrderPage && (Object.values(shippingImages).some(Boolean)) && (
-              <Box mt={6}>
-                <Heading size="sm" mb={4}>Status {order.tipe_pesanan === "Pesan Antar" ? "Pengantaran" : "Pengambilan"}</Heading>
-                <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={4}>
-                  {/* Cek kedua format kunci (frontend dan backend) untuk maksimum kompatibilitas */}
-                  {(shippingImages.ready_for_pickup || shippingImages.readyForPickup) && (
-                    <GridItem>
-                      <Text mb={2}><strong>{order.tipe_pesanan === "Pesan Antar" ? "Siap Diantar:" : "Siap Diambil:"}</strong></Text>
-                      <Link 
-                        href={shippingImages.ready_for_pickup || shippingImages.readyForPickup} 
-                        isExternal 
-                        color="blue.500" 
-                        fontWeight="medium"
+            {/* Komponen upload foto untuk deliveryman */}
+            {isDeliveryView && order && (
+              <Box mt={6} mb={4} p={4} borderWidth="1px" borderRadius="lg" bg="white">
+                <Heading size="sm" mb={3}>Upload Foto</Heading>
+                <Text fontSize="sm" color="gray.600" mb={4}>
+                  Pilih jenis foto dan unggah untuk memperbarui status pengiriman.
+                </Text>
+                
+                <RadioGroup onChange={setSelectedPhotoType} value={selectedPhotoType} mb={4}>
+                  <Stack direction="row" spacing={5}>
+                    <Radio value="siap_kirim" colorScheme="blue">
+                      Foto Siap Kirim
+                    </Radio>
+                    <Radio value="pengiriman" colorScheme="green">
+                      Foto Pengiriman
+                    </Radio>
+                    <Radio value="diterima" colorScheme="purple">
+                      Foto Diterima
+                    </Radio>
+                  </Stack>
+                </RadioGroup>
+                
+                <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={6}>
+                  <GridItem>
+                    <VStack spacing={4} align="start">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        id="photo-upload"
+                        onChange={handlePhotoChange}
+                        style={{ display: 'none' }}
+                      />
+                      <Button 
+                        as="label" 
+                        htmlFor="photo-upload"
+                        colorScheme="blue"
+                        leftIcon={<span>📷</span>}
+                        isDisabled={uploadLoading}
                       >
-                        Lihat Foto {order.tipe_pesanan === "Pesan Antar" ? "Siap Diantar" : "Siap Diambil"}
-                      </Link>
-                    </GridItem>
-                  )}
-                  {(shippingImages.picked_up || shippingImages.pickedUp) && (
-                    <GridItem>
-                      <Text mb={2}><strong>{order.tipe_pesanan === "Pesan Antar" ? "Sudah Diantar:" : "Sudah Diambil:"}</strong></Text>
-                      <Link 
-                        href={shippingImages.picked_up || shippingImages.pickedUp} 
-                        isExternal 
-                        color="blue.500" 
-                        fontWeight="medium"
+                        Pilih Foto
+                      </Button>
+                      
+                      {photoFile && (
+                        <Text fontSize="sm">
+                          File: {photoFile.name} ({Math.round(photoFile.size / 1024)} KB)
+                        </Text>
+                      )}
+                      
+                      <Button 
+                        onClick={handlePhotoUpload}
+                        colorScheme="green"
+                        isLoading={uploadLoading}
+                        isDisabled={!photoFile}
+                        leftIcon={<span>⬆️</span>}
+                        mt={4}
                       >
-                        Lihat Foto {order.tipe_pesanan === "Pesan Antar" ? "Sudah Diantar" : "Sudah Diambil"}
-                      </Link>
-                    </GridItem>
-                  )}
-                  {(shippingImages.delivered || shippingImages.received) && (
-                    <GridItem>
-                      <Text mb={2}><strong>Sudah Diterima:</strong></Text>
-                      <Link 
-                        href={shippingImages.delivered || shippingImages.received} 
-                        isExternal 
-                        color="blue.500" 
-                        fontWeight="medium"
-                      >
-                        Lihat Foto Sudah Diterima
-                      </Link>
-                    </GridItem>
-                  )}
+                        Upload Foto & Perbarui Status
+                      </Button>
+                      
+                      <Text fontSize="sm" fontWeight="medium" 
+                        color={selectedPhotoType === 'siap_kirim' ? 'blue.600' : 
+                               selectedPhotoType === 'pengiriman' ? 'green.600' : 'purple.600'} 
+                        mt={2}>
+                        Status foto: {selectedPhotoType === 'siap_kirim' ? 'Foto Siap Kirim' : 
+                                  selectedPhotoType === 'pengiriman' ? 'Foto Pengiriman' : 'Foto Diterima'}
+                      </Text>
+                      
+                      <Text fontSize="xs" color="gray.500" mt={1}>
+                        *Status pengiriman akan otomatis diperbarui menjadi 
+                        "{selectedPhotoType === 'siap_kirim' ? 'Siap Kirim' : 
+                          selectedPhotoType === 'pengiriman' ? 'Dalam Pengiriman' : 'Diterima'}"
+                      </Text>
+                    </VStack>
+                  </GridItem>
+                  
+                  <GridItem>
+                    <Box borderWidth="1px" borderRadius="md" p={2} height="200px" display="flex" alignItems="center" justifyContent="center">
+                      {photoPreview ? (
+                        <Image 
+                          src={photoPreview} 
+                          alt="Preview" 
+                          maxH="100%" 
+                          objectFit="contain"
+                        />
+                      ) : (
+                        <Text color="gray.400">Pratinjau foto akan muncul di sini</Text>
+                      )}
+                    </Box>
+                  </GridItem>
                 </Grid>
+              </Box>
+            )}
+            
+            {/* Tampilkan link ke foto status pengiriman jika ada */}
+            {(isPublicOrderPage || isDeliveryView) && (Object.values(shippingImages).some(Boolean)) && (
+              <Box mt={6} mb={4}>
+                <Heading size="sm" mb={3}>Status Foto Pesanan</Heading>
+                
+                {/* Kondisional rendering berdasarkan shipping_area */}
+                {order && order.shipping_area === 'luar-kota' ? (
+                  // Untuk luar kota, hanya tampilkan 1 foto (Foto Diterima)
+                  <Box p={3} borderWidth="1px" borderRadius="md" bg="white" textAlign="center">
+                    <ShippingImageDisplay
+                      imageUrl={shippingImages.delivered || shippingImages.received || ""}
+                      type="received"
+                      label="Foto Diterima"
+                      maxHeight="150px"
+                      showPlaceholder={true}
+                    />
+                  </Box>
+                ) : (
+                  // Untuk dalam kota, tampilkan 3 foto
+                  <SimpleGrid columns={{base: 1, md: 3}} spacing={4}>
+                    {/* Ready for Pickup Image */}
+                    <Box p={3} borderWidth="1px" borderRadius="md" bg="white" textAlign="center">
+                      <ShippingImageDisplay
+                        imageUrl={shippingImages.ready_for_pickup || shippingImages.readyForPickup || ""}
+                        type="readyForPickup"
+                        label="Foto Siap Kirim"
+                        maxHeight="120px"
+                        showPlaceholder={true}
+                      />
+                    </Box>
+                    
+                    {/* Picked Up / In Transit Image */}
+                    <Box p={3} borderWidth="1px" borderRadius="md" bg="white" textAlign="center">
+                      <ShippingImageDisplay
+                        imageUrl={shippingImages.picked_up || shippingImages.pickedUp || ""}
+                        type="pickedUp"
+                        label="Foto Pengiriman"
+                        maxHeight="120px"
+                        showPlaceholder={true}
+                      />
+                    </Box>
+                    
+                    {/* Delivered / Received Image */}
+                    <Box p={3} borderWidth="1px" borderRadius="md" bg="white" textAlign="center">
+                      <ShippingImageDisplay
+                        imageUrl={shippingImages.delivered || shippingImages.received || ""}
+                        type="received"
+                        label="Foto Diterima"
+                        maxHeight="120px"
+                        showPlaceholder={true}
+                      />
+                    </Box>
+                  </SimpleGrid>
+                )}
               </Box>
             )}
 
@@ -726,7 +987,7 @@ function OrderDetailPage() {
                     {order && order.id ? (
                       <VStack>
                         <QRCodeSVG 
-                          value={`https://tagihan.kurniasari.co.id/orders/${order.id}`}
+                          value={`https://order-management-app-production.wahwooh.workers.dev/api/orders/${order.id}`}
                           size={220}
                           level="H"
                           includeMargin={true}
@@ -751,7 +1012,7 @@ function OrderDetailPage() {
                   size="sm"
                   onClick={() => {
                     if (order && order.id) {
-                      const publicUrl = `https://tagihan.kurniasari.co.id/orders/${order.id}`;
+                      const publicUrl = `https://order-management-app-production.wahwooh.workers.dev/api/orders/${order.id}`;
                       const link = document.createElement('a');
                       link.href = publicUrl;
                       link.download = `Halaman-Status-Pesanan-${order.id}.html`;

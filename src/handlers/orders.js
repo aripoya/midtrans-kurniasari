@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import { createNotification } from './notifications.js';
 
 // Simple order ID generator
 function generateOrderId() {
@@ -30,7 +31,7 @@ export async function createOrder(request, env) {
       return new Response(JSON.stringify({ success: false, error: 'Missing or invalid required fields' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
 
-    const totalAmount = items.reduce((total, item) => total + (Number(item.price) * Number(item.quantity)), 0);
+    const totalAmount = items.reduce((total, item) => total + (Number(item.product_price || item.price) * Number(item.quantity)), 0);
     const orderId = generateOrderId();
 
     const processedItems = [];
@@ -45,7 +46,7 @@ export async function createOrder(request, env) {
           // Insert the new product and get its auto-incremented ID
           const insertResult = await env.DB.prepare(
             `INSERT INTO products (name, price) VALUES (?, ?)`
-          ).bind(item.name, Number(item.price)).run();
+          ).bind(item.name, Number(item.product_price || item.price)).run();
           // D1 run() result for INSERT contains meta with last_row_id
           productId = insertResult.meta.last_row_id;
         }
@@ -90,7 +91,7 @@ export async function createOrder(request, env) {
       item_details: processedItems.map(item => ({
         id: String(item.id),
         name: item.name,
-        price: Number(item.price),
+        price: Number(item.product_price || item.price),
         quantity: Number(item.quantity)
       })),
       callbacks: {
@@ -451,6 +452,94 @@ export async function deleteOrder(request, env) {
   }
 }
 
+// Get orders assigned to specific deliveryman
+export async function getDeliveryOrders(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  // Handle OPTIONS request for CORS preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    // Get deliveryman ID from JWT token (should be set by verifyToken middleware)
+    const deliverymanId = request.user?.id;
+    
+    if (!deliverymanId) {
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'Deliveryman ID not found in token'
+      }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    // Query orders assigned to this deliveryman
+    const ordersResult = await env.DB.prepare(`
+      SELECT *
+      FROM orders
+      WHERE assigned_deliveryman_id = ?
+      ORDER BY created_at DESC
+    `).bind(deliverymanId).all();
+
+    if (!ordersResult.success) {
+      throw new Error('Failed to fetch delivery orders from database');
+    }
+
+    const orders = ordersResult.results || [];
+
+    // Process each order to add additional data
+    const processedOrders = [];
+    for (const order of orders) {
+      try {
+        // Fetch shipping images for this order
+        const shippingImagesResult = await env.DB.prepare(
+          'SELECT * FROM shipping_images WHERE order_id = ? ORDER BY created_at DESC'
+        ).bind(order.id).all();
+        
+        const shipping_images = shippingImagesResult.results || [];
+
+        // Add processed order with shipping images
+        processedOrders.push({
+          ...order,
+          shipping_images
+        });
+      } catch (imageError) {
+        console.error(`Error fetching images for order ${order.id}:`, imageError);
+        // Continue with order but without images
+        processedOrders.push({
+          ...order,
+          shipping_images: []
+        });
+      }
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      orders: processedOrders,
+      count: processedOrders.length
+    }), {
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+
+  } catch (error) {
+    console.error('Get Delivery Orders Error:', error.message, error.stack);
+    return new Response(JSON.stringify({
+      success: false,
+      message: 'Failed to fetch delivery orders',
+      error: error.message
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  }
+}
+
 // Admin endpoint to get enhanced order list with more details
 export async function getAdminOrders(request, env) {
   const corsHeaders = {
@@ -565,7 +654,7 @@ export async function getAdminOrders(request, env) {
 }
 
 export async function updateOrderStatus(request, env) {
-  const corsHeaders = {
+  const corsHeaders = request.corsHeaders || {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'PATCH, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -604,19 +693,157 @@ export async function updateOrderStatus(request, env) {
       throw new Error("Database binding not found.");
     }
 
+    // Get current order status and related information before updating
+    const currentOrder = await env.DB.prepare(`
+      SELECT o.shipping_status, o.outlet_id, o.assigned_deliveryman_id, 
+             ou.name as outlet_name
+      FROM orders o
+      LEFT JOIN outlets ou ON o.outlet_id = ou.id
+      WHERE o.id = ?
+    `).bind(orderId).first();
+
+    if (!currentOrder) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Order not found' 
+      }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    const oldStatus = currentOrder.shipping_status;
+
+    // Only update if status has changed
+    if (oldStatus === status) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Status is unchanged' 
+      }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Update the order status
     const updateResult = await env.DB.prepare(
       'UPDATE orders SET shipping_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
     ).bind(status, orderId).run();
 
     if (updateResult.meta.changes === 0) {
-        return new Response(JSON.stringify({ success: false, error: 'Order not found or status unchanged' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Order not found or status unchanged' 
+      }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
+    // Create audit log entry
+    // Generate a random ID for the log entry
+    const logId = `log_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    let userId = null;
+    let userRole = 'anonymous';
+    
+    // Extract user info from request if available
+    if (request.user) {
+      userId = request.user.id;
+      userRole = request.user.role;
+    }
+    
+    // Add entry to order_update_logs
+    const logResult = await env.DB.prepare(
+      `INSERT INTO order_update_logs (
+        id, order_id, user_id, update_type, old_value, new_value, user_role, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      logId,
+      orderId,
+      userId,
+      'shipping_status',
+      oldStatus,
+      status,
+      userRole,
+      `Shipping status updated from ${oldStatus || 'not set'} to ${status}`
+    ).run();
+    
+    if (!logResult.success) {
+      console.error('Failed to create audit log:', logResult.error);
+      // We still return success for the status update even if logging fails
+    }
+    
+    // Create notifications
+    try {
+      // Extract outlet and deliveryman info if available
+      const outletId = currentOrder.outlet_id;
+      const deliverymanId = currentOrder.assigned_deliveryman_id;
+      const outletName = currentOrder.outlet_name || 'the outlet';
+      
+      // Determine notification title and message based on status
+      let title = `Order Status Updated`;
+      let message = `Order #${orderId} status updated to "${status}"`;
+      
+      // Create different notification messages based on status and user role
+      if (status.toLowerCase() === 'dalam pengiriman' || 
+          status.toLowerCase() === 'sedang dikirim' || 
+          status.toLowerCase() === 'dikirim') {
+        title = 'Order In Transit';
+        message = `Order #${orderId} is now being delivered to the customer.`;
+      } else if (status.toLowerCase() === 'diterima' || 
+                status.toLowerCase() === 'received' || 
+                status.toLowerCase() === 'sudah di terima') {
+        title = 'Order Delivered';
+        message = `Order #${orderId} has been successfully delivered to the customer.`;
+      } else if (status.toLowerCase() === 'siap kirim' || 
+                status.toLowerCase() === 'siap diambil' || 
+                status.toLowerCase() === 'siap di ambil') {
+        title = 'Order Ready for Delivery';
+        message = `Order #${orderId} is ready to be picked up from ${outletName} for delivery.`;
+      }
+      
+      // Get the user who made the change (for context in notifications)
+      let updatedByText = 'The system';
+      if (request.user) {
+        updatedByText = request.user.role === 'admin' ? 'An admin' : 
+                       request.user.role === 'outlet_manager' ? 'The outlet manager' : 
+                       'The delivery person';
+      }
+      
+      // Append who made the change
+      message += ` ${updatedByText} updated the status from "${oldStatus || 'not set'}" to "${status}".`;
+      
+      // 1. Notify the outlet if order is for that outlet
+      if (outletId && userRole !== 'outlet_manager') {
+        await createNotification(env, {
+          outletId: outletId,
+          orderId: orderId,
+          title: title,
+          message: message,
+          type: 'order_status_update'
+        });
+      }
+      
+      // 2. Notify the assigned deliveryman if there is one and they didn't make the change
+      if (deliverymanId && userId !== deliverymanId) {
+        await createNotification(env, {
+          userId: deliverymanId,
+          orderId: orderId,
+          title: title,
+          message: message,
+          type: 'order_status_update'
+        });
+      }
+      
+    } catch (notifError) {
+      console.error('Failed to create notifications:', notifError);
+      // Continue execution even if notification creation fails
     }
 
-    return new Response(JSON.stringify({ success: true, message: 'Order status updated successfully' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: 'Order status updated successfully',
+      logId: logId // Return log ID for reference
+    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {
     console.error('Update Order Status Error:', error.message, error.stack);
-    return new Response(JSON.stringify({ success: false, error: 'Failed to update order status' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Failed to update order status', 
+      details: error.message 
+    }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 }
 
@@ -772,5 +999,277 @@ export async function updateOrderDetails(request, env) {
   } catch (error) {
     console.error(`[updateOrderDetails] Unhandled error:`, error.message, error.stack);
     return new Response(JSON.stringify({ success: false, error: 'Failed to update order details', details: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+}
+
+/**
+ * Get orders specific to an outlet or a deliveryman
+ * - For outlet managers: returns orders for their specific outlet
+ * - For deliverymen: returns orders assigned to them
+ * - For admins: returns all orders filtered by outlet_id (if provided) or assigned deliveryman (if isDeliveryView=true)
+ */
+export async function getOutletOrders(request, env) {
+  const corsHeaders = request.corsHeaders || {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  try {
+    // Parse URL and get query parameters
+    const url = new URL(request.url);
+    const status = url.searchParams.get('status');
+    const page = parseInt(url.searchParams.get('page')) || 1;
+    const perPage = parseInt(url.searchParams.get('perPage')) || 10;
+    const isDeliveryView = request.isDeliveryView || false;
+    
+    // Calculate offset
+    const offset = (page - 1) * perPage;
+    
+    // Debug user info
+    console.log('User info in getOutletOrders:', request.user ? {
+      id: request.user.id,
+      role: request.user.role,
+      outlet_id: request.user.outlet_id
+    } : 'No user in request');
+
+    // Build query based on actual production database schema (simplified)
+    let orderQuery = `
+      SELECT o.*,
+             ou.name AS outlet_name
+      FROM orders o
+      LEFT JOIN outlets ou ON o.outlet_id = ou.id
+      WHERE 1=1
+    `;
+    
+    let countQuery = "SELECT COUNT(*) as total FROM orders o WHERE 1=1";
+    
+    // Filter by status if provided
+    if (status) {
+      const statusCondition = ` AND o.status = '${status}'`;
+      orderQuery += statusCondition;
+      countQuery += statusCondition;
+    }
+    
+    // Apply role-specific filters with proper parameter binding
+    if (request.user) {
+      if (request.user.role === 'outlet_manager') {
+        // Outlet managers should see orders:
+        // 1. Either directly assigned to their outlet (outlet_id)
+        // 2. OR where shipping location (lokasi_pengiriman) matches their outlet location
+        
+        try {
+          // Get outlet info to check location match - use defensive coding
+          const outletId = request.user.outlet_id || '';
+          const outletInfo = outletId ? 
+            await env.DB.prepare(`SELECT name, location FROM outlets WHERE id = ?`).bind(outletId).first() : 
+            null;
+            
+          // Default values if no outlet info found
+          const outletLocation = outletInfo?.location || '';
+          const outletName = outletInfo?.name || '';
+          
+          console.log(`📍 Outlet ${outletName} (ID: ${outletId}) with location: ${outletLocation}`);
+          
+          // Generate safe pattern strings (escape special characters)
+          const outletLocationPattern = (outletLocation || '').replace(/[%_]/g, '\\$&');
+          const outletNamePattern = (outletName || '').replace(/[%_]/g, '\\$&');
+          
+          // Debug: Check for the specific order that's missing
+          console.log('🔍 Checking for ORDER-1752037059362-FLO3E...');
+          const debugOrderQuery = `SELECT id, outlet_id, lokasi_pengiriman, shipping_area FROM orders WHERE id = 'ORDER-1752037059362-FLO3E'`;
+          try {
+            const debugOrder = await env.DB.prepare(debugOrderQuery).first();
+            console.log('Debug order data:', debugOrder);
+            
+            if (debugOrder) {
+              // Check if this order would match our outlet conditions
+              const wouldMatch = 
+                (outletId && debugOrder.outlet_id === outletId) ||
+                (outletNamePattern && (
+                  (debugOrder.lokasi_pengiriman && debugOrder.lokasi_pengiriman.toLowerCase().includes(outletNamePattern.toLowerCase())) ||
+                  (debugOrder.shipping_area && debugOrder.shipping_area.toLowerCase().includes(outletNamePattern.toLowerCase()))
+                )) ||
+                (outletLocationPattern && (
+                  (debugOrder.lokasi_pengiriman && debugOrder.lokasi_pengiriman.toLowerCase().includes(outletLocationPattern.toLowerCase())) ||
+                  (debugOrder.shipping_area && debugOrder.shipping_area.toLowerCase().includes(outletLocationPattern.toLowerCase()))
+                ));
+                
+              console.log(`Would ORDER-1752037059362-FLO3E match outlet ${outletName} conditions? ${wouldMatch}`);
+            }
+          } catch (debugErr) {
+            console.error('Error in debug query:', debugErr);
+          }
+          
+          // Build query with all the OR conditions to get all orders for this outlet
+          let outletCondition = '';
+          
+          // CRITICAL FIX: For outlet synchronization, prioritize lokasi_pengiriman matching
+          // This ensures orders with lokasi_pengiriman="Outlet Bonbin" show up in Outlet Bonbin dashboard
+          
+          if (outletName) {
+            // Primary matching: lokasi_pengiriman contains outlet name (most reliable)
+            outletCondition += `LOWER(o.lokasi_pengiriman) LIKE LOWER('%${outletName}%')`;
+            
+            // Add special matching patterns for common outlet names
+            if (outletName.toLowerCase().includes('bonbin')) {
+              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%bonbin%')`;
+            }
+            if (outletName.toLowerCase().includes('monjali')) {
+              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%monjali%')`;
+            }
+            if (outletName.toLowerCase().includes('jakal')) {
+              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%jakal%')`;
+            }
+            if (outletName.toLowerCase().includes('glagahsari')) {
+              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%glagahsari%')`;
+            }
+          }
+          
+          // Secondary matching: outlet_id (fallback for direct assignments)
+          if (outletId) {
+            if (outletCondition) outletCondition += ' OR ';
+            outletCondition += `o.outlet_id = '${outletId}'`;
+          }
+          
+          // Tertiary matching: shipping_area (additional fallback)
+          if (outletName || outletLocationPattern) {
+            if (outletCondition) outletCondition += ' OR ';
+            if (outletName) {
+              outletCondition += `LOWER(o.shipping_area) LIKE LOWER('%${outletName}%')`;
+            }
+            if (outletLocationPattern) {
+              if (outletName) outletCondition += ' OR ';
+              outletCondition += `LOWER(o.shipping_area) LIKE LOWER('%${outletLocationPattern}%')`;
+            }
+          }
+          
+          // If we couldn't build any conditions, use a fallback to show SOME orders
+          if (!outletCondition) {
+            // Fallback to show orders with no specific outlet or location assigned
+            outletCondition = "(o.outlet_id IS NULL OR o.outlet_id = '')";
+          }
+          orderQuery += ` AND (${outletCondition})`;
+          countQuery += ` AND (${outletCondition})`;
+          
+          console.log(`🔍 Expanded outlet order query to match outlet: ${outletName || outletId}`);
+        } catch (outletError) {
+          console.error(`Error getting outlet info: ${outletError.message}`, outletError);
+          
+          // Fallback to just outlet_id if there was an error
+          if (request.user.outlet_id) {
+            orderQuery += ` AND o.outlet_id = '${request.user.outlet_id}'`;
+            countQuery += ` AND o.outlet_id = '${request.user.outlet_id}'`;
+          }
+        }
+      } else if (request.user.role === 'deliveryman') {
+        // Deliverymen can only see orders assigned to them
+        orderQuery += ` AND o.assigned_deliveryman_id = '${request.user.id}'`;
+        countQuery += ` AND o.assigned_deliveryman_id = '${request.user.id}'`;
+      } else if (request.user.role === 'admin' && isDeliveryView) {
+        // Admin in delivery view sees all orders with assigned deliverymen
+        orderQuery += ` AND o.assigned_deliveryman_id IS NOT NULL`;
+        countQuery += ` AND o.assigned_deliveryman_id IS NOT NULL`;
+      }
+    } else {
+      console.warn('No user found in request, returning no orders for security');
+      // Return empty result if no user in request
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'Authentication required',
+        data: [],
+        pagination: { total: 0, page, perPage, totalPages: 0 }
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        },
+        status: 401
+      });
+    }
+    
+    // Execute count query to get total records matching filter
+    let countResult;
+    try {
+      countResult = await env.DB.prepare(countQuery).first();
+    } catch (countError) {
+      console.error('Error executing count query:', countError, { query: countQuery });
+      countResult = { total: 0 };
+    }
+    
+    // Default to 0 if no count available
+    const total = countResult?.total || 0;
+    
+    // Add pagination to the main query
+    orderQuery += ` ORDER BY o.created_at DESC LIMIT ${perPage} OFFSET ${offset}`;
+    console.log('Final query:', orderQuery);
+    
+    // Execute main query to get orders
+    let result;
+    try {
+      result = await env.DB.prepare(orderQuery).all();
+      console.log(`Query returned ${result?.results?.length || 0} results`);
+    } catch (queryError) {
+      console.error('Error executing order query:', queryError, { query: orderQuery });
+      // Return empty result on query error
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'Error fetching orders: ' + queryError.message,
+        data: [],
+        pagination: { total: 0, page, perPage, totalPages: 0 }
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        },
+        status: 500
+      });
+    }
+    
+    // Calculate total pages
+    const totalPages = Math.ceil(total / perPage);
+    
+    // Process orders to format data consistently
+    const processedOrders = result?.results?.map(order => {
+      // Add derived fields or normalize data here
+      return {
+        ...order,
+        // Ensure these fields exist with default values if null
+        shipping_status: order.shipping_status || 'menunggu-diproses',
+        payment_status: order.payment_status || 'pending',
+        order_status: order.order_status || 'pending'
+      };
+    }) || [];
+    
+    // Return success response with orders and pagination info
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Orders retrieved successfully',
+      data: processedOrders,
+      pagination: {
+        total,
+        page,
+        perPage,
+        totalPages
+      }
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
+    });
+  } catch (error) {
+    console.error('Error in getOutletOrders:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      message: 'Failed to fetch outlet orders',
+      error: error.message
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
+    });
   }
 }

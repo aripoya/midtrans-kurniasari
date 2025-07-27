@@ -27,7 +27,7 @@ function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
@@ -38,15 +38,33 @@ function LoginPage() {
       return;
     }
 
-    const success = login(username, password);
-    
-    if (success) {
-      navigate('/orders');
-    } else {
-      setError('Username atau password salah');
+    try {
+      const result = await login(username, password);
+      
+      if (result.success) {
+        // Navigate based on user role
+        switch(result.user.role) {
+          case 'admin':
+            navigate('/admin');
+            break;
+          case 'outlet_manager':
+            navigate('/outlet/dashboard');
+            break;
+          case 'deliveryman':
+            navigate('/delivery/dashboard');
+            break;
+          default:
+            navigate('/orders');
+        }
+      } else {
+        setError(result.message || 'Username atau password salah');
+      }
+    } catch (error) {
+      setError('Terjadi kesalahan saat login. Silakan coba lagi.');
+      console.error('Login error:', error);
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   return (
@@ -66,7 +84,10 @@ function LoginPage() {
             fallbackSrc="https://via.placeholder.com/150x80?text=Kurniasari" 
           />
           
-          <Heading size={headingSize} textAlign="center">Login Admin</Heading>
+          <Heading size={headingSize} textAlign="center">Login Kurniasari</Heading>
+          <Text fontSize="md" color="gray.600" textAlign="center">
+            Silakan masukkan username dan password Anda untuk mengakses sistem
+          </Text>
           
           {error && (
             <Alert status="error" borderRadius="md">

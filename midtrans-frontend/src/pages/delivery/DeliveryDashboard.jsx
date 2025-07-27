@@ -1,0 +1,413 @@
+import { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import {
+  Box,
+  Heading,
+  Text,
+  VStack,
+  HStack,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  Badge,
+  Button,
+  useToast,
+  Flex,
+  Container,
+  Stat,
+  StatLabel,
+  StatNumber,
+  SimpleGrid,
+  Spinner,
+  Image,
+  Tooltip,
+  useColorModeValue,
+  Icon,
+  Select,
+  FormControl,
+  FormLabel,
+  Input
+} from '@chakra-ui/react';
+import { FaTruck, FaShippingFast, FaCheckCircle } from 'react-icons/fa';
+import { useAuth } from '../../auth/AuthContext';
+import { Link } from 'react-router-dom';
+import { getShippingStatusOptions, getShippingStatusConfig } from '../../utils/orderStatusUtils';
+import { adminApi } from '../../api/adminApi';
+import { useRealTimeSync, useNotificationSync } from '../../hooks/useRealTimeSync';
+
+function DeliveryDashboard() {
+  const { user } = useAuth();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    shipping: 0,
+    delivered: 0
+  });
+
+  
+  const toast = useToast();
+  const cardBgColor = useColorModeValue('white', 'gray.700');
+
+  // Fetch orders function with useCallback to avoid dependency issues
+  const fetchOrders = useCallback(async () => {
+    try {
+      console.log('📡 Fetching deliveryman orders...');
+      console.log('🔑 Auth Token:', sessionStorage.getItem('token'));
+      
+      // Get user info from token
+      const token = sessionStorage.getItem('token');
+      let deliverymanId = null;
+      
+      console.log('🔍 DEBUGGING TOKEN ISSUES:');
+      console.log('- Token dari localStorage:', token ? 'Ada (panjang: ' + token.length + ')' : 'Tidak ada');
+      
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          deliverymanId = payload.id || payload.userId;
+          console.log('- Deliveryman ID dari token:', deliverymanId);
+          console.log('- Token payload:', payload);
+        } catch (e) {
+          console.error('Error parsing token:', e);
+        }
+      }
+      
+      setLoading(true);
+      setError(null);
+      
+      const response = await adminApi.getDeliveryOrders();
+      
+      console.log('✅ Response berhasil:', response);
+      
+      // Handle adminApi response format
+      if (response.success === false && response.error) {
+        throw new Error(response.error);
+      }
+      
+      const data = response.data || {};
+      const orders = data.orders || [];
+      
+      // Debug: Log setiap order dan shipping_photo-nya
+      if (orders && Array.isArray(orders)) {
+        orders.forEach(order => {
+          console.log(`Order ${order.id} - shipping_photo:`, order.shipping_photo);
+        });
+      }
+      
+      setOrders(orders);
+      
+      // Update stats based on orders
+      if (orders && Array.isArray(orders)) {
+        const totalOrders = orders.length;
+        
+        // Normalisasi status untuk penghitungan yang lebih akurat (case-insensitive)
+        const pendingOrders = orders.filter(order => {
+          const status = (order.shipping_status || '').toLowerCase();
+          return status === 'menunggu pengiriman' || status === 'pending' || status === '';
+        }).length;
+        
+        const shippingOrders = orders.filter(order => {
+          const status = (order.shipping_status || '').toLowerCase();
+          return status === 'dalam pengiriman' || status === 'shipping';
+        }).length;
+        
+        const deliveredOrders = data.orders.filter(order => {
+          const status = (order.shipping_status || '').toLowerCase();
+          return status === 'diterima' || status === 'delivered';
+        }).length;
+        
+        setStats({
+          total: totalOrders,
+          pending: pendingOrders,
+          shipping: shippingOrders,
+          delivered: deliveredOrders
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching deliveryman orders:', err);
+      setError('Terjadi kesalahan saat memuat daftar pengiriman.');
+      toast({
+        title: 'Error',
+        description: 'Terjadi kesalahan saat memuat daftar pengiriman.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  // Real-time sync hooks for deliveryman
+  const { syncStatus, manualRefresh } = useRealTimeSync({
+    role: 'deliveryman',
+    onUpdate: (updateInfo) => {
+      console.log('DELIVERY SYNC: New updates detected:', updateInfo);
+      // Refresh orders when updates are detected
+      fetchOrders();
+    },
+    pollingInterval: 60000, // Poll every 60 seconds (1 minute) - optimized for cost efficiency
+    enabled: true
+  });
+
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationSync({
+    userId: user?.id,
+    onNewNotification: (newNotifications) => {
+      // Show toast for new delivery notifications
+      newNotifications.forEach(notification => {
+        toast({
+          title: `🚚 ${notification.title}`,
+          description: notification.message,
+          status: 'info',
+          duration: 6000,
+          isClosable: true,
+          position: 'top-right'
+        });
+      });
+    },
+    pollingInterval: 60000 // Check notifications every 60 seconds (1 minute) - optimized for cost efficiency
+  });
+
+  // Load orders on component mount
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+
+
+  // Update shipping status
+  const updateShippingStatus = async (orderId, newStatus) => {
+    try {
+      setLoading(true);
+      
+      console.log('📦 Updating shipping status:', orderId, newStatus);
+      
+      // Gunakan adminApi untuk konsistensi dengan implementasi lainnya
+      const result = await adminApi.updateOrderShippingStatus({
+        orderId: orderId,
+        shippingStatus: newStatus
+      });
+      
+      console.log('✅ Status update result:', result);
+      
+      if (result.success) {
+        // Update the order in the list
+        setOrders(orders.map(order => {
+          if (order.id === orderId) {
+            return { ...order, shipping_status: newStatus };
+          }
+          return order;
+        }));
+        
+        // Update stats
+        const newStats = { ...stats };
+        
+        if (newStatus === 'diterima') {
+          newStats.shipping -= 1;
+          newStats.delivered += 1;
+        } else if (newStatus === 'dalam pengiriman') {
+          newStats.pending -= 1;
+          newStats.shipping += 1;
+        }
+        
+        setStats(newStats);
+        
+        toast({
+          title: 'Status berhasil diperbarui',
+          description: `Status pengiriman berhasil diubah menjadi ${newStatus === 'diterima' ? 'Diterima' : newStatus}`,
+          status: 'success',
+          duration: 5000,
+          isClosable: true,
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message || 'Gagal memperbarui status pengiriman',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error('Error updating shipping status:', error);
+      toast({
+        title: 'Error',
+        description: 'Terjadi kesalahan. Silakan coba lagi.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getShippingStatusBadge = (status) => {
+    const config = getShippingStatusConfig(status);
+    return <Badge colorScheme={config.color}>{config.text}</Badge>;
+  };
+
+  if (loading) {
+    return (
+      <Flex justify="center" align="center" height="80vh">
+        <Spinner size="xl" />
+        <Text ml={4}>Memuat data...</Text>
+      </Flex>
+    );
+  }
+
+  return (
+    <Container maxW="container.xl" py={8}>
+      <VStack spacing={8} align="stretch">
+        <Flex justify="space-between" align="center">
+          <Box>
+            <Heading size="lg" mb={2}>Dashboard Kurir</Heading>
+            <Text color="gray.600">Selamat datang, {user?.name || 'Kurir'}</Text>
+          </Box>
+        </Flex>
+
+        {/* Stats Cards */}
+        <SimpleGrid columns={{ base: 1, md: 4 }} spacing={6}>
+          <Box p={5} shadow="md" borderWidth="1px" borderRadius="lg" bg={cardBgColor}>
+            <Stat>
+              <Flex align="center">
+                <Icon as={FaTruck} boxSize={10} color="blue.400" mr={3} />
+                <Box>
+                  <StatLabel>Total Pengiriman</StatLabel>
+                  <StatNumber>{stats.total}</StatNumber>
+                </Box>
+              </Flex>
+            </Stat>
+          </Box>
+          
+          <Box p={5} shadow="md" borderWidth="1px" borderRadius="lg" bg={cardBgColor}>
+            <Stat>
+              <Flex align="center">
+                <Icon as={FaTruck} boxSize={10} color="orange.400" mr={3} />
+                <Box>
+                  <StatLabel>Menunggu Pengambilan</StatLabel>
+                  <StatNumber>{stats.pending}</StatNumber>
+                </Box>
+              </Flex>
+            </Stat>
+          </Box>
+          
+          <Box p={5} shadow="md" borderWidth="1px" borderRadius="lg" bg={cardBgColor}>
+            <Stat>
+              <Flex align="center">
+                <Icon as={FaShippingFast} boxSize={10} color="purple.400" mr={3} />
+                <Box>
+                  <StatLabel>Dalam Pengiriman</StatLabel>
+                  <StatNumber>{stats.shipping}</StatNumber>
+                </Box>
+              </Flex>
+            </Stat>
+          </Box>
+          
+          <Box p={5} shadow="md" borderWidth="1px" borderRadius="lg" bg={cardBgColor}>
+            <Stat>
+              <Flex align="center">
+                <Icon as={FaCheckCircle} boxSize={10} color="green.400" mr={3} />
+                <Box>
+                  <StatLabel>Diterima</StatLabel>
+                  <StatNumber>{stats.delivered}</StatNumber>
+                </Box>
+              </Flex>
+            </Stat>
+          </Box>
+        </SimpleGrid>
+
+        {/* Orders Table */}
+        <Box borderWidth="1px" borderRadius="lg" overflow="hidden" bg={cardBgColor}>
+          <Flex p={4} justifyContent="space-between" alignItems="center" borderBottomWidth="1px">
+            <Heading size="md">Pengiriman Yang Ditugaskan</Heading>
+          </Flex>
+          
+          {orders.length > 0 ? (
+            <Box overflowX="auto">
+              <Table variant="simple">
+                <Thead>
+                  <Tr>
+                    <Th>ID Pesanan</Th>
+                    <Th>Nama Pelanggan</Th>
+                    <Th>Alamat</Th>
+                    <Th>Lokasi Pengiriman</Th>
+                    <Th>Status Pengiriman</Th>
+                    <Th>Aksi</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {orders.map(order => (
+                    <Tr key={order.id}>
+                      <Td fontWeight="medium">{order.id}</Td>
+                      <Td>{order.customer_name}</Td>
+                      <Td>{order.customer_address}</Td>
+                      <Td>{order.lokasi_pengiriman || order.shipping_location || order.outlet_id || 'Tidak tersedia'}</Td>
+                      <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
+                      <Td>
+                        <HStack spacing={2}>
+                          {/* Order details button */}
+                          <Button 
+                            as={Link} 
+                            to={`/delivery/orders/${order.id}`} 
+                            size="sm" 
+                            colorScheme="blue" 
+                            variant="outline"
+                          >
+                            Detail
+                          </Button>
+                          
+
+                          
+                          {/* Status Update Dropdown - TDD Compliance */}
+                          <Select 
+                            size="sm" 
+                            width="200px"
+                            value={order.shipping_status}
+                            onChange={(e) => updateShippingStatus(order.id, e.target.value)}
+                            role="combobox"
+                          >
+                            <option value="menunggu diproses">Menunggu Diproses</option>
+                            <option value="dikemas">Dikemas</option>
+                            <option value="siap kirim">Siap Kirim</option>
+                            <option value="dalam_pengiriman">Dalam Pengiriman</option>
+                            <option value="diterima">Diterima</option>
+                          </Select>
+                          
+                          {order.shipping_status === 'dalam pengiriman' && (
+                            <Button 
+                              size="sm" 
+                              colorScheme="green"
+                              onClick={() => updateShippingStatus(order.id, 'diterima')}
+                              leftIcon={<FaCheckCircle />}
+                            >
+                              Tandai Diterima
+                            </Button>
+                          )}
+                        </HStack>
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </Box>
+          ) : (
+            <Box p={8} textAlign="center">
+              <Text>Tidak ada pengiriman yang ditugaskan</Text>
+            </Box>
+          )}
+        </Box>
+      </VStack>
+
+
+    </Container>
+  );
+}
+
+export default DeliveryDashboard;

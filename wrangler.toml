@@ -1,7 +1,7 @@
 # This top-level configuration is for the development environment, used by `wrangler dev`.
 name = "order-management-app-dev"
 main = "src/worker.js"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 # --- Development Environment Configuration ---
@@ -12,8 +12,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"      # Standardized to 'DB' for consistency across environments
 database_name = "order-management-local-db"
-# The database_id is just a placeholder for local development and is not used by the file-based DB.
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "2f4c7a87-1924-4b87-8fa7-3854fa2a433d"
 
 # R2 Storage binding for local development
 [[r2_buckets]]
@@ -24,11 +23,17 @@ bucket_name = "kurniasari-shipping-images"
 # Used when running `wrangler deploy --env production`
 [env.production]
 name = "order-management-app-production"
+compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 [env.production.vars]
 MIDTRANS_IS_PRODUCTION = "true"
 APP_NAME = "Order Management System"
+# Cloudflare Images configuration
+# Replace these with your actual values:
+CLOUDFLARE_ACCOUNT_ID = "13b5c18f23aa268941269ea0db1d1e5a"  # Your Cloudflare Account ID (from dashboard)
+CLOUDFLARE_IMAGES_HASH = "VOaIVVmd1MuafKWFhxa5zw"  # Your Cloudflare Images Hash (from Images dashboard)
+# CLOUDFLARE_IMAGES_TOKEN will be set as a secret separately
 
 # Production D1 database binding
 [[env.production.d1_databases]]
