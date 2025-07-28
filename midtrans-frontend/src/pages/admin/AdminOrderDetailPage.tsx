@@ -614,9 +614,10 @@ const AdminOrderDetailPage: React.FC = () => {
     );
   };
 
- useEffect(() => {
+useEffect(() => {
     if (typeof window !== 'undefined') {
-      const currentUrl = `${window.location.origin}${location.pathname}${location.search}${location.hash}`;
+      const cleanedPath = location.pathname.replace(/^\/admin/, '');
+      const currentUrl = `${window.location.origin}${cleanedPath}${location.search}${location.hash}`;
       setFullUrl(currentUrl);
     }
   }, [location]);

@@ -31,14 +31,17 @@ const CustomModal: React.FC<CustomModalProps> = ({
   cancelText = 'Batal',
 }) => {
 
-    const shareToWhatsApp = () => {
-        const currentUrl = window.location.href;
-        const phoneNumber = '6287839131279'; 
-        const message = `Halo, Tolong Check Pesanan di ${currentUrl}`;
-        const encodedMessage = encodeURIComponent(message);
-        const waUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
-        window.open(waUrl, '_blank');
-    };
+  const shareToWhatsApp = () => {
+  if (typeof window !== 'undefined') {
+    const phoneNumber = '6287839131279';
+    const cleanedPath = window.location.pathname.replace(/^\/admin/, '');
+    const currentUrl = `${window.location.origin}${cleanedPath}${window.location.search}${window.location.hash}`;
+    const message = `Halo, Tolong Check Pesanan di ${currentUrl}`;
+    const encodedMessage = encodeURIComponent(message);
+    const waUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+    window.open(waUrl, '_blank');
+  }
+};
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} isCentered>
