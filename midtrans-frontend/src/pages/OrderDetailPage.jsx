@@ -29,7 +29,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMarkingAsReceived, setIsMarkingAsReceived] = useState(false);
-  const [selectedPhotoType, setSelectedPhotoType] = useState('pengiriman'); // Default ke Foto Pengiriman - backend compatible
+  const [selectedPhotoType, setSelectedPhotoType] = useState('ready_for_pickup'); // Default ke Foto Pengiriman - backend compatible
   const [shippingImages, setShippingImages] = useState({
     ready_for_pickup: null,
     picked_up: null,
@@ -37,6 +37,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
   });
   const [loadingImages, setLoadingImages] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
+  const [imageVersion, setImageVersion] = useState(Date.now());
   const qrCodeRef = useRef(null);
   const toast = useToast();
   
@@ -56,7 +57,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [uploadLoading, setUploadLoading] = useState(false);
-  
+
   // Fungsi untuk memilih foto
   const handlePhotoChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -74,7 +75,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
   };
   
   // Fungsi untuk upload foto
-  const handlePhotoUpload = async () => {
+ const handlePhotoUpload = async () => {
     if (!photoFile) return;
     
     try {
@@ -83,7 +84,9 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
       // Upload foto menggunakan adminApi dengan tipe yang dipilih oleh kurir
       const result = await adminApi.uploadShippingImage(id, selectedPhotoType, photoFile);
       console.log('Upload result:', result);
-      
+      await handleRefreshStatus();
+      setPhotoPreview(null);
+      setPhotoFile(null);
       // Update status pengiriman jika upload berhasil
       if (result && result.data && result.data.imageUrl) {
         // Perbarui status pengiriman berdasarkan jenis foto yang diupload
@@ -133,6 +136,8 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
         setPhotoPreview(null);
         fetchOrder();
       }
+
+      // upload
     } catch (error) {
       console.error('Error uploading photo:', error);
       toast({
@@ -831,13 +836,13 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
                 
                 <RadioGroup onChange={setSelectedPhotoType} value={selectedPhotoType} mb={4}>
                   <Stack direction="row" spacing={5}>
-                    <Radio value="siap_kirim" colorScheme="blue">
+                    <Radio value="ready_for_pickup" colorScheme="blue">
                       Foto Siap Kirim
                     </Radio>
-                    <Radio value="pengiriman" colorScheme="green">
+                    <Radio value="picked_up" colorScheme="green">
                       Foto Pengiriman
                     </Radio>
-                    <Radio value="diterima" colorScheme="purple">
+                    <Radio value="delivered" colorScheme="purple">
                       Foto Diterima
                     </Radio>
                   </Stack>
@@ -937,7 +942,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
                     {/* Ready for Pickup Image */}
                     <Box p={3} borderWidth="1px" borderRadius="md" bg="white" textAlign="center">
                       <ShippingImageDisplay
-                        imageUrl={shippingImages.ready_for_pickup || shippingImages.readyForPickup || ""}
+                       imageUrl={shippingImages.ready_for_pickup || shippingImages.readyForPickup || ""}
                         type="readyForPickup"
                         label="Foto Siap Kirim"
                         maxHeight="120px"

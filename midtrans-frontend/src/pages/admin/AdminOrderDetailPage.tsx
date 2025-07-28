@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useParams, useNavigate, Link as RouterLink, useSearchParams,Pathname as usePathname, useLocation } from 'react-router-dom';
 import {
   Box, Heading, Text, VStack, HStack, Badge, Button,
   Table, Tbody, Tr, Td, Divider, Spinner,
@@ -7,7 +7,9 @@ import {
   useToast, Select, FormControl, 
   FormLabel, Textarea, SimpleGrid, Stack, Radio, RadioGroup,
   useDisclosure, Modal, ModalOverlay, ModalContent,
-  ModalHeader, ModalBody, ModalFooter, ModalCloseButton, Input
+  ModalHeader, ModalBody, ModalFooter, ModalCloseButton, Input,
+  Grid,
+  Flex
 } from '@chakra-ui/react';
 import { orderService } from '../../api/orderService';
 import { refreshOrderStatus } from '../../api/api';
@@ -16,7 +18,9 @@ import { formatDate } from '../../utils/date';
 import axios from 'axios';
 import { getShippingStatusConfig, getShippingStatusOptions } from '../../utils/orderStatusUtils';
 import ShippingImageDisplay from '../../components/ShippingImageDisplay';
-
+import { IoQrCodeOutline } from "react-icons/io5";
+import QRCodeGenerator from '../../components/QRCodeGenerator';
+import CustomModal from '../../components/CustomModal';
 // TypeScript interfaces
 interface Order {
   id: string;
@@ -88,6 +92,10 @@ const AdminOrderDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const [isModalOpen, setModalOpen] = useState(false);
+
+  const handleOpen = () => setModalOpen(true);
+  const handleClose = () => setModalOpen(false);
   
   // Validation
   const isValidOrderId = id && typeof id === 'string' && !id.includes('[') && !id.includes(']');
@@ -122,6 +130,8 @@ const AdminOrderDetailPage: React.FC = () => {
   const [trackingNumberError] = useState<string>('');
   const [locations, setLocations] = useState<Location[]>([]);
   const [lokasi_pengiriman, setLokasiPengiriman] = useState<string>('');
+   const location = useLocation();
+  const [fullUrl, setFullUrl] = useState('');
 
   const fileInputRefs: FileInputRefs = {
     shipmentProof: useRef<HTMLInputElement>(null)
@@ -604,6 +614,12 @@ const AdminOrderDetailPage: React.FC = () => {
     );
   };
 
+ useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const currentUrl = `${window.location.origin}${location.pathname}${location.search}${location.hash}`;
+      setFullUrl(currentUrl);
+    }
+  }, [location]);
   // useEffect hooks for data loading and form tracking
   useEffect(() => {
     loadAllData();
@@ -1112,14 +1128,20 @@ const AdminOrderDetailPage: React.FC = () => {
                   </Box>
                 </>
               )}
-              
-              {/* Admin can always upload shipment proof */}
-              <Box>
-                <Text fontWeight="semibold" mb={2}>Bukti Pengiriman (Admin)</Text>
-                {renderUploadedImage('shipmentProof')}
-                {renderUploadButton('shipmentProof')}
-              </Box>
             </SimpleGrid>
+            <Flex justify="center" mt={4}>
+               <Box w="20%">
+                  <Button 
+                    colorScheme="blue"
+                    size="sm"
+                    width="full"
+                    onClick={handleOpen}
+                  >
+                    <IoQrCodeOutline />
+                    &nbsp; Generate QR Code
+                  </Button>
+               </Box>
+           </Flex>   
           </CardBody>
         </Card>
       </VStack>
@@ -1149,6 +1171,23 @@ const AdminOrderDetailPage: React.FC = () => {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+
+    {/* Modal QR */}
+     <CustomModal
+        isOpen={isModalOpen}
+        onClose={handleClose}
+        title="Share QR Code"
+        confirmText="Share"
+      >
+        <Flex justify="center" align="center">
+          <Box>
+            <QRCodeGenerator value={fullUrl} size={200} />
+          </Box>
+        </Flex>
+       
+      </CustomModal>
+
     </Box>
   );
 };
