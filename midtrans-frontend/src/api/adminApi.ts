@@ -118,7 +118,7 @@ export interface UpdateOrderDetailsRequest {
 }
 
 export interface UpdateShippingStatusRequest {
-  shipping_status: string;
+  status: string;
 }
 
 export interface CreateUserRequest {
@@ -505,9 +505,8 @@ export const adminApi = {
       );
 
       const payload: UpdateShippingStatusRequest = {
-        shipping_status: status,
+        status,
       };
-
       const response: AxiosResponse = await axios.put(
         `${API_BASE_URL}/api/orders/${orderId}`,
         payload,

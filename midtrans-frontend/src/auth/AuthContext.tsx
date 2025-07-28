@@ -88,15 +88,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const storedUser = sessionStorage.getItem('user');
       
       if (token && storedUser) {
-        // First check if token is expired locally (faster)
-        if (isTokenExpired(token)) {
-          console.warn(' Token expired, clearing auth data');
-          sessionStorage.removeItem('token');
-          sessionStorage.removeItem('user');
-          setIsLoading(false);
-          return;
-        }
-
         try {
           // Verify token is still valid by calling profile endpoint
           const response = await fetch(`${API_URL}${API_ENDPOINTS.auth.profile}`, {
@@ -111,16 +102,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(userData);
             setIsLoggedIn(true);
             console.log(' Token validation successful for user:', userData.username);
-          } else {
-            // Token is invalid or expired on server
-            console.warn(' Server rejected token, clearing auth data');
-            sessionStorage.removeItem('token');
-            sessionStorage.removeItem('user');
           }
         } catch (error) {
           console.error(' Error verifying authentication:', error);
-          sessionStorage.removeItem('token');
-          sessionStorage.removeItem('user');
         }
       }
       

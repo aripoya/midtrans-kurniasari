@@ -182,71 +182,55 @@ function DeliveryDashboard() {
 
 
   // Update shipping status
-  const updateShippingStatus = async (orderId, newStatus) => {
-    try {
-      setLoading(true);
-      
-      console.log('📦 Updating shipping status:', orderId, newStatus);
-      
-      // Gunakan adminApi untuk konsistensi dengan implementasi lainnya
-      const result = await adminApi.updateOrderShippingStatus({
-        orderId: orderId,
-        shippingStatus: newStatus
-      });
-      
-      console.log('✅ Status update result:', result);
-      
-      if (result.success) {
-        // Update the order in the list
-        setOrders(orders.map(order => {
-          if (order.id === orderId) {
-            return { ...order, shipping_status: newStatus };
-          }
-          return order;
-        }));
-        
-        // Update stats
-        const newStats = { ...stats };
-        
-        if (newStatus === 'diterima') {
-          newStats.shipping -= 1;
-          newStats.delivered += 1;
-        } else if (newStatus === 'dalam pengiriman') {
-          newStats.pending -= 1;
-          newStats.shipping += 1;
-        }
-        
-        setStats(newStats);
-        
-        toast({
-          title: 'Status berhasil diperbarui',
-          description: `Status pengiriman berhasil diubah menjadi ${newStatus === 'diterima' ? 'Diterima' : newStatus}`,
-          status: 'success',
-          duration: 5000,
-          isClosable: true,
-        });
-      } else {
-        toast({
-          title: 'Error',
-          description: result.message || 'Gagal memperbarui status pengiriman',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
+const updateShippingStatus = async (orderId, newStatus ) => {
+  try {
+    setLoading(true);
+
+    const result = await adminApi.updateOrderShippingStatus(orderId, newStatus);
+
+    console.log('✅ Status update result:', result);
+
+    if (result.success) {
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === orderId
+            ? { ...order, shipping_status: newStatus }
+            : order
+        )
+      );
+
+      const updatedStats = { ...stats };
+
+      if (newStatus === 'diterima') {
+        updatedStats.shipping = Math.max(0, updatedStats.shipping - 1);
+        updatedStats.delivered += 1;
+      } else if (newStatus === 'dalam-pengiriman') {
+        updatedStats.pending = Math.max(0, updatedStats.pending - 1);
+        updatedStats.shipping += 1;
       }
-    } catch (error) {
-      console.error('Error updating shipping status:', error);
+      setStats(updatedStats);
       toast({
-        title: 'Error',
-        description: 'Terjadi kesalahan. Silakan coba lagi.',
-        status: 'error',
+        title: 'Status berhasil diperbarui',
+        description: `Status pengiriman berhasil diubah menjadi ${newStatus.replace(/-/g, ' ')}`,
+        status: 'success',
         duration: 5000,
         isClosable: true,
       });
-    } finally {
-      setLoading(false);
+    } else {
+      throw new Error(result.message || 'Gagal memperbarui status pengiriman');
     }
-  };
+  } catch (error) {
+    toast({
+      title: 'Terjadi kesalahan',
+      description: error.message || 'Gagal memperbarui status. Silakan coba lagi.',
+      status: 'error',
+      duration: 5000,
+      isClosable: true,
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getShippingStatusBadge = (status) => {
     const config = getShippingStatusConfig(status);
@@ -366,21 +350,29 @@ function DeliveryDashboard() {
 
                           
                           {/* Status Update Dropdown - TDD Compliance */}
-                          <Select 
-                            size="sm" 
+                        {order.shipping_status !== 'diterima' && order.shipping_status !==  'sedang dikirim' && (
+                          <Select
+                            size="sm"
                             width="200px"
-                            value={order.shipping_status}
-                            onChange={(e) => updateShippingStatus(order.id, e.target.value)}
+                            value={order.shipping_status || ''}
+                            onChange={(e) => {
+                              const newStatus = e.target.value;
+                              if (newStatus !== order.shipping_status) {
+                                updateShippingStatus(order.id, newStatus);
+                              }
+                            }}
                             role="combobox"
+                            placeholder="Pilih status"
                           >
-                            <option value="menunggu diproses">Menunggu Diproses</option>
-                            <option value="dikemas">Dikemas</option>
                             <option value="siap kirim">Siap Kirim</option>
-                            <option value="dalam_pengiriman">Dalam Pengiriman</option>
+                            <option value="sedang dikirim">Dalam Pengiriman</option>
                             <option value="diterima">Diterima</option>
                           </Select>
+                        )}
+
+                        
                           
-                          {order.shipping_status === 'dalam pengiriman' && (
+                          {order.shipping_status === 'sedang dikirim' && (
                             <Button 
                               size="sm" 
                               colorScheme="green"

@@ -14,7 +14,7 @@ export interface StatusOption {
 }
 
 // Type for normalized shipping status values
-export type NormalizedShippingStatus = 
+export type NormalizedShippingStatus =
   | "menunggu diproses"
   | "dikemas"
   | "siap kirim"
@@ -28,32 +28,41 @@ export type NormalizedShippingStatus =
  * @param status - The shipping status from API
  * @returns Normalized status value
  */
-export const normalizeShippingStatus = (status: string | null | undefined): NormalizedShippingStatus => {
+export const normalizeShippingStatus = (
+  status: string | null | undefined
+): NormalizedShippingStatus => {
   if (!status) return "menunggu diproses";
-  
+
   // Lowercase untuk konsistensi perbandingan
   const lowercaseStatus = status.toLowerCase();
-  
-  if (lowercaseStatus === "received" || 
-      lowercaseStatus === "sudah di terima" || 
-      lowercaseStatus === "diterima" ||
-      lowercaseStatus === "delivered") {
+
+  if (
+    lowercaseStatus === "received" ||
+    lowercaseStatus === "sudah di terima" ||
+    lowercaseStatus === "diterima" ||
+    lowercaseStatus === "delivered"
+  ) {
     return "diterima";
-  } else if (lowercaseStatus === "sedang dikirim" || 
-             lowercaseStatus === "dalam pengiriman" ||
-             lowercaseStatus === "dikirim") {
+  } else if (
+    lowercaseStatus === "sedang dikirim" ||
+    lowercaseStatus === "dalam pengiriman" ||
+    lowercaseStatus === "dikirim"
+  ) {
     return "dalam pengiriman";
-  } else if (lowercaseStatus === "siap dikirim" || 
-             lowercaseStatus === "siap kirim") {
+  } else if (
+    lowercaseStatus === "siap dikirim" ||
+    lowercaseStatus === "siap kirim"
+  ) {
     console.log(`[normalizeShippingStatus] Matched -> siap kirim`);
     return "siap kirim";
-  } else if (lowercaseStatus === "siap diambil" || 
-             lowercaseStatus === "siap ambil" ||
-             lowercaseStatus === "siap di ambil") {
+  } else if (
+    lowercaseStatus === "siap diambil" ||
+    lowercaseStatus === "siap ambil" ||
+    lowercaseStatus === "siap di ambil"
+  ) {
     console.log(`[normalizeShippingStatus] Matched -> siap di ambil`);
     return "siap di ambil";
-  } else if (lowercaseStatus === "dikemas" || 
-             lowercaseStatus === "diproses") {
+  } else if (lowercaseStatus === "dikemas" || lowercaseStatus === "diproses") {
     return "dikemas";
   } else {
     return "menunggu diproses";
@@ -65,19 +74,26 @@ export const normalizeShippingStatus = (status: string | null | undefined): Norm
  * @param status - The shipping status (preferably normalized)
  * @returns Badge configuration with color and text
  */
-export const getShippingStatusConfig = (status: string | null | undefined): StatusConfig => {
+export const getShippingStatusConfig = (
+  status: string | null | undefined
+): StatusConfig => {
   const normalizedStatus = normalizeShippingStatus(status);
-  
+
   const statusConfig: Record<NormalizedShippingStatus, StatusConfig> = {
-    "diterima": { color: "green", text: "Diterima" },
+    diterima: { color: "green", text: "Diterima" },
     "dalam pengiriman": { color: "orange", text: "Dalam Pengiriman" },
     "siap kirim": { color: "purple", text: "Siap Kirim" },
     "siap di ambil": { color: "teal", text: "Siap Ambil" },
-    "dikemas": { color: "blue", text: "Dikemas" },
-    "menunggu diproses": { color: "gray", text: "Menunggu Diproses" }
+    dikemas: { color: "blue", text: "Dikemas" },
+    "menunggu diproses": { color: "gray", text: "Menunggu Diproses" },
   };
-  
-  return statusConfig[normalizedStatus] || { color: "gray", text: status || "Menunggu Diproses" };
+
+  return (
+    statusConfig[normalizedStatus] || {
+      color: "gray",
+      text: status || "Menunggu Diproses",
+    }
+  );
 };
 
 /**
@@ -85,12 +101,11 @@ export const getShippingStatusConfig = (status: string | null | undefined): Stat
  * @returns Array of valid status options with value and label
  */
 export const getShippingStatusOptions = (): StatusOption[] => [
-  { value: "menunggu diproses", label: "Menunggu Diproses" },
   { value: "dikemas", label: "Dikemas" },
   { value: "siap kirim", label: "Siap Kirim" },
   { value: "siap di ambil", label: "Siap Ambil" },
   { value: "dalam pengiriman", label: "Dalam Pengiriman" },
-  { value: "diterima", label: "Diterima" }
+  { value: "diterima", label: "Diterima" },
 ];
 
 /**
@@ -98,14 +113,16 @@ export const getShippingStatusOptions = (): StatusOption[] => [
  * @param status - The status to check
  * @returns True if the status is a valid normalized shipping status
  */
-export const isNormalizedShippingStatus = (status: string): status is NormalizedShippingStatus => {
+export const isNormalizedShippingStatus = (
+  status: string
+): status is NormalizedShippingStatus => {
   const validStatuses: NormalizedShippingStatus[] = [
     "menunggu diproses",
-    "dikemas", 
+    "dikemas",
     "siap kirim",
     "siap di ambil",
     "dalam pengiriman",
-    "diterima"
+    "diterima",
   ];
   return validStatuses.includes(status as NormalizedShippingStatus);
 };
@@ -115,18 +132,23 @@ export const isNormalizedShippingStatus = (status: string): status is Normalized
  * @param currentStatus - The current shipping status
  * @returns The next logical status in the order lifecycle
  */
-export const getNextStatus = (currentStatus: string | null | undefined): NormalizedShippingStatus => {
+export const getNextStatus = (
+  currentStatus: string | null | undefined
+): NormalizedShippingStatus => {
   const normalized = normalizeShippingStatus(currentStatus);
-  
-  const statusProgression: Record<NormalizedShippingStatus, NormalizedShippingStatus> = {
+
+  const statusProgression: Record<
+    NormalizedShippingStatus,
+    NormalizedShippingStatus
+  > = {
     "menunggu diproses": "dikemas",
-    "dikemas": "siap kirim",
-    "siap kirim": "dalam pengiriman", 
+    dikemas: "siap kirim",
+    "siap kirim": "dalam pengiriman",
     "siap di ambil": "diterima",
     "dalam pengiriman": "diterima",
-    "diterima": "diterima" // Final status
+    diterima: "diterima", // Final status
   };
-  
+
   return statusProgression[normalized];
 };
 
@@ -137,23 +159,26 @@ export const getNextStatus = (currentStatus: string | null | undefined): Normali
  * @returns True if the transition is valid
  */
 export const isValidStatusTransition = (
-  fromStatus: string | null | undefined, 
+  fromStatus: string | null | undefined,
   toStatus: string | null | undefined
 ): boolean => {
   if (!fromStatus || !toStatus) return false;
-  
+
   const normalizedFrom = normalizeShippingStatus(fromStatus);
   const normalizedTo = normalizeShippingStatus(toStatus);
-  
+
   // Define valid transitions
-  const validTransitions: Record<NormalizedShippingStatus, NormalizedShippingStatus[]> = {
+  const validTransitions: Record<
+    NormalizedShippingStatus,
+    NormalizedShippingStatus[]
+  > = {
     "menunggu diproses": ["dikemas", "siap kirim", "siap di ambil"],
-    "dikemas": ["siap kirim", "siap di ambil", "dalam pengiriman"],
+    dikemas: ["siap kirim", "siap di ambil", "dalam pengiriman"],
     "siap kirim": ["dalam pengiriman", "diterima"],
     "siap di ambil": ["diterima"],
     "dalam pengiriman": ["diterima"],
-    "diterima": [] // Final status, no further transitions
+    diterima: [], // Final status, no further transitions
   };
-  
+
   return validTransitions[normalizedFrom]?.includes(normalizedTo) || false;
 };
