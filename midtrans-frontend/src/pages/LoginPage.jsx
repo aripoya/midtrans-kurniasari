@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Box, 
   Heading, 
@@ -16,6 +16,8 @@ import {
   useBreakpointValue
 } from '@chakra-ui/react';
 import { useAuth } from '../auth/AuthContext';
+import { Link as RouterLink } from 'react-router-dom';
+import { BiSolidUserDetail } from "react-icons/bi";
 
 function LoginPage() {
   const headingSize = useBreakpointValue({ base: "md", md: "lg" });
@@ -66,6 +68,11 @@ function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  const handleAdminLogin = async () => {
+      navigate('/admin');
+  };
+   
 
   return (
     <Container maxW="md" py={{ base: 6, md: 12 }} px={{ base: 4, md: 6 }}>
@@ -127,9 +134,24 @@ function LoginPage() {
               >
                 Login
               </Button>
+              
             </VStack>
           </form>
-          
+             <Button
+                as={RouterLink}
+                to="/admin/login"
+                colorScheme="teal"
+                isLoading={isLoading}
+                width="full"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                gap={2} 
+                 _hover={{ textDecoration: 'none', background: 'teal.600', color: 'white' }} 
+              >
+                <BiSolidUserDetail />
+                Admin 
+              </Button>
           <Text fontSize="sm" color="gray.500" textAlign="center">
             © {new Date().getFullYear()} Kurniasari. All rights reserved.
           </Text>

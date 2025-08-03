@@ -16,6 +16,8 @@ import {
   useBreakpointValue
 } from '@chakra-ui/react';
 import { useAuth } from '../../auth/AuthContext';
+import { BiSolidUser } from "react-icons/bi";
+import { Link as RouterLink } from 'react-router-dom';
 
 const AdminLoginPage: React.FC = () => {
   const headingSize = useBreakpointValue({ base: "md", md: "lg" });
@@ -135,7 +137,21 @@ const AdminLoginPage: React.FC = () => {
               </Button>
             </VStack>
           </form>
-          
+            <Button
+                as={RouterLink}
+                to="/login"
+                colorScheme="teal"
+                isLoading={isLoading}
+                width="full"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                gap={2} 
+                  _hover={{ textDecoration: 'none', background: 'teal.600', color: 'white' }} 
+              >
+                <BiSolidUser />
+                Outlet/Delivery 
+              </Button>
           <Text fontSize="sm" color="gray.500" textAlign="center">
             © {new Date().getFullYear()} Kurniasari. All rights reserved.
           </Text>

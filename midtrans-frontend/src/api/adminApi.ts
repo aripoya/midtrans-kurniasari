@@ -622,6 +622,35 @@ export const adminApi = {
       };
     }
   },
+  // get outlet locations
+  getLocationsOutlet: async (): Promise<LocationsResponse> => {
+    try {
+      const response: AxiosResponse = await axios.get(
+        `${API_BASE_URL}/api/outlets`,
+        {
+          headers: {
+            Authorization: `Bearer ${getAdminToken()}`,
+          },
+        }
+      );
+
+      return {
+        success: true,
+        data: response.data.locations || [],
+        error: null,
+      };
+    } catch (error: any) {
+      console.error("Error getting locations:", error);
+      return {
+        success: false,
+        data: null,
+        error:
+          error.response?.data?.error ||
+          error.message ||
+          "Error saat mengambil daftar lokasi",
+      };
+    }
+  },
 
   // Get delivery orders for deliveryman
   getDeliveryOrders: async (): Promise<OrdersResponse> => {

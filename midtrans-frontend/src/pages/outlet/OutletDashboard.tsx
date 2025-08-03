@@ -101,7 +101,7 @@ const OutletDashboard: React.FC = () => {
     try {
       setLoading(true);
       // Use relative path in development (proxy) and full URL in production
-      const apiUrl = import.meta.env.DEV 
+    const apiUrl = import.meta.env.DEV 
         ? '/api/orders/outlet-relational' 
         : `${import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev'}/api/orders/outlet-relational`;
       

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ChangeEvent } from 'react';
+import React, { useState, useEffect, ChangeEvent, useCallback } from 'react';
 import {
   Box,
   Button,
@@ -68,6 +68,8 @@ const UserManagementPage: React.FC = () => {
     outlet_id: '',
     email: ''
   });
+    const [locations, setLocations] = useState<any>([]);
+  
 
   const toast = useToast();
   const { isOpen: isCreateOpen, onOpen: onCreateOpen, onClose: onCreateClose } = useDisclosure();
@@ -81,8 +83,28 @@ const UserManagementPage: React.FC = () => {
     { id: 'outlet_glagahsari', name: 'Outlet Glagahsari 91C' }
   ]);
 
+    const loadAllData = useCallback(async (): Promise<void> => {
+      setLoading(true);
+        try {
+          const locationsRes = await adminApi.getLocations();
+          console.log('🔍 Locations API response:', locationsRes);
+          if (locationsRes.success && locationsRes.data) {
+            const locationsList = Array.isArray(locationsRes.data) ? locationsRes.data : [];
+            console.log('🔍 Processed locations:', locationsList);
+            setLocations(locationsList);
+          } else {
+            console.warn('🔍 Locations API failed or returned no data:', locationsRes);
+            setLocations([]);
+          }
+        } catch (locError) {
+          console.error('Error loading locations:', locError);
+          setLocations([]); 
+        }
+    }, [ toast]);
+
   useEffect(() => {
     fetchUsers();
+    loadAllData();
   }, []);
 
   // Fetch users from API
@@ -625,8 +647,10 @@ const UserManagementPage: React.FC = () => {
                     onChange={handleInputChange}
                   >
                     <option value="">Select Outlet</option>
-                    {outlets.map(outlet => (
-                      <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
+                     {locations.map((location) => (
+                      <option key={location.id} value={location.nama_lokasi}>
+                        {location.nama_lokasi}
+                      </option>
                     ))}
                   </Select>
                 </FormControl>

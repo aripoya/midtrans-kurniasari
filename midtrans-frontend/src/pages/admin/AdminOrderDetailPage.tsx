@@ -128,7 +128,7 @@ const AdminOrderDetailPage: React.FC = () => {
   const [courierService, setCourierService] = useState<string>('');
   const [trackingNumber, setTrackingNumber] = useState<string>('');
   const [trackingNumberError] = useState<string>('');
-  const [locations, setLocations] = useState<Location[]>([]);
+  const [locations, setLocations] = useState<any>([]);
   const [lokasi_pengiriman, setLokasiPengiriman] = useState<string>('');
    const location = useLocation();
   const [fullUrl, setFullUrl] = useState('');
