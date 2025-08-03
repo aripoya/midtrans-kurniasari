@@ -147,64 +147,6 @@ const OutletDashboard: React.FC = () => {
   }, []);
   
   // Helper function to check if order is eligible for Status Foto
-  const isEligibleForStatusFoto = (order: Order): boolean => {
-    // Debug logging untuk troubleshooting
-    console.log('🔍 Checking eligibility for order:', order.id);
-    console.log('📍 shipping_area:', order.shipping_area);
-    console.log('📍 lokasi_pengiriman:', order.lokasi_pengiriman);
-    console.log('📋 tipe_pesanan:', order.tipe_pesanan);
-    
-    // Improve matching logic - check multiple possible field names and formats
-    const shippingAreaLower = order.shipping_area ? order.shipping_area.toLowerCase() : '';
-    const lokasiPengirimanLower = order.lokasi_pengiriman ? order.lokasi_pengiriman.toLowerCase() : '';
-    
-    console.log('🔍 Debug string matching:');
-    console.log('   - shippingAreaLower:', `"${shippingAreaLower}"`);
-    console.log('   - lokasiPengirimanLower:', `"${lokasiPengirimanLower}"`);
-    console.log('   - shippingAreaLower includes "dalam kota":', shippingAreaLower.includes('dalam kota'));
-    console.log('   - shippingAreaLower === "dalam kota":', shippingAreaLower === 'dalam kota');
-    console.log('   - lokasiPengirimanLower includes "dalam kota":', lokasiPengirimanLower.includes('dalam kota'));
-    
-    const isInKota = (
-      // Check shipping_area field - handle both formats
-      (shippingAreaLower.includes('dalam kota')) ||
-      (shippingAreaLower.includes('dalam-kota')) ||
-      // Check lokasi_pengiriman field
-      (lokasiPengirimanLower.includes('dalam kota')) ||
-      (lokasiPengirimanLower.includes('dalam-kota')) ||
-      // Exact match
-      (shippingAreaLower === 'dalam kota') ||
-      (shippingAreaLower === 'dalam-kota') ||
-      (lokasiPengirimanLower === 'dalam kota') ||
-      (lokasiPengirimanLower === 'dalam-kota')
-    );
-    
-    const tipePesananLower = order.tipe_pesanan ? order.tipe_pesanan.toLowerCase() : '';
-    console.log('🔍 Debug tipe pesanan:');
-    console.log('   - tipePesananLower:', `"${tipePesananLower}"`);
-    console.log('   - includes "pesan antar":', tipePesananLower.includes('pesan antar'));
-    console.log('   - includes "pesan ambil":', tipePesananLower.includes('pesan ambil'));
-    
-    const isPesanAntarOrAmbil = (
-      tipePesananLower.includes('pesan antar') ||
-      tipePesananLower.includes('pesan ambil')
-    );
-    
-    console.log('✅ isInKota:', isInKota);
-    console.log('✅ isPesanAntarOrAmbil:', isPesanAntarOrAmbil);
-    console.log('🎯 Final eligibility:', isInKota && isPesanAntarOrAmbil);
-    
-    return isInKota && isPesanAntarOrAmbil;
-  };
-  
-  // Open Status Foto modal for specific order
-  const handleOpenStatusFoto = (order: Order): void => {
-    setSelectedOrder(order);
-    setPhotoFiles({ readyForPickup: null, pickedUp: null, delivered: null });
-    setUploadedImages({ readyForPickup: null, pickedUp: null, delivered: null });
-    onPhotoModalOpen();
-  };
-  
   // Handle photo file selection
   const handlePhotoFileChange = (type: string, file: File): void => {
     if (file) {
@@ -285,6 +227,80 @@ const OutletDashboard: React.FC = () => {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // Quick photo upload function for inline camera button
+  const handleQuickPhotoUpload = async (orderId: string, event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    
+    // Determine photo type based on current shipping status
+    const getPhotoTypeFromStatus = (status: string): 'ready_for_pickup' | 'picked_up' | 'delivered' => {
+      switch (status) {
+        case 'pending':
+        case 'processing':
+        case 'dikemas':
+        case 'siap kirim':
+          return 'ready_for_pickup';
+        case 'shipping':
+        case 'dalam pengiriman':
+          return 'picked_up';
+        case 'delivered':
+        case 'diterima':
+          return 'delivered';
+        default:
+          return 'ready_for_pickup'; // Default fallback
+      }
+    };
+    
+    const photoType = getPhotoTypeFromStatus(order.shipping_status || 'pending');
+    
+    try {
+      console.log(`📸 Quick upload: ${photoType} photo for order ${orderId}`);
+      
+      toast({
+        title: 'Mengupload foto...',
+        description: `Sedang upload foto untuk status "${order.shipping_status}"`,
+        status: 'info',
+        duration: 2000,
+        isClosable: true,
+      });
+      
+      // Use standardized adminApi.uploadShippingImage
+      const response = await adminApi.uploadShippingImage(orderId, photoType, file);
+      
+      if (response.success && response.data?.imageUrl) {
+        toast({
+          title: '✅ Foto berhasil diupload',
+          description: `Foto untuk status "${order.shipping_status}" berhasil disimpan`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+        
+        // Refresh orders to get updated data
+        await fetchOrders();
+      } else {
+        throw new Error(response.error || 'Gagal upload foto');
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Error in quick photo upload:', error);
+      toast({
+        title: '❌ Gagal upload foto',
+        description: errorMessage,
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+    
+    // Clear the file input
+    event.target.value = '';
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: ShippingStatus): Promise<void> => {
@@ -465,30 +481,51 @@ const OutletDashboard: React.FC = () => {
                             Detail
                           </Button>
                           
-                          {/* Status Foto button for eligible orders */}
-                          {isEligibleForStatusFoto(order) && (
-                            <Button 
-                              size="sm" 
-                              colorScheme="green" 
-                              variant="outline"
-                              onClick={() => handleOpenStatusFoto(order)}
-                            >
-                              📷 Status Foto
-                            </Button>
-                          )}
-                          
+
                           {order.payment_status === 'settlement' && (
-                            <Select 
-                              size="sm" 
-                              width="180px"
-                              value={order.shipping_status || 'menunggu diproses'}
-                              onChange={(e) => updateOrderStatus(order.id, e.target.value as ShippingStatus)}
-                              placeholder="Pilih status"
-                            >
-                              {getShippingStatusOptions().map((option: any) => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                              ))}
-                            </Select>
+                            <HStack spacing={1}>
+                              <Select 
+                                size="sm" 
+                                width="160px"
+                                value={order.shipping_status || 'menunggu diproses'}
+                                onChange={(e) => updateOrderStatus(order.id, e.target.value as ShippingStatus)}
+                                placeholder="Pilih status"
+                              >
+                                {getShippingStatusOptions().map((option: any) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </Select>
+                              
+                              {/* Quick Photo Upload */}
+                              <Box position="relative">
+                                <Input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => handleQuickPhotoUpload(order.id, e)}
+                                  style={{
+                                    position: 'absolute',
+                                    opacity: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    cursor: 'pointer'
+                                  }}
+                                  id={`quick-photo-${order.id}`}
+                                />
+                                <Button
+                                  as="label"
+                                  htmlFor={`quick-photo-${order.id}`}
+                                  size="sm"
+                                  colorScheme="teal"
+                                  variant="outline"
+                                  cursor="pointer"
+                                  title="Upload foto untuk status saat ini"
+                                  minW="auto"
+                                  px={3}
+                                >
+                                  📷
+                                </Button>
+                              </Box>
+                            </HStack>
                           )}
                         </HStack>
                       </Td>
