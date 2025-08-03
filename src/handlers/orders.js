@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { createNotification } from './notifications.js';
+import { determineOutletFromLocation } from './outlet-assignment.js';
 
 // Simple order ID generator
 function generateOrderId() {
@@ -144,10 +145,25 @@ export async function createOrder(request, env) {
       throw new Error(`Failed to process payment: ${error.message}`);
     }
 
-    // Insert the order into the database, now including the address
+    // Determine outlet assignment based on location
+    const outletId = determineOutletFromLocation(
+      orderData.lokasi_pengiriman,
+      orderData.lokasi_pengambilan,
+      orderData.shipping_area
+    );
+    
+    console.log('🏪 Order assignment:', {
+      orderId,
+      outletId,
+      lokasi_pengiriman: orderData.lokasi_pengiriman,
+      lokasi_pengambilan: orderData.lokasi_pengambilan,
+      shipping_area: orderData.shipping_area
+    });
+
+    // Insert the order into the database, now including outlet assignment
     await env.DB.prepare(`
-      INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_response, shipping_status, customer_address)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_response, shipping_status, customer_address, outlet_id, lokasi_pengiriman, lokasi_pengambilan, shipping_area)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
         orderId,
         customer_name,
@@ -158,7 +174,11 @@ export async function createOrder(request, env) {
         midtransData.redirect_url,
         JSON.stringify(midtransData), // Storing the full response for reference
         'pending', // Initial shipping status
-        customer_address || null // Add the address here
+        customer_address || null,
+        outletId, // Auto-assigned outlet
+        orderData.lokasi_pengiriman || null,
+        orderData.lokasi_pengambilan || null,
+        orderData.shipping_area || null
       ).run();
 
     // Statements for inserting into 'order_items' table
@@ -1101,47 +1121,42 @@ export async function getOutletOrders(request, env) {
             console.error('Error in debug query:', debugErr);
           }
           
-          // Build query with all the OR conditions to get all orders for this outlet
+          // Build query with PRIORITIZED conditions for outlet matching
           let outletCondition = '';
           
-          // CRITICAL FIX: For outlet synchronization, prioritize lokasi_pengiriman matching
-          // This ensures orders with lokasi_pengiriman="Outlet Bonbin" show up in Outlet Bonbin dashboard
+          // ⭐ PRIORITY 1: Direct outlet_id matching (most reliable)
+          if (outletId) {
+            outletCondition += `o.outlet_id = '${outletId}'`;
+            console.log(`🎯 Primary match: outlet_id = ${outletId}`);
+          }
           
+          // ⭐ PRIORITY 2: Location-based matching (fallback for legacy orders)
+          // Only use string matching for orders that don't have outlet_id set
           if (outletName) {
-            // Primary matching: lokasi_pengiriman contains outlet name (most reliable)
-            outletCondition += `LOWER(o.lokasi_pengiriman) LIKE LOWER('%${outletName}%')`;
+            if (outletCondition) outletCondition += ' OR ';
+            outletCondition += `(o.outlet_id IS NULL AND (LOWER(o.lokasi_pengiriman) LIKE LOWER('%${outletName}%')`;
             
             // Add special matching patterns for common outlet names
             if (outletName.toLowerCase().includes('bonbin')) {
               outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%bonbin%')`;
+              outletCondition += ` OR LOWER(o.shipping_area) LIKE LOWER('%bonbin%')`;
             }
-            if (outletName.toLowerCase().includes('monjali')) {
-              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%monjali%')`;
+            if (outletName.toLowerCase().includes('malioboro')) {
+              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%malioboro%')`;
+              outletCondition += ` OR LOWER(o.shipping_area) LIKE LOWER('%malioboro%')`;
             }
-            if (outletName.toLowerCase().includes('jakal')) {
-              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%jakal%')`;
+            if (outletName.toLowerCase().includes('jogja')) {
+              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%jogja%')`;
+              outletCondition += ` OR LOWER(o.lokasi_pengambilan) LIKE LOWER('%jogja%')`;
             }
-            if (outletName.toLowerCase().includes('glagahsari')) {
-              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%glagahsari%')`;
-            }
-          }
-          
-          // Secondary matching: outlet_id (fallback for direct assignments)
-          if (outletId) {
-            if (outletCondition) outletCondition += ' OR ';
-            outletCondition += `o.outlet_id = '${outletId}'`;
-          }
-          
-          // Tertiary matching: shipping_area (additional fallback)
-          if (outletName || outletLocationPattern) {
-            if (outletCondition) outletCondition += ' OR ';
-            if (outletName) {
-              outletCondition += `LOWER(o.shipping_area) LIKE LOWER('%${outletName}%')`;
-            }
+            
+            // Include shipping_area and pickup location in fallback matching
             if (outletLocationPattern) {
-              if (outletName) outletCondition += ' OR ';
-              outletCondition += `LOWER(o.shipping_area) LIKE LOWER('%${outletLocationPattern}%')`;
+              outletCondition += ` OR LOWER(o.lokasi_pengambilan) LIKE LOWER('%${outletLocationPattern}%')`;
+              outletCondition += ` OR LOWER(o.shipping_area) LIKE LOWER('%${outletLocationPattern}%')`;
             }
+            
+            outletCondition += '))';
           }
           
           // If we couldn't build any conditions, use a fallback to show SOME orders

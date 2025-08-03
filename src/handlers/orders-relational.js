@@ -43,33 +43,13 @@ export async function getOutletOrdersRelational(request, env) {
         o.*,
         -- Primary outlet information
         primary_outlet.name AS outlet_name,
-        primary_outlet.location AS outlet_location,
-        primary_outlet.address AS outlet_address,
-        
-        -- Delivery outlet information (for multi-outlet orders)
-        delivery_outlet.name AS delivery_outlet_name,
-        delivery_outlet.location AS delivery_outlet_location,
-        
-        -- Pickup outlet information (for pickup orders)  
-        pickup_outlet.name AS pickup_outlet_name,
-        pickup_outlet.location AS pickup_outlet_location,
-        
-        -- Assigned deliveryman information
-        deliveryman.username AS deliveryman_name
+        primary_outlet.location_alias AS outlet_location,
+        primary_outlet.address AS outlet_address
         
       FROM orders o
       
       -- PRIMARY OUTLET JOIN (main outlet assignment)
-      LEFT JOIN outlets primary_outlet ON o.outlet_id = primary_outlet.id
-      
-      -- DELIVERY OUTLET JOIN (for delivery-specific assignments)
-      LEFT JOIN outlets delivery_outlet ON o.delivery_outlet_id = delivery_outlet.id
-      
-      -- PICKUP OUTLET JOIN (for pickup orders)
-      LEFT JOIN outlets pickup_outlet ON o.pickup_outlet_id = pickup_outlet.id
-      
-      -- DELIVERYMAN JOIN (for assigned deliveries)
-      LEFT JOIN users deliveryman ON o.assigned_deliveryman_id = deliveryman.id
+      LEFT JOIN outlets_unified primary_outlet ON o.outlet_id = primary_outlet.id
       
       WHERE 1=1
     `;
@@ -77,9 +57,7 @@ export async function getOutletOrdersRelational(request, env) {
     let countQuery = `
       SELECT COUNT(*) as total 
       FROM orders o
-      LEFT JOIN outlets primary_outlet ON o.outlet_id = primary_outlet.id
-      LEFT JOIN outlets delivery_outlet ON o.delivery_outlet_id = delivery_outlet.id
-      LEFT JOIN outlets pickup_outlet ON o.pickup_outlet_id = pickup_outlet.id
+      LEFT JOIN outlets_unified primary_outlet ON o.outlet_id = primary_outlet.id
       WHERE 1=1
     `;
     
@@ -105,24 +83,17 @@ export async function getOutletOrdersRelational(request, env) {
     
     if (request.user) {
       if (request.user.role === 'outlet_manager') {
-        // RELATIONAL APPROACH: Use JOIN to match user's outlet
-        // This covers all scenarios:
-        // 1. Orders directly assigned to outlet (outlet_id)
-        // 2. Orders for delivery to this outlet (delivery_outlet_id) 
-        // 3. Orders for pickup from this outlet (pickup_outlet_id)
+        // SIMPLIFIED RELATIONAL APPROACH: Use only outlet_id
+        // Orders directly assigned to outlet (outlet_id)
         
-        const outletCondition = ` AND (
-          o.outlet_id = ? OR 
-          o.delivery_outlet_id = ? OR 
-          o.pickup_outlet_id = ?
-        )`;
+        const outletCondition = ` AND o.outlet_id = ?`;
         
         orderQuery += outletCondition;
         countQuery += outletCondition;
         
         // Add user's outlet_id 3 times for the 3 conditions
-        queryParams.push(request.user.outlet_id, request.user.outlet_id, request.user.outlet_id);
-        countParams.push(request.user.outlet_id, request.user.outlet_id, request.user.outlet_id);
+        queryParams.push(request.user.outlet_id);
+        countParams.push(request.user.outlet_id);
         
         console.log(`🏪 Filtering orders for outlet manager with outlet_id: ${request.user.outlet_id}`);
         
@@ -226,22 +197,10 @@ export async function getOutletOrdersRelational(request, env) {
             location: order.outlet_location,
             address: order.outlet_address
           },
-          delivery: order.delivery_outlet_id ? {
-            id: order.delivery_outlet_id,
-            name: order.delivery_outlet_name,
-            location: order.delivery_outlet_location
-          } : null,
-          pickup: order.pickup_outlet_id ? {
-            id: order.pickup_outlet_id,
-            name: order.pickup_outlet_name,
-            location: order.pickup_outlet_location
-          } : null
+          // Simplified outlet info (using primary outlet only)
         },
-        // Deliveryman information
-        deliveryman_info: order.assigned_deliveryman_id ? {
-          id: order.assigned_deliveryman_id,
-          name: order.deliveryman_name
-        } : null,
+        // Deliveryman information (simplified)
+        deliveryman_info: null, // Removed until assigned_deliveryman_id column exists
         // Clean up duplicate fields
         outlet_name: order.outlet_name,  // Keep for backward compatibility
         // Ensure status fields have defaults
@@ -251,11 +210,13 @@ export async function getOutletOrdersRelational(request, env) {
       };
     }) || [];
     
-    // Return success response
+    // Return success response with nested structure for frontend compatibility
     return new Response(JSON.stringify({
       success: true,
       message: `Orders retrieved successfully using relational approach`,
-      data: processedOrders,
+      data: {
+        orders: processedOrders  // Frontend expects data.data.orders
+      },
       pagination: {
         total,
         page,
@@ -319,29 +280,7 @@ export async function migrateOrdersToRelational(request, env) {
     
     const migrationResult = await env.DB.prepare(migrationQuery).run();
     
-    // Step 2: Set delivery_outlet_id for delivery orders
-    const deliveryMigrationQuery = `
-      UPDATE orders SET 
-        delivery_outlet_id = outlet_id
-      WHERE area_pengiriman = 'Dalam Kota' 
-        AND tipe_pesanan = 'Pesan Antar'
-        AND delivery_outlet_id IS NULL
-        AND outlet_id IS NOT NULL
-    `;
-    
-    const deliveryResult = await env.DB.prepare(deliveryMigrationQuery).run();
-    
-    // Step 3: Set pickup_outlet_id for pickup orders
-    const pickupMigrationQuery = `
-      UPDATE orders SET 
-        pickup_outlet_id = outlet_id
-      WHERE area_pengiriman = 'Dalam Kota' 
-        AND tipe_pesanan = 'Pesan Ambil'
-        AND pickup_outlet_id IS NULL
-        AND outlet_id IS NOT NULL
-    `;
-    
-    const pickupResult = await env.DB.prepare(pickupMigrationQuery).run();
+    console.log('✅ Simplified migration: Using outlet_id only');
     
     console.log('✅ Migration completed successfully');
     

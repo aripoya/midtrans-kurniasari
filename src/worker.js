@@ -14,6 +14,9 @@ import { verifyToken, handleMiddlewareError } from './handlers/middleware.js';
 import { resetAdminPassword } from './handlers/admin.js'; // Import the new handler
 import { getUsers, createUser, updateUser, deleteUser, resetUserPassword } from './handlers/user-management.js'; // Import user management handlers
 import { resetOutletPassword, checkDatabaseSchema, createCustomersTable, testLogin, getTableSchema, analyzeOutletLocations, createRealOutlets, mapOrdersToOutlets, resetAdminPasswordForDebug, debugDeliveryAssignments, addEmailColumnToUsers, addUpdatedAtColumnToUsers, debugCreateOrderUpdateLogsTable, modifyUpdateOrderStatus, debugOrderDetails, debugOutletSync } from './handlers/debug.js';
+import { migrateExistingOrdersToOutlets, getMigrationStatus } from './handlers/migrate-outlets.js';
+import { createRelationalDBStructure, getRelationalDBStatus } from './handlers/migrate-relational-db.js';
+import { migrateSafeRelationalDB, getSafeMigrationStatus } from './handlers/migrate-safe-db.js';
 
 console.log('Initializing router');
 const router = Router();
@@ -322,6 +325,39 @@ router.options('/api/admin/users/:id/reset-password', (request, env) => {
 router.post('/api/admin/users/:id/reset-password', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return resetUserPassword(request, env);
+});
+
+// Outlet Migration endpoints
+router.post('/api/admin/migrate-outlets', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return migrateExistingOrdersToOutlets(request, env);
+});
+
+router.get('/api/admin/migration-status', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getMigrationStatus(request, env);
+});
+
+// Relational Database Migration endpoints
+router.post('/api/admin/migrate-relational-db', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return createRelationalDBStructure(request, env);
+});
+
+router.get('/api/admin/relational-db-status', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getRelationalDBStatus(request, env);
+});
+
+// Safe Migration endpoints (bypass FK constraints)
+router.post('/api/admin/migrate-safe-db', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return migrateSafeRelationalDB(request, env);
+});
+
+router.get('/api/admin/safe-migration-status', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getSafeMigrationStatus(request, env);
 });
 
 // Cloudflare Images endpoints for image uploads and management
