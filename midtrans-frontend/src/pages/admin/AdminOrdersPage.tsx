@@ -24,10 +24,12 @@ import {
   Stat,
   StatLabel,
   StatNumber,
-  Card,
-  CardBody,
   useBreakpointValue,
-  Stack,
+   Accordion,
+  AccordionItem,
+  AccordionButton,
+  AccordionPanel,
+  AccordionIcon,
 } from '@chakra-ui/react';
 import { adminApi } from '../../api/adminApi';
 import { formatDate } from '../../utils/date';
@@ -334,45 +336,34 @@ const AdminOrdersPage: React.FC = () => {
           <>
             {isMobile ? (
               // Mobile view - cards
-              <Stack spacing={4}>
-                {filteredOrders.length > 0 ? (
-                  filteredOrders.map((order: any) => (
-                    <Card key={order.id}>
-                      <CardBody>
-                        <Stack spacing={3}>
-                          <Flex justify="space-between">
-                            <Text fontWeight="bold">#{order.id.substring(0, 8)}</Text>
-                            <Text>{formatDate(order.created_at)}</Text>
-                          </Flex>
-                          <Text><strong>Pelanggan:</strong> {order.customer_name}</Text>
-                          <Text><strong>Total:</strong> Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
-                          <Flex justify="space-between">
-                            <Box>
-                              <Text fontSize="sm">Status Pembayaran:</Text>
-                              {getPaymentStatusBadge(order.payment_status)}
-                            </Box>
-                            <Box>
-                              <Text fontSize="sm">Status Pesanan:</Text>
-                              {getShippingStatusBadge(order.shipping_status)}
-                            </Box>
-                          </Flex>
-                          <Button 
-                            as={RouterLink} 
-                            to={`/admin/orders/${order.id}`}
-                            size="sm"
-                            colorScheme="blue"
-                            _hover={{ textDecoration: 'none', color: 'inherit' }}
-                          >
-                            Lihat Detail
-                          </Button>
-                        </Stack>
-                      </CardBody>
-                    </Card>
-                  ))
-                ) : (
-                  <Text>Tidak ada pesanan ditemukan</Text>
-                )}
-              </Stack>
+             <Accordion allowMultiple>
+              {filteredOrders.map(order => (
+                <AccordionItem key={order.id} borderWidth="1px" borderRadius="md" mb={4}>
+                  <AccordionButton _hover={{ bg: 'transparent' }} _focus={{ boxShadow: 'none' }} px={4} py={3}>
+                    <Flex flex="1" textAlign="left" justify="space-between">
+                      <Box fontWeight="bold">#{order.id.substring(0, 8)} - {order.customer_name}</Box>
+                      <AccordionIcon />
+                    </Flex>
+                  </AccordionButton>
+                  <AccordionPanel px={4} pb={4}>
+                    <Text><strong>Tanggal:</strong> {formatDate(order.created_at)}</Text>
+                    <Text><strong>Email:</strong> {order.customer_email}</Text>
+                    <Text><strong>Total:</strong> Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
+                    <Text><strong>Status Pembayaran:</strong> {getPaymentStatusBadge(order.payment_status)}</Text>
+                    <Text><strong>Status Pengiriman:</strong> {getShippingStatusBadge(order.shipping_status)}</Text>
+                    <Button
+                      as={RouterLink}
+                      to={`/admin/orders/${order.id}`}
+                      size="sm"
+                      mt={3}
+                      colorScheme="blue"
+                    >
+                      Lihat Detail
+                    </Button>
+                  </AccordionPanel>
+                </AccordionItem>
+              ))}
+            </Accordion>
             ) : (
               // Desktop view - table
               <Box overflowX="auto">

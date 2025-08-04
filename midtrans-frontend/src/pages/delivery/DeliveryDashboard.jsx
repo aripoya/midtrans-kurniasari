@@ -29,7 +29,13 @@ import {
   Select,
   FormControl,
   FormLabel,
-  Input
+  Input,
+  useBreakpointValue,
+  Accordion,
+  AccordionItem,
+  AccordionButton,
+  AccordionPanel,
+  AccordionIcon,
 } from '@chakra-ui/react';
 import { FaTruck, FaShippingFast, FaCheckCircle } from 'react-icons/fa';
 import { useAuth } from '../../auth/AuthContext';
@@ -43,6 +49,7 @@ function DeliveryDashboard() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const isMobile = useBreakpointValue({ base: true, md: false });
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -313,87 +320,88 @@ const updateShippingStatus = async (orderId, newStatus ) => {
             <Heading size="md">Pengiriman Yang Ditugaskan</Heading>
           </Flex>
           
-          {orders.length > 0 ? (
-            <Box overflowX="auto">
-              <Table variant="simple">
-                <Thead>
-                  <Tr>
-                    <Th>ID Pesanan</Th>
-                    <Th>Nama Pelanggan</Th>
-                    <Th>Alamat</Th>
-                    <Th>Lokasi Pengiriman</Th>
-                    <Th>Status Pengiriman</Th>
-                    <Th>Aksi</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {orders.map(order => (
-                    <Tr key={order.id}>
-                      <Td fontWeight="medium">{order.id}</Td>
-                      <Td>{order.customer_name}</Td>
-                      <Td>{order.customer_address}</Td>
-                      <Td>{order.lokasi_pengiriman || order.shipping_location || order.outlet_id || 'Tidak tersedia'}</Td>
-                      <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
-                      <Td>
-                        <HStack spacing={2}>
-                          {/* Order details button */}
-                          <Button 
-                            as={Link} 
-                            to={`/delivery/orders/${order.id}`} 
-                            size="sm" 
-                            colorScheme="blue" 
-                            variant="outline"
-                          >
-                            Detail
-                          </Button>
-                          
 
-                          
-                          {/* Status Update Dropdown - TDD Compliance */}
-                        {order.shipping_status !== 'diterima' && order.shipping_status !==  'sedang dikirim' && (
+          {orders.length === 0 ? (
+          <Text textAlign="center">Tidak ada pengiriman yang ditugaskan</Text>
+        ) : isMobile ? (
+          <Accordion allowToggle>
+            {orders.map((order) => (
+              <AccordionItem key={order.id}>
+                <AccordionButton _hover={{ bg: 'transparent' }} _focus={{ boxShadow: 'none' }}>
+                  <Box flex="1" textAlign="left">
+                    #{order.id} - {order.customer_name}
+                  </Box>
+                  <AccordionIcon />
+                </AccordionButton>
+                <AccordionPanel pb={4}>
+                  <VStack align="start" spacing={2}>
+                    <Text><strong>Alamat:</strong> {order.customer_address}</Text>
+                    <Text><strong>Lokasi:</strong> {order.lokasi_pengiriman || 'Tidak tersedia'}</Text>
+                    <Text><strong>Status:</strong> {getShippingStatusBadge(order.shipping_status)}</Text>
+                    <HStack>
+                      <Button as={Link} to={`/delivery/orders/${order.id}`} size="sm" colorScheme="blue" variant="outline">Detail</Button>
+                      {order.shipping_status !== 'diterima' && (
+                        <Select
+                          size="sm"
+                          width="200px"
+                          value={order.shipping_status || ''}
+                          onChange={(e) => updateShippingStatus(order.id, e.target.value)}
+                        >
+                          <option value="siap kirim">Siap Kirim</option>
+                          <option value="sedang dikirim">Dalam Pengiriman</option>
+                          <option value="diterima">Diterima</option>
+                        </Select>
+                      )}
+                    </HStack>
+                  </VStack>
+                </AccordionPanel>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        ) : (
+          <Box borderWidth="1px" borderRadius="lg" overflowX="auto">
+            <Table variant="simple">
+              <Thead>
+                <Tr>
+                  <Th>ID Pesanan</Th>
+                  <Th>Nama Pelanggan</Th>
+                  <Th>Alamat</Th>
+                  <Th>Lokasi</Th>
+                  <Th>Status</Th>
+                  <Th>Aksi</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {orders.map((order) => (
+                  <Tr key={order.id}>
+                    <Td>{order.id}</Td>
+                    <Td>{order.customer_name}</Td>
+                    <Td>{order.customer_address}</Td>
+                    <Td>{order.lokasi_pengiriman || 'Tidak tersedia'}</Td>
+                    <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
+                    <Td>
+                      <HStack spacing={2}>
+                        <Button as={Link} to={`/delivery/orders/${order.id}`} size="sm" colorScheme="blue" variant="outline">Detail</Button>
+                        {order.shipping_status !== 'diterima' && (
                           <Select
                             size="sm"
-                            width="200px"
+                            width="150px"
                             value={order.shipping_status || ''}
-                            onChange={(e) => {
-                              const newStatus = e.target.value;
-                              if (newStatus !== order.shipping_status) {
-                                updateShippingStatus(order.id, newStatus);
-                              }
-                            }}
-                            role="combobox"
-                            placeholder="Pilih status"
+                            onChange={(e) => updateShippingStatus(order.id, e.target.value)}
                           >
                             <option value="siap kirim">Siap Kirim</option>
                             <option value="sedang dikirim">Dalam Pengiriman</option>
                             <option value="diterima">Diterima</option>
                           </Select>
                         )}
-
-                        
-                          
-                          {order.shipping_status === 'sedang dikirim' && (
-                            <Button 
-                              size="sm" 
-                              colorScheme="green"
-                              onClick={() => updateShippingStatus(order.id, 'diterima')}
-                              leftIcon={<FaCheckCircle />}
-                            >
-                              Tandai Diterima
-                            </Button>
-                          )}
-                        </HStack>
-                      </Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
-            </Box>
-          ) : (
-            <Box p={8} textAlign="center">
-              <Text>Tidak ada pengiriman yang ditugaskan</Text>
-            </Box>
-          )}
+                      </HStack>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
+        )}
         </Box>
       </VStack>
 

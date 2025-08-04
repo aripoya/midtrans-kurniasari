@@ -41,6 +41,13 @@ import {
   useDisclosure,
   Image,
   Input,
+  useBreakpointValue,
+  Accordion,
+  AccordionItem,
+  AccordionButton,
+  AccordionPanel,
+  AccordionIcon,
+  Stack,
 } from '@chakra-ui/react';
 import { useAuth } from '../../auth/AuthContext';
 import { Link } from 'react-router-dom';
@@ -52,6 +59,7 @@ import { getShippingStatusOptions, getShippingStatusConfig } from '../../utils/o
 import { useRealTimeSync, useNotificationSync } from '../../hooks/useRealTimeSync';
 
 const OutletDashboard: React.FC = () => {
+  const isMobile = useBreakpointValue({ base: true, md: false });
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -442,104 +450,205 @@ const OutletDashboard: React.FC = () => {
         </SimpleGrid>
 
         <Box borderWidth="1px" borderRadius="lg" overflow="hidden" bg={cardBgColor}>
-          <Flex p={4} justifyContent="space-between" alignItems="center" borderBottomWidth="1px">
-            <Heading size="md">Daftar Pesanan Terbaru</Heading>
-          </Flex>
-          
-          {orders.length > 0 ? (
-            <Box overflowX="auto">
-              <Table variant="simple">
-                <Thead>
-                  <Tr>
-                    <Th>ID Pesanan</Th>
-                    <Th>Nama Pelanggan</Th>
-                    <Th>Total</Th>
-                    <Th>Status</Th>
-                    <Th>Status Pengiriman</Th>
-                    <Th>Tanggal</Th>
-                    <Th>Aksi</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {orders.map(order => (
-                    <Tr key={order.id}>
-                      <Td fontWeight="medium">{order.id}</Td>
-                      <Td>{order.customer_name}</Td>
-                      <Td>Rp {order.total_amount?.toLocaleString()}</Td>
-                      <Td><Badge colorScheme={getStatusColor(order.payment_status)} size="sm">{order.payment_status}</Badge></Td>
-                      <Td><Badge colorScheme={getStatusColor(order.shipping_status)} size="sm">{order.shipping_status}</Badge></Td>
-                      <Td>{new Date(order.created_at).toLocaleDateString()}</Td>
-                      <Td>
-                        <HStack spacing={2}>
-                          <Button 
-                            as={Link} 
-                            to={`/outlet/orders/${order.id}`} 
-                            size="sm" 
-                            colorScheme="blue" 
-                            variant="outline"
-                          >
-                            Detail
-                          </Button>
-                          
+      <Flex p={4} justifyContent="space-between" alignItems="center" borderBottomWidth="1px">
+        <Heading size="md">Daftar Pesanan Terbaru</Heading>
+      </Flex>
 
-                          {order.payment_status === 'settlement' && (
-                            <HStack spacing={1}>
-                              <Select 
-                                size="sm" 
-                                width="160px"
-                                value={order.shipping_status || 'menunggu diproses'}
-                                onChange={(e) => updateOrderStatus(order.id, e.target.value as ShippingStatus)}
-                                placeholder="Pilih status"
+      {orders.length > 0 ? (
+        isMobile ? (
+          <Accordion allowToggle>
+            {orders.map((order) => (
+              <AccordionItem key={order.id} >
+                <AccordionButton >
+                  <Box flex="1" textAlign="left" fontWeight="semibold">
+                    #{order.id} - {order.customer_name}
+                  </Box>
+                  <AccordionIcon />
+                </AccordionButton>
+                <AccordionPanel pb={4}>
+                  <Stack spacing={2}>
+                    <Box><strong>Total:</strong> Rp {order.total_amount.toLocaleString()}</Box>
+                    <Box>
+                      <strong>Status:</strong>{' '}
+                      <Badge colorScheme={getStatusColor(order.payment_status)}>
+                        {order.payment_status}
+                      </Badge>
+                    </Box>
+                    <Box>
+                      <strong>Pengiriman:</strong>{' '}
+                      <Badge colorScheme={getStatusColor(order.shipping_status)}>
+                        {order.shipping_status}
+                      </Badge>
+                    </Box>
+                    <Box><strong>Tanggal:</strong> {new Date(order.created_at).toLocaleDateString()}</Box>
+
+                    <HStack spacing={2} pt={2}>
+                      <Button
+                        as={Link}
+                        to={`/outlet/orders/${order.id}`}
+                        size="sm"
+                        colorScheme="blue"
+                        variant="outline"
+                      >
+                        Detail
+                      </Button>
+
+                      {order.payment_status === 'settlement' && (
+                        <>
+                          <Select
+                            size="sm"
+                            width="auto"
+                            value={order.shipping_status || 'menunggu diproses'}
+                            onChange={(e) =>
+                              updateOrderStatus(order.id, e.target.value as ShippingStatus)
+                            }
+                            placeholder="Pilih status"
+                          >
+                            {getShippingStatusOptions().map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </Select>
+
+                          <Box position="relative">
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleQuickPhotoUpload(order.id, e)}
+                              style={{
+                                position: 'absolute',
+                                opacity: 0,
+                                width: '100%',
+                                height: '100%',
+                                cursor: 'pointer',
+                              }}
+                              id={`quick-photo-${order.id}`}
+                            />
+                            <Button
+                              as="label"
+                              htmlFor={`quick-photo-${order.id}`}
+                              size="sm"
+                              colorScheme="teal"
+                              variant="outline"
+                              cursor="pointer"
+                              title="Upload foto"
+                              px={3}
+                            >
+                              📷
+                            </Button>
+                          </Box>
+                        </>
+                      )}
+                    </HStack>
+                  </Stack>
+                </AccordionPanel>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        ) : (
+          <Box overflowX="auto">
+            <Table variant="simple">
+              <Thead>
+                <Tr>
+                  <Th>ID Pesanan</Th>
+                  <Th>Nama Pelanggan</Th>
+                  <Th>Total</Th>
+                  <Th>Status</Th>
+                  <Th>Status Pengiriman</Th>
+                  <Th>Tanggal</Th>
+                  <Th>Aksi</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {orders.map((order) => (
+                  <Tr key={order.id}>
+                    <Td fontWeight="medium">{order.id}</Td>
+                    <Td>{order.customer_name}</Td>
+                    <Td>Rp {order.total_amount.toLocaleString()}</Td>
+                    <Td>
+                      <Badge colorScheme={getStatusColor(order.payment_status)}>
+                        {order.payment_status}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      <Badge colorScheme={getStatusColor(order.shipping_status)}>
+                        {order.shipping_status}
+                      </Badge>
+                    </Td>
+                    <Td>{new Date(order.created_at).toLocaleDateString()}</Td>
+                    <Td>
+                      <HStack spacing={2}>
+                        <Button
+                          as={Link}
+                          to={`/outlet/orders/${order.id}`}
+                          size="sm"
+                          colorScheme="blue"
+                          variant="outline"
+                        >
+                          Detail
+                        </Button>
+                        {order.payment_status === 'settlement' && (
+                          <HStack spacing={1}>
+                            <Select
+                              size="sm"
+                              width="160px"
+                              value={order.shipping_status || 'menunggu diproses'}
+                              onChange={(e) =>
+                                updateOrderStatus(order.id, e.target.value as ShippingStatus)
+                              }
+                              placeholder="Pilih status"
+                            >
+                              {getShippingStatusOptions().map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </Select>
+
+                            <Box position="relative">
+                              <Input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleQuickPhotoUpload(order.id, e)}
+                                style={{
+                                  position: 'absolute',
+                                  opacity: 0,
+                                  width: '100%',
+                                  height: '100%',
+                                  cursor: 'pointer',
+                                }}
+                                id={`quick-photo-${order.id}`}
+                              />
+                              <Button
+                                as="label"
+                                htmlFor={`quick-photo-${order.id}`}
+                                size="sm"
+                                colorScheme="teal"
+                                variant="outline"
+                                cursor="pointer"
+                                title="Upload foto"
+                                px={3}
                               >
-                                {getShippingStatusOptions().map((option: any) => (
-                                  <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                              </Select>
-                              
-                              {/* Quick Photo Upload */}
-                              <Box position="relative">
-                                <Input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => handleQuickPhotoUpload(order.id, e)}
-                                  style={{
-                                    position: 'absolute',
-                                    opacity: 0,
-                                    width: '100%',
-                                    height: '100%',
-                                    cursor: 'pointer'
-                                  }}
-                                  id={`quick-photo-${order.id}`}
-                                />
-                                <Button
-                                  as="label"
-                                  htmlFor={`quick-photo-${order.id}`}
-                                  size="sm"
-                                  colorScheme="teal"
-                                  variant="outline"
-                                  cursor="pointer"
-                                  title="Upload foto untuk status saat ini"
-                                  minW="auto"
-                                  px={3}
-                                >
-                                  📷
-                                </Button>
-                              </Box>
-                            </HStack>
-                          )}
-                        </HStack>
-                      </Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
-            </Box>
-          ) : (
-            <Box p={8} textAlign="center">
-              <Text>Tidak ada pesanan untuk ditampilkan</Text>
-            </Box>
-          )}
+                                📷
+                              </Button>
+                            </Box>
+                          </HStack>
+                        )}
+                      </HStack>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
+        )
+      ) : (
+        <Box p={8} textAlign="center">
+          <Text>Tidak ada pesanan untuk ditampilkan</Text>
         </Box>
+      )}
+    </Box>
         
         {/* Status Foto Modal */}
         <Modal isOpen={isPhotoModalOpen} onClose={onPhotoModalClose} size="xl">
