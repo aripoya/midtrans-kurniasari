@@ -234,29 +234,47 @@ const AdminOrdersPage: React.FC = () => {
     <Container maxW="7xl" py={8}>
       <Box>
         {/* Header */}
-        <Flex justify="space-between" align="center" mb={6}>
+        <Flex
+        direction={{ base: 'column', md: 'row' }}
+        justify="space-between"
+        align={{ base: 'flex-start', md: 'center' }}
+        mb={6}
+        gap={4}
+        >
+        {/* Kiri: Heading */}
           <Heading size="lg">Kelola Pesanan</Heading>
-          <HStack spacing={4}>
-            {/* Real-time sync status indicator */}
-            <Box>
-              <Badge 
-                colorScheme={!syncStatus.connected ? 'red' : syncStatus.error ? 'red' : 'green'}
-                variant="subtle"
-              >
-                {!syncStatus.connected ? '❌ Disconnected' : syncStatus.error ? '❌ Sync Error' : '✅ Live'}
-              </Badge>
-              {syncStatus.lastSync && (
-                <Text fontSize="xs" color="gray.500" mt={1}>
-                  Last: {new Date(syncStatus.lastSync).toLocaleTimeString()}
-                </Text>
-              )}
-            </Box>
-            {/* Notification count indicator */}
+
+        {/* Kanan: Status badge, notif, buttons */}
+          <HStack spacing={4} flexWrap="wrap" justify="flex-end">
+            <Badge 
+              colorScheme={
+                !syncStatus.connected ? 'red' :
+                syncStatus.error ? 'red' :
+                'green'
+              }
+              variant="subtle"
+            >
+              {
+                !syncStatus.connected
+                  ? '❌ Disconnected'
+                  : syncStatus.error
+                  ? '❌ Sync Error'
+                  : '✅ Live'
+              }
+            </Badge>
+
+            {syncStatus.lastSync && (
+              <Text fontSize="xs" color="gray.500">
+                Last: {new Date(syncStatus.lastSync).toLocaleTimeString()}
+              </Text>
+            )}
+
             {unreadCount > 0 && (
               <Badge colorScheme="red" variant="solid" borderRadius="full">
                 {unreadCount} new
               </Badge>
             )}
+
             <Button 
               onClick={fetchOrders}
               colorScheme="blue"
@@ -265,6 +283,7 @@ const AdminOrdersPage: React.FC = () => {
             >
               Refresh
             </Button>
+            
             <Button 
               onClick={handleLogout}
               colorScheme="red"
@@ -274,6 +293,7 @@ const AdminOrdersPage: React.FC = () => {
             </Button>
           </HStack>
         </Flex>
+
 
         {/* Stats Cards */}
         <SimpleGrid columns={{ base: 2, md: 4 }} spacing={6} mb={8}>
@@ -304,13 +324,6 @@ const AdminOrdersPage: React.FC = () => {
             <option value="dikirim">Dikirim</option>
             <option value="received">Diterima</option>
           </Select>
-          <Button 
-            onClick={fetchOrders}
-            isLoading={loading}
-            loadingText="Memuat..."
-          >
-            Refresh
-          </Button>
         </HStack>
         
         {loading ? (
@@ -348,6 +361,7 @@ const AdminOrdersPage: React.FC = () => {
                             to={`/admin/orders/${order.id}`}
                             size="sm"
                             colorScheme="blue"
+                            _hover={{ textDecoration: 'none', color: 'inherit' }}
                           >
                             Lihat Detail
                           </Button>

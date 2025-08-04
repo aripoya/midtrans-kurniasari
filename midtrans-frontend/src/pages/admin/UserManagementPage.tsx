@@ -32,7 +32,6 @@ import {
 import { FaEdit, FaTrash, FaKey } from 'react-icons/fa';
 import { adminApi } from '../../api/adminApi';
 
-// TypeScript interfaces
 interface User {
   id: string;
   username: string;
@@ -68,10 +67,9 @@ const UserManagementPage: React.FC = () => {
     outlet_id: '',
     email: ''
   });
-    const [locations, setLocations] = useState<any>([]);
-  
+  const [locations, setLocations] = useState<any[]>([]);
 
-  const toast = useToast();
+ const toast = useToast();
   const { isOpen: isCreateOpen, onOpen: onCreateOpen, onClose: onCreateClose } = useDisclosure();
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   const { isOpen: isResetOpen, onOpen: onResetOpen, onClose: onResetClose } = useDisclosure();
@@ -437,21 +435,22 @@ const UserManagementPage: React.FC = () => {
 
   return (
     <Container maxW="container.xl" py={8}>
-      <Flex justifyContent="space-between" alignItems="center" mb={6}>
-        <Heading size="lg">User Management</Heading>
-        <Button colorScheme="blue" onClick={handleOpenCreateModal}>
-          Add User
-        </Button>
+      <Flex justify="space-between" align={{ base: 'start', md: 'center' }} mb={8} direction={{ base: 'column', md: 'row' }} gap={4}>
+        <Box>
+          <Heading size="lg">User Management</Heading>
+          <Text fontSize="sm" color="gray.500">Manage admin, outlet manager, and deliveryman</Text>
+        </Box>
+        <Button colorScheme="blue" onClick={handleOpenCreateModal}>+ Add User</Button>
       </Flex>
 
       {loading ? (
-        <Box textAlign="center" py={10}>
-          <Text>Loading users...</Text>
-        </Box>
+        <Box textAlign="center" py={10}><Text>Loading users...</Text></Box>
+      ) : users.length === 0 ? (
+        <Box textAlign="center" py={12}><Text fontSize="lg" color="gray.500">No users found.</Text></Box>
       ) : (
-        <Box overflowX="auto">
-          <Table variant="simple">
-            <Thead>
+        <Box overflowX="auto" borderWidth="1px" borderRadius="lg" shadow="sm">
+          <Table variant="simple" size="md">
+            <Thead bg="gray.100">
               <Tr>
                 <Th>Username</Th>
                 <Th>Name</Th>
@@ -462,36 +461,18 @@ const UserManagementPage: React.FC = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {users.map((user) => (
-                <Tr key={user.id}>
+              {users.map((user, index) => (
+                <Tr key={user.id} bg={index % 2 === 0 ? 'gray.50' : 'white'}>
                   <Td>{user.username}</Td>
                   <Td>{user.name}</Td>
                   <Td>{getRoleDisplayName(user.role)}</Td>
                   <Td>{getOutletDisplayName(user.outlet_id || '')}</Td>
                   <Td>{user.email || '-'}</Td>
                   <Td>
-                    <HStack spacing={2}>
-                      <IconButton
-                        aria-label="Edit user"
-                        icon={<FaEdit />}
-                        size="sm"
-                        colorScheme="blue"
-                        onClick={() => handleOpenEditModal(user)}
-                      />
-                      <IconButton
-                        aria-label="Reset password"
-                        icon={<FaKey />}
-                        size="sm"
-                        colorScheme="yellow"
-                        onClick={() => handleOpenResetModal(user)}
-                      />
-                      <IconButton
-                        aria-label="Delete user"
-                        icon={<FaTrash />}
-                        size="sm"
-                        colorScheme="red"
-                        onClick={() => handleOpenDeleteModal(user)}
-                      />
+                    <HStack spacing={1}>
+                      <IconButton aria-label="Edit" icon={<FaEdit />} size="sm" colorScheme="blue" variant="ghost" onClick={() => handleOpenEditModal(user)} />
+                      <IconButton aria-label="Reset" icon={<FaKey />} size="sm" colorScheme="yellow" variant="ghost" onClick={() => handleOpenResetModal(user)}/>
+                      <IconButton aria-label="Delete" icon={<FaTrash />} size="sm" colorScheme="red" variant="ghost" onClick={() => handleOpenDeleteModal(user)} />
                     </HStack>
                   </Td>
                 </Tr>
@@ -501,7 +482,7 @@ const UserManagementPage: React.FC = () => {
         </Box>
       )}
 
-      {/* Create User Modal */}
+     {/* Create User Modal */}
       <Modal isOpen={isCreateOpen} onClose={onCreateClose}>
         <ModalOverlay />
         <ModalContent>

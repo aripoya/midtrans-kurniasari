@@ -1,4 +1,13 @@
-import { Box, Heading, Flex, Button, Text, HStack, useBreakpointValue } from '@chakra-ui/react';
+import {
+  Box,
+  Heading,
+  Flex,
+  Button,
+  Text,
+  HStack,
+  useBreakpointValue,
+  Spacer,
+} from '@chakra-ui/react';
 import { useAuth } from '../auth/AuthContext';
 import { useLocation } from 'react-router-dom';
 import NotificationBell from './NotificationBell';
@@ -6,11 +15,16 @@ import NotificationBell from './NotificationBell';
 function Header() {
   const { isLoggedIn, user, logout } = useAuth();
   const location = useLocation();
-  const headingSize = useBreakpointValue({ base: "md", md: "xl" });
+
+  const headingSize = useBreakpointValue({ base: 'md', md: 'xl' });
   const showUsername = useBreakpointValue({ base: false, sm: true });
-  
-  // Check if we're on a public order page
   const isPublicOrderPage = location.pathname.includes('ORDER-');
+
+  const getUserPrefix = () => {
+    if (user?.role === 'admin') return 'Admin: ';
+    if (user?.role === 'outlet_manager') return 'Outlet: ';
+    return 'Delivery: ';
+  };
 
   return (
     <Box
@@ -20,38 +34,46 @@ function Header() {
       boxShadow="sm"
       py={4}
       px={4}
-      className="admin-header"
     >
-      <Flex 
-        justify="space-between" 
+      <Flex
+        direction="row"
         align="center"
-        direction={{ base: "column", sm: "row" }}
-        gap={{ base: 2, sm: 0 }}
+        justify="space-between"
+        wrap="wrap"
+        gap={4}
       >
         <Heading
           fontSize={headingSize}
           fontWeight="bold"
           color="teal.500"
-          textAlign={{ base: "center", sm: "left" }}
+          flexShrink={0}
         >
           Kurniasari Order Management
         </Heading>
-        
         {isLoggedIn && !isPublicOrderPage && (
-          <HStack spacing={{ base: 2, md: 4 }} className="admin-element" align="center">
-            {showUsername && <Text>{user?.role === 'admin' ? 'Admin: ' : user?.role === 'outlet_manager' ? 'Outlet: ' : 'Delivery: '}{user?.username}</Text>}
-            {/* Only show notifications for authenticated users */}
+          <Flex
+            align="center"
+            gap={4}
+            ml="auto"
+            flexWrap="wrap"
+            justify="flex-end"
+          >
+            {showUsername && (
+              <Text whiteSpace="nowrap">
+                {getUserPrefix()}
+                {user?.username}
+              </Text>
+            )}
             <NotificationBell />
             <Button
               colorScheme="teal"
               variant="outline"
               size="sm"
               onClick={logout}
-              className="logout-btn"
             >
               Logout
             </Button>
-          </HStack>
+          </Flex>
         )}
       </Flex>
     </Box>
