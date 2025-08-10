@@ -341,7 +341,7 @@ const AdminOrdersPage: React.FC = () => {
                 <AccordionItem key={order.id} borderWidth="1px" borderRadius="md" mb={4}>
                   <AccordionButton _hover={{ bg: 'transparent' }} _focus={{ boxShadow: 'none' }} px={4} py={3}>
                     <Flex flex="1" textAlign="left" justify="space-between">
-                      <Box fontWeight="bold">#{order.id.substring(0, 8)} - {order.customer_name}</Box>
+                      <Box fontWeight="bold">#{order.id} - {order.customer_name}</Box>
                       <AccordionIcon />
                     </Flex>
                   </AccordionButton>
@@ -383,7 +383,7 @@ const AdminOrdersPage: React.FC = () => {
                     {filteredOrders.length > 0 ? (
                       filteredOrders.map((order: any) => (
                         <Tr key={order.id}>
-                          <Td>#{order.id.substring(0, 8)}</Td>
+                          <Td>#{order.id}</Td>
                           <Td>{formatDate(order.created_at)}</Td>
                           <Td>{order.customer_name}</Td>
                           <Td>Rp {order.total_amount?.toLocaleString('id-ID')}</Td>

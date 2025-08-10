@@ -656,7 +656,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
         <Card>
           <CardHeader>
             <Flex justify="space-between" align="center">
-              <Heading size="md">Detail Pesanan {order?.id ? `#${order.id.substring(0, 8)}` : 'Loading...'}</Heading>
+              <Heading size="md">Detail Pesanan {order?.id ? `#${order.id}` : 'Loading...'}</Heading>
             </Flex>
           </CardHeader>
           <CardBody>
