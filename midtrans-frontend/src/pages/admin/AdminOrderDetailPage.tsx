@@ -82,9 +82,9 @@ interface ShippingStatusOption {
 interface ShippingImage {
   id: string;
   order_id: string;
-  type: string;
+  image_type: string;
   image_url: string;
-  uploaded_at: string;
+  created_at: string;
 }
 
 const AdminOrderDetailPage: React.FC = () => {
@@ -173,11 +173,17 @@ const AdminOrderDetailPage: React.FC = () => {
   // Helper function to map backend keys to frontend keys
   const mapBackendToFrontendFormat = (backendType: string): keyof UploadedImages | null => {
     const typeMapping: Record<string, keyof UploadedImages> = {
+      // English types (found in production database)
       'ready_for_pickup': 'readyForPickup',
       'picked_up': 'pickedUp', 
       'delivered': 'received',
-      'shipment_proof': 'shipmentProof'
+      'shipment_proof': 'shipmentProof',
+      // Indonesian types (from delivery dashboard)
+      'siap_kirim': 'readyForPickup',
+      'pengiriman': 'pickedUp',
+      'diterima': 'received'
     };
+    console.log(`🔗 [MAPPING DEBUG] Input type: "${backendType}" → Output: "${typeMapping[backendType] || 'NULL'}"`);
     return typeMapping[backendType] || null;
   };
 
@@ -388,9 +394,31 @@ const AdminOrderDetailPage: React.FC = () => {
       setCourierService(orderData.courier_service || '');
       setTrackingNumber(orderData.tracking_number || '');
 
-      // Get shipping images
+      // Get shipping images - using public API as fallback since admin API returns empty
       try {
-        const imagesRes = await adminApi.getShippingImages(id!);
+        console.log(`🔍 [DEBUG] Fetching shipping images for order: ${id}`);
+        console.log(`🔄 [DEBUG] Using public API as fallback for shipping images`);
+        
+        // Import publicApi
+        const { publicApi } = await import('../../api/publicApi');
+        const publicOrderRes = await publicApi.getOrderById(id!);
+        console.log(`📸 [DEBUG] Public API order response:`, publicOrderRes);
+        
+        // Extract shipping images from public order response and normalize format
+        const rawShippingImages = publicOrderRes.data?.shipping_images || [];
+        const normalizedImages = rawShippingImages.map(img => ({
+          ...img,
+          created_at: img.uploaded_at, // Normalize field name
+          image_type: img.image_type   // Ensure field exists
+        }));
+        
+        const imagesRes = {
+          success: true,
+          data: normalizedImages,
+          error: null
+        };
+        console.log(`📸 [DEBUG] Extracted shipping images:`, imagesRes);
+        
         if (imagesRes.success && imagesRes.data) {
           const imagesData: UploadedImages = {
             readyForPickup: null,
@@ -400,19 +428,43 @@ const AdminOrderDetailPage: React.FC = () => {
           };
           
           const imagesList = Array.isArray(imagesRes.data) ? imagesRes.data : [];
-          imagesList.forEach((imageItem: ShippingImage) => {
-            if (imageItem.image_url && imageItem.type) {
-              const frontendKey = mapBackendToFrontendFormat(imageItem.type);
+          console.log(`📋 [DEBUG] Processing ${imagesList.length} images:`, imagesList);
+          
+          imagesList.forEach((imageItem: ShippingImage, index: number) => {
+            console.log(`🖼️ [DEBUG] Image ${index + 1}:`, {
+              image_type: imageItem.image_type,
+              image_url: imageItem.image_url,
+              hasUrl: !!imageItem.image_url,
+              hasType: !!imageItem.image_type
+            });
+            
+            if (imageItem.image_url && imageItem.image_type) {
+              const frontendKey = mapBackendToFrontendFormat(imageItem.image_type);
+              console.log(`🔗 [DEBUG] Mapping ${imageItem.image_type} → ${frontendKey}`);
+              
               if (frontendKey && frontendKey in imagesData) {
-                (imagesData as any)[frontendKey] = transformURL(imageItem.image_url);
+                const transformedUrl = transformURL(imageItem.image_url);
+                (imagesData as any)[frontendKey] = transformedUrl;
+                console.log(`✅ [DEBUG] Mapped successfully: ${frontendKey} = ${transformedUrl}`);
+              } else {
+                console.log(`❌ [DEBUG] Mapping failed for type: ${imageItem.image_type}`);
               }
+            } else {
+              console.log(`⚠️ [DEBUG] Missing image_url or type for image ${index + 1}`);
             }
           });
           
+          console.log(`🎯 [DEBUG] Final images data:`, imagesData);
           setUploadedImages(imagesData);
+        } else {
+          console.log(`❌ [DEBUG] Images API failed or no data:`, {
+            success: imagesRes.success,
+            hasData: !!imagesRes.data,
+            error: imagesRes.error
+          });
         }
       } catch (imageError) {
-        console.error('Error fetching shipping images:', imageError);
+        console.error('❌ [ERROR] Error fetching shipping images:', imageError);
       }
       
     } catch (error: unknown) {

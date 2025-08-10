@@ -2469,11 +2469,28 @@ async function getShippingImagesModern(request, env) {
         }
         
         // Get all shipping images for this order
+        console.log('MODERN GET: Querying database for order_id:', orderId);
+        console.log('MODERN GET: Query: SELECT * FROM shipping_images WHERE order_id = ? ORDER BY created_at DESC');
+        
         const images = await env.DB.prepare(
             'SELECT * FROM shipping_images WHERE order_id = ? ORDER BY created_at DESC'
         ).bind(orderId).all();
         
+        console.log('MODERN GET: Raw query result:', images);
         console.log('MODERN GET: Found images:', images.results?.length || 0);
+        console.log('MODERN GET: Images data:', images.results);
+        
+        // Also check if there are ANY images in the table for debugging
+        const allImages = await env.DB.prepare(
+            'SELECT COUNT(*) as total FROM shipping_images'
+        ).first();
+        console.log('MODERN GET: Total images in shipping_images table:', allImages?.total || 0);
+        
+        // Check if there are images for similar order IDs
+        const similarImages = await env.DB.prepare(
+            'SELECT order_id, image_type, created_at FROM shipping_images WHERE order_id LIKE ? LIMIT 5'
+        ).bind(`%${orderId.substring(-10)}%`).all();
+        console.log('MODERN GET: Similar order IDs in database:', similarImages.results);
         
         return new Response(JSON.stringify({
             success: true,

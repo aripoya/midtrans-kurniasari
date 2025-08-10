@@ -46,7 +46,7 @@ export interface ShippingImage {
   order_id: string;
   image_type: "siap_kirim" | "pengiriman" | "diterima";
   image_url: string;
-  uploaded_at: string;
+  created_at: string;
 }
 
 export interface Location {
