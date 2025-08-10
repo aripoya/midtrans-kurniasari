@@ -109,6 +109,27 @@ export const getShippingStatusOptions = (): StatusOption[] => [
 ];
 
 /**
+ * Get shipping status options filtered by shipping area
+ * For "luar kota" areas, only specific statuses are allowed
+ * @param shippingArea - The shipping area (e.g., "LUAR KOTA", "Outlet Bonbin")
+ * @returns Array of valid status options for the specific area
+ */
+export const getShippingStatusOptionsByArea = (shippingArea?: string): StatusOption[] => {
+  // Check for "luar-kota" value (exact match from RadioGroup)
+  if (shippingArea === 'luar-kota') {
+    // For luar kota areas, only return these 3 statuses
+    return [
+      { value: "siap kirim", label: "Siap Kirim" },
+      { value: "dalam pengiriman", label: "Dalam Pengiriman" }, 
+      { value: "diterima", label: "Diterima" },
+    ];
+  }
+  
+  // For all other areas (dalam-kota, etc.), return all status options
+  return getShippingStatusOptions();
+};
+
+/**
  * Type guard to check if a string is a valid normalized shipping status
  * @param status - The status to check
  * @returns True if the status is a valid normalized shipping status

@@ -374,6 +374,7 @@ const AdminOrdersPage: React.FC = () => {
                       <Th>Tanggal</Th>
                       <Th>Pelanggan</Th>
                       <Th>Total</Th>
+                      <Th>Area Pengiriman</Th>
                       <Th>Status Pembayaran</Th>
                       <Th>Status Pesanan</Th>
                       <Th>Aksi</Th>
@@ -387,6 +388,7 @@ const AdminOrdersPage: React.FC = () => {
                           <Td>{formatDate(order.created_at)}</Td>
                           <Td>{order.customer_name}</Td>
                           <Td>Rp {order.total_amount?.toLocaleString('id-ID')}</Td>
+                          <Td>{order.lokasi_pengiriman || order.shipping_area || '-'}</Td>
                           <Td>{getPaymentStatusBadge(order.payment_status)}</Td>
                           <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
                           <Td>
@@ -403,7 +405,7 @@ const AdminOrdersPage: React.FC = () => {
                       ))
                     ) : (
                       <Tr>
-                        <Td colSpan={7} textAlign="center">Tidak ada pesanan ditemukan</Td>
+                        <Td colSpan={8} textAlign="center">Tidak ada pesanan ditemukan</Td>
                       </Tr>
                     )}
                   </Tbody>

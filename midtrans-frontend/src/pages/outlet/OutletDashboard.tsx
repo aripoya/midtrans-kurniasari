@@ -360,11 +360,21 @@ const OutletDashboard: React.FC = () => {
   const getStatusColor = (status: string): string => {
     switch(status) {
       case 'pending': return 'orange';
+      case 'settlement': return 'green';
       case 'dikemas': return 'blue';
       case 'siap kirim': return 'purple';
       case 'dalam_pengiriman': return 'cyan';
       case 'diterima': return 'green';
       default: return 'gray';
+    }
+  };
+
+  // Helper function to format payment status display text
+  const getPaymentStatusText = (status: string): string => {
+    switch(status) {
+      case 'settlement': return 'LUNAS';
+      case 'pending': return 'PENDING';
+      default: return status.toUpperCase();
     }
   };
 
@@ -471,7 +481,7 @@ const OutletDashboard: React.FC = () => {
                     <Box>
                       <strong>Status:</strong>{' '}
                       <Badge colorScheme={getStatusColor(order.payment_status)}>
-                        {order.payment_status}
+                        {getPaymentStatusText(order.payment_status)}
                       </Badge>
                     </Box>
                     <Box>
@@ -568,7 +578,7 @@ const OutletDashboard: React.FC = () => {
                     <Td>Rp {order.total_amount.toLocaleString()}</Td>
                     <Td>
                       <Badge colorScheme={getStatusColor(order.payment_status)}>
-                        {order.payment_status}
+                        {getPaymentStatusText(order.payment_status)}
                       </Badge>
                     </Td>
                     <Td>

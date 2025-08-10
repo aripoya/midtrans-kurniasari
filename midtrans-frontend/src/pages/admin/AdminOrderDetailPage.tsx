@@ -16,7 +16,7 @@ import { refreshOrderStatus } from '../../api/api';
 import { adminApi } from '../../api/adminApi';
 import { formatDate } from '../../utils/date';
 import axios from 'axios';
-import { getShippingStatusConfig, getShippingStatusOptions } from '../../utils/orderStatusUtils';
+import { getShippingStatusConfig, getShippingStatusOptions, getShippingStatusOptionsByArea } from '../../utils/orderStatusUtils';
 import ShippingImageDisplay from '../../components/ShippingImageDisplay';
 import { IoQrCodeOutline } from "react-icons/io5";
 import QRCodeGenerator from '../../components/QRCodeGenerator';
@@ -500,14 +500,23 @@ const AdminOrderDetailPage: React.FC = () => {
 
   // Handle image upload function for admin (only shipmentProof)
   const handleImageUpload = async (file: File, type: string): Promise<void> => {
+    console.log('🔍 [handleImageUpload] Starting upload process:');
+    console.log('  - file:', file.name, 'size:', file.size);
+    console.log('  - type:', type);
+    console.log('  - mapped type:', mapTypeToBackendFormat(type));
+    console.log('  - order_id:', id);
+    
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('image', file);
-      formData.append('order_id', id!);
-      formData.append('type', mapTypeToBackendFormat(type));
+      const backendType = mapTypeToBackendFormat(type);
       
-      const result = await adminApi.uploadShippingImage(formData);
+      console.log('📤 [handleImageUpload] Sending request to backend...');
+      const result = await adminApi.uploadShippingImage(
+        id!, 
+        backendType as "ready_for_pickup" | "picked_up" | "delivered" | "shipment_proof", 
+        file
+      );
+      console.log('📥 [handleImageUpload] Backend response:', result);
       if (result.success) {
         // Refresh images after successful upload
         await loadAllData();
@@ -582,10 +591,18 @@ const AdminOrderDetailPage: React.FC = () => {
     return <Text color="gray.500">Belum ada foto</Text>;
   };
 
-  // Helper to render upload button - only available for shipmentProof (bukti pengiriman) type
+  // Helper to render upload button - conditional based on area and status
   const renderUploadButton = (type: keyof UploadedImages): React.ReactElement | null => {
     // Admin can only upload shipmentProof (bukti pengiriman)
     if (type !== 'shipmentProof') {
+      return null;
+    }
+
+    // Only show upload for "luar kota" orders with "siap kirim" status
+    const isLuarKota = shippingArea === 'luar-kota';
+    const isSiapKirim = shippingStatus === 'siap kirim';
+    
+    if (!isLuarKota || !isSiapKirim) {
       return null;
     }
 
@@ -878,7 +895,7 @@ useEffect(() => {
                   onChange={(e) => setShippingStatus(e.target.value)}
                 >
                   <option value="">Pilih Status</option>
-                  {getShippingStatusOptions().map((option: ShippingStatusOption) => (
+                  {getShippingStatusOptionsByArea(shippingArea).map((option: ShippingStatusOption) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -1103,12 +1120,21 @@ useEffect(() => {
             <SimpleGrid columns={{ base: 1, md: isLuarKota ? 1 : 3 }} spacing={4}>
               {/* Conditional rendering based on shipping area */}
               {isLuarKota ? (
-                // Luar Kota - only show received photo
-                <Box>
-                  <Text fontWeight="semibold" mb={2}>Foto Diterima</Text>
-                  {renderUploadedImage('received')}
-                  {renderUploadButton('received')}
-                </Box>
+                // Luar Kota - show upload foto for siap kirim status, and received photo
+                <>
+                  {/* Upload foto for siap kirim status */}
+                  <Box>
+                    <Text fontWeight="semibold" mb={2}>Foto Pengiriman</Text>
+                    {renderUploadedImage('shipmentProof')}
+                    {renderUploadButton('shipmentProof')}
+                  </Box>
+                  {/* Always show received photo for luar kota */}
+                  <Box>
+                    <Text fontWeight="semibold" mb={2}>Foto Diterima</Text>
+                    {renderUploadedImage('received')}
+                    {renderUploadButton('received')}
+                  </Box>
+                </>
               ) : (
                 // Dalam Kota - show all 3 photos
                 <>

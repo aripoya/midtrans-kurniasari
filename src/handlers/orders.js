@@ -161,6 +161,24 @@ export async function createOrder(request, env) {
     });
 
     // Insert the order into the database, now including outlet assignment
+    // Ensure all values are properly defined to avoid D1 undefined errors
+    const safeOutletId = outletId || null;
+    const safeMidtransToken = midtransData?.token || null;
+    const safeMidtransRedirectUrl = midtransData?.redirect_url || null;
+    const safeMidtransResponse = midtransData ? JSON.stringify(midtransData) : null;
+    
+    console.log('🔧 Database insertion values:', {
+      orderId,
+      customer_name,
+      email,
+      customerPhone: customerPhone || null,
+      totalAmount,
+      snap_token: safeMidtransToken,
+      payment_link: safeMidtransRedirectUrl,
+      outlet_id: safeOutletId,
+      lokasi_pengiriman: orderData.lokasi_pengiriman || null
+    });
+
     await env.DB.prepare(`
       INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_response, shipping_status, customer_address, outlet_id, lokasi_pengiriman, lokasi_pengambilan, shipping_area)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -168,14 +186,14 @@ export async function createOrder(request, env) {
         orderId,
         customer_name,
         email,
-        customerPhone,
+        customerPhone || null,
         totalAmount,
-        midtransData.token,
-        midtransData.redirect_url,
-        JSON.stringify(midtransData), // Storing the full response for reference
+        safeMidtransToken,
+        safeMidtransRedirectUrl,
+        safeMidtransResponse,
         'pending', // Initial shipping status
         customer_address || null,
-        outletId, // Auto-assigned outlet
+        safeOutletId,
         orderData.lokasi_pengiriman || null,
         orderData.lokasi_pengambilan || null,
         orderData.shipping_area || null
@@ -499,11 +517,12 @@ export async function getDeliveryOrders(request, env) {
       });
     }
 
-    // Query orders assigned to this deliveryman
+    // Query orders for deliveryman - includes both assigned and pickup_method = 'deliveryman'
+    // This ensures deliveryman sees all orders they can potentially handle
     const ordersResult = await env.DB.prepare(`
       SELECT *
       FROM orders
-      WHERE assigned_deliveryman_id = ?
+      WHERE assigned_deliveryman_id = ? OR pickup_method = 'deliveryman'
       ORDER BY created_at DESC
     `).bind(deliverymanId).all();
 

@@ -83,19 +83,80 @@ export async function getOutletOrdersRelational(request, env) {
     
     if (request.user) {
       if (request.user.role === 'outlet_manager') {
-        // SIMPLIFIED RELATIONAL APPROACH: Use only outlet_id
-        // Orders directly assigned to outlet (outlet_id)
+        // COMPREHENSIVE OUTLET MATCHING: 
+        // 1. Direct outlet_id matching (primary)
+        // 2. Legacy string matching for orders without outlet_id (fallback)
         
-        const outletCondition = ` AND o.outlet_id = ?`;
+        const outletId = request.user.outlet_id || '';
         
-        orderQuery += outletCondition;
-        countQuery += outletCondition;
+        // Get outlet info for legacy string matching
+        let outletName = '';
+        try {
+          if (outletId) {
+            const outletInfo = await env.DB.prepare(`SELECT name FROM outlets_unified WHERE id = ?`).bind(outletId).first();
+            outletName = outletInfo?.name || '';
+          }
+        } catch (error) {
+          console.warn('Could not fetch outlet info:', error);
+        }
         
-        // Add user's outlet_id 3 times for the 3 conditions
-        queryParams.push(request.user.outlet_id);
-        countParams.push(request.user.outlet_id);
+        // Build comprehensive outlet condition
+        let outletConditions = [];
         
-        console.log(`🏪 Filtering orders for outlet manager with outlet_id: ${request.user.outlet_id}`);
+        // ⭐ PRIMARY: Direct outlet_id matching (most reliable)
+        if (outletId) {
+          outletConditions.push(`o.outlet_id = ?`);
+          queryParams.push(outletId);
+          countParams.push(outletId);
+        }
+        
+        // ⭐ FALLBACK: Location-based matching for legacy orders without outlet_id
+        if (outletName) {
+          let legacyMatchingConditions = [];
+          
+          // Add outlet name matching
+          legacyMatchingConditions.push(`LOWER(o.lokasi_pengiriman) LIKE LOWER(?)`);
+          queryParams.push(`%${outletName}%`);
+          countParams.push(`%${outletName}%`);
+          
+          // Add special patterns for common outlet names
+          if (outletName.toLowerCase().includes('bonbin')) {
+            legacyMatchingConditions.push(`LOWER(o.lokasi_pengiriman) LIKE LOWER(?)`);
+            legacyMatchingConditions.push(`LOWER(o.lokasi_pengambilan) LIKE LOWER(?)`);
+            legacyMatchingConditions.push(`LOWER(o.shipping_area) LIKE LOWER(?)`);
+            queryParams.push('%bonbin%', '%bonbin%', '%bonbin%');
+            countParams.push('%bonbin%', '%bonbin%', '%bonbin%');
+          }
+          
+          if (outletName.toLowerCase().includes('malioboro')) {
+            legacyMatchingConditions.push(`LOWER(o.lokasi_pengiriman) LIKE LOWER(?)`);
+            legacyMatchingConditions.push(`LOWER(o.shipping_area) LIKE LOWER(?)`);
+            queryParams.push('%malioboro%', '%malioboro%');
+            countParams.push('%malioboro%', '%malioboro%');
+          }
+          
+          if (outletName.toLowerCase().includes('jogja')) {
+            legacyMatchingConditions.push(`LOWER(o.lokasi_pengiriman) LIKE LOWER(?)`);
+            legacyMatchingConditions.push(`LOWER(o.lokasi_pengambilan) LIKE LOWER(?)`);
+            queryParams.push('%jogja%', '%jogja%');
+            countParams.push('%jogja%', '%jogja%');
+          }
+          
+          // Create legacy condition for orders without outlet_id
+          if (legacyMatchingConditions.length > 0) {
+            outletConditions.push(`(o.outlet_id IS NULL AND (${legacyMatchingConditions.join(' OR ')}))`);
+          }
+        }
+        
+        // Combine all outlet conditions with OR
+        if (outletConditions.length > 0) {
+          const finalOutletCondition = ` AND (${outletConditions.join(' OR ')})`;
+          orderQuery += finalOutletCondition;
+          countQuery += finalOutletCondition;
+        }
+        
+        console.log(`🏪 Filtering orders for outlet manager: ${outletName} (ID: ${outletId}) with comprehensive matching`);
+        console.log(`📊 Query params count: ${queryParams.length}, Count params count: ${countParams.length}`);
         
       } else if (request.user.role === 'deliveryman') {
         // Deliverymen see only orders assigned to them

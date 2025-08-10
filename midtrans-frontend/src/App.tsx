@@ -15,6 +15,7 @@ import { CartProvider } from './contexts/CartContext';
 import OrdersPage from './pages/OrdersPage';
 import NewOrderPage from './pages/NewOrderPage';
 import OrderDetailPage from './pages/OrderDetailPage';
+import PublicOrderDetailPage from './pages/PublicOrderDetailPage';
 import ProductsPage from './pages/ProductsPage';
 import DebugPage from './pages/DebugPage';
 import LoginPage from './pages/LoginPage';
@@ -46,8 +47,8 @@ const App: React.FC = () => {
                 <Route path="/" element={<Navigate to="/login" replace />} />
 
                 {/* Public Routes - No Auth Required */}
-                <Route path="/order/:id" element={<PublicLayout><OrderDetailPage /></PublicLayout>} />
-                <Route path="/orders/:id" element={<PublicLayout><OrderDetailPage /></PublicLayout>} />
+                <Route path="/order/:id" element={<PublicLayout><PublicOrderDetailPage /></PublicLayout>} />
+                <Route path="/orders/:id" element={<PublicLayout><PublicOrderDetailPage /></PublicLayout>} />
                 <Route path="/orders" element={<PublicLayout><OrdersPage /></PublicLayout>} />
 
                 {/* Admin Routes */}
