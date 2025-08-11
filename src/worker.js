@@ -369,7 +369,7 @@ router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (requ
         const { orderId, imageType } = request.params;
         
         // Validate image type
-        const validTypes = ['ready_for_pickup', 'picked_up', 'delivered', 'shipment_proof'];
+        const validTypes = ['ready_for_pickup', 'picked_up', 'delivered', 'shipment_proof', 'packaged_product'];
         if (!validTypes.includes(imageType)) {
             return new Response(JSON.stringify({
                 success: false,
