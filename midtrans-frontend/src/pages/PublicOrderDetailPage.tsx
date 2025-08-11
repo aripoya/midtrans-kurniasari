@@ -245,6 +245,18 @@ const PublicOrderDetailPage = () => {
                           >
                             LACAK RESI
                           </Badge>
+                        ) : order.courier_service?.toLowerCase() === 'jne' ? (
+                          <Badge 
+                            as="a"
+                            href={`/jne-tracking?resi=${order.tracking_number}&orderId=${order.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            colorScheme="red" 
+                            cursor="pointer"
+                            _hover={{ textDecoration: 'none', opacity: 0.8 }}
+                          >
+                            LACAK RESI
+                          </Badge>
                         ) : (
                           <Badge colorScheme="blue" cursor="pointer">Lacak Resi</Badge>
                         )}

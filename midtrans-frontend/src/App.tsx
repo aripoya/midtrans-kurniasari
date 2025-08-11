@@ -28,6 +28,7 @@ import OutletAdminView from './pages/outlet/OutletAdminView';
 import DeliveryDashboard from './pages/delivery/DeliveryDashboard';
 import DebugNotificationPage from './pages/DebugNotificationPage';
 import TIKITrackingPage from './components/TIKITrackingPage';
+import JNETrackingPage from './components/JNETrackingPage';
 
 // Route Protection
 import RoleProtectedRoute from './auth/RoleProtectedRoute';
@@ -52,6 +53,7 @@ const App: React.FC = () => {
                 <Route path="/orders/:id" element={<PublicLayout><PublicOrderDetailPage /></PublicLayout>} />
                 <Route path="/orders" element={<PublicLayout><OrdersPage /></PublicLayout>} />
                 <Route path="/tiki-tracking" element={<PublicLayout><TIKITrackingPage /></PublicLayout>} />
+                <Route path="/jne-tracking" element={<PublicLayout><JNETrackingPage /></PublicLayout>} />
 
                 {/* Admin Routes */}
                 <Route path="/admin" element={<RoleProtectedRoute allowedRoles={['admin']}><AdminLayout /></RoleProtectedRoute>}>

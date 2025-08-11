@@ -896,7 +896,36 @@ useEffect(() => {
                   {order.tracking_number && (
                     <Tr>
                       <Td fontWeight="semibold">Nomor Resi</Td>
-                      <Td>{order.tracking_number}</Td>
+                      <Td>
+                        <HStack spacing={3}>
+                          <Text>{order.tracking_number}</Text>
+                          {order.courier_service?.toLowerCase() === 'tiki' ? (
+                            <Badge 
+                              as="a"
+                              href={`/tiki-tracking?resi=${order.tracking_number}&orderId=${order.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              colorScheme="blue" 
+                              cursor="pointer"
+                              _hover={{ textDecoration: 'none', opacity: 0.8 }}
+                            >
+                              LACAK RESI
+                            </Badge>
+                          ) : order.courier_service?.toLowerCase() === 'jne' ? (
+                            <Badge 
+                              as="a"
+                              href={`/jne-tracking?resi=${order.tracking_number}&orderId=${order.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              colorScheme="red" 
+                              cursor="pointer"
+                              _hover={{ textDecoration: 'none', opacity: 0.8 }}
+                            >
+                              LACAK RESI
+                            </Badge>
+                          ) : null}
+                        </HStack>
+                      </Td>
                     </Tr>
                   )}
                   {/* Only show Tipe Pesanan for Dalam Kota orders */}
