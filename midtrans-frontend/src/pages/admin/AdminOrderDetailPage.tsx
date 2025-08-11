@@ -1261,7 +1261,12 @@ useEffect(() => {
       >
         <Flex justify="center" align="center">
           <Box>
-            <QRCodeGenerator value={fullUrl} size={200} />
+            <QRCodeGenerator 
+              value={fullUrl} 
+              size={200} 
+              showDownload={true}
+              downloadFilename={`QR-Order-${order.id}`}
+            />
           </Box>
         </Flex>
        
