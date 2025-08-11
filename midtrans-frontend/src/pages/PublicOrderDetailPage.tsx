@@ -157,7 +157,7 @@ const PublicOrderDetailPage = () => {
   const currentStep = steps.findIndex(step => step.status === 'active');
 
   // Tentukan apakah harus menampilkan foto berdasarkan shipping_area
-  const isLuarKota = order.shipping_area === 'luar_kota';
+  const isLuarKota = order.shipping_area === 'luar-kota';
   // Untuk luar kota: tampilkan foto produk dikemas dan pengiriman (tidak termasuk diterima)
   // Untuk dalam kota: tampilkan semua tahapan foto
   const photoSlotsToShow = isLuarKota ? ['packaged_product', 'picked_up'] : ['ready_for_pickup', 'picked_up', 'delivered'];
