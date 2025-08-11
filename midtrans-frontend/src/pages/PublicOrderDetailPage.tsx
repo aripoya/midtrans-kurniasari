@@ -38,6 +38,8 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { publicApi, PublicOrder } from '../api/publicApi';
+import { formatDate } from '../utils/date';
+import { API_URL } from '../api/config';
 import { formatCurrency } from '../utils/formatters';
 import { normalizeShippingStatus } from '../utils/orderStatusUtils';
 import ShippingImageDisplay from '../components/ShippingImageDisplay';
@@ -200,7 +202,7 @@ const PublicOrderDetailPage = () => {
     try {
       setMarkingReceived(true);
       
-      const response = await fetch(`/api/orders/${order.id}/mark-received`, {
+      const response = await fetch(`${API_URL}/api/orders/${order.id}/mark-received`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
