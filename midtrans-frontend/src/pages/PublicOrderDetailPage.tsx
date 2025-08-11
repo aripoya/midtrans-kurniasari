@@ -255,7 +255,8 @@ const PublicOrderDetailPage = () => {
                           img.image_type === type || 
                           (type === 'ready_for_pickup' && img.image_type === 'siap_kirim') ||
                           (type === 'picked_up' && img.image_type === 'pengiriman') ||
-                          (type === 'delivered' && img.image_type === 'diterima')
+                          (type === 'delivered' && img.image_type === 'diterima') ||
+                          (type === 'packaged_product' && (img.image_type === 'packaged_product' || img.image_type === 'produk_dikemas'))
                         )?.image_url;
                         
                         return (
