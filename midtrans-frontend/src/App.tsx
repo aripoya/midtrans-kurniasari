@@ -27,6 +27,7 @@ import OutletDashboard from './pages/outlet/OutletDashboard';
 import OutletAdminView from './pages/outlet/OutletAdminView';
 import DeliveryDashboard from './pages/delivery/DeliveryDashboard';
 import DebugNotificationPage from './pages/DebugNotificationPage';
+import TIKITrackingPage from './components/TIKITrackingPage';
 
 // Route Protection
 import RoleProtectedRoute from './auth/RoleProtectedRoute';
@@ -50,6 +51,7 @@ const App: React.FC = () => {
                 <Route path="/order/:id" element={<PublicLayout><PublicOrderDetailPage /></PublicLayout>} />
                 <Route path="/orders/:id" element={<PublicLayout><PublicOrderDetailPage /></PublicLayout>} />
                 <Route path="/orders" element={<PublicLayout><OrdersPage /></PublicLayout>} />
+                <Route path="/tiki-tracking" element={<PublicLayout><TIKITrackingPage /></PublicLayout>} />
 
                 {/* Admin Routes */}
                 <Route path="/admin" element={<RoleProtectedRoute allowedRoles={['admin']}><AdminLayout /></RoleProtectedRoute>}>
