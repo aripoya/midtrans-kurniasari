@@ -187,7 +187,17 @@ const PublicOrderDetailPage = () => {
   const isPaid = order.payment_status === 'paid' || order.payment_status === 'settlement';
   const isReceived = order.shipping_status === 'diterima';
   const steps = getOrderProgressSteps();
-  const currentStep = steps.findIndex((step: any) => step.status === 'active');
+  
+  // Calculate currentStep: if order is received, show all steps as complete (use last index)
+  // Otherwise, find the active step or the last completed step
+  let currentStep = steps.findIndex((step: any) => step.status === 'active');
+  if (currentStep === -1) {
+    // No active step found, find the last completed step
+    const lastCompletedIndex = steps.map((step: any, index: number) => step.status === 'complete' ? index : -1)
+                                    .filter((index: number) => index !== -1)
+                                    .pop();
+    currentStep = lastCompletedIndex !== undefined ? lastCompletedIndex : 0;
+  }
 
   // Tentukan apakah harus menampilkan foto berdasarkan shipping_area
   const isLuarKota = order.shipping_area === 'luar-kota';
