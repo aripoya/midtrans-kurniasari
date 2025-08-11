@@ -392,7 +392,7 @@ export const adminApi = {
   // Upload gambar status pengiriman
   uploadShippingImage: async (
     orderId: string,
-    imageType: "ready_for_pickup" | "picked_up" | "delivered" | "shipment_proof",
+    imageType: "ready_for_pickup" | "picked_up" | "delivered" | "shipment_proof" | "packaged_product",
     imageFile: File
   ): Promise<ApiResponse> => {
     try {

@@ -205,7 +205,8 @@ const AdminOrderDetailPage: React.FC = () => {
       'readyForPickup': 'ready_for_pickup',
       'pickedUp': 'picked_up',
       'received': 'delivered',
-      'shipmentProof': 'shipment_proof'
+      'shipmentProof': 'shipment_proof',
+      'packagedProduct': 'packaged_product'
     };
     return typeMapping[type] || type;
   };
@@ -579,7 +580,7 @@ const AdminOrderDetailPage: React.FC = () => {
       console.log('📤 [handleImageUpload] Sending request to backend...');
       const result = await adminApi.uploadShippingImage(
         id!, 
-        backendType as "ready_for_pickup" | "picked_up" | "delivered" | "shipment_proof", 
+        backendType as "ready_for_pickup" | "picked_up" | "delivered" | "shipment_proof" | "packaged_product", 
         file
       );
       console.log('📥 [handleImageUpload] Backend response:', result);
