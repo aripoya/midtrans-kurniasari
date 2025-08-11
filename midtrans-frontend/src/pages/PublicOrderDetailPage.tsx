@@ -233,7 +233,21 @@ const PublicOrderDetailPage = () => {
                     {order.tracking_number && (
                       <HStack>
                         <Text><strong>No. Resi:</strong> {order.tracking_number}</Text>
-                        <Badge colorScheme="blue" cursor="pointer">Lacak Resi</Badge>
+                        {order.courier_service?.toLowerCase() === 'tiki' ? (
+                          <Badge 
+                            as="a"
+                            href={`https://www.tiki.id/tracking?waybill=${order.tracking_number}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            colorScheme="blue" 
+                            cursor="pointer"
+                            _hover={{ textDecoration: 'none', opacity: 0.8 }}
+                          >
+                            LACAK RESI
+                          </Badge>
+                        ) : (
+                          <Badge colorScheme="blue" cursor="pointer">Lacak Resi</Badge>
+                        )}
                       </HStack>
                     )}
                   </Box>
