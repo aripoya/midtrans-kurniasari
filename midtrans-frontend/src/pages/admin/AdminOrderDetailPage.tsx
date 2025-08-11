@@ -73,6 +73,10 @@ interface Location {
 
 interface FileInputRefs {
   shipmentProof: React.RefObject<HTMLInputElement | null>;
+  packagedProduct: React.RefObject<HTMLInputElement | null>;
+  pickedUp: React.RefObject<HTMLInputElement | null>;
+  readyForPickup: React.RefObject<HTMLInputElement | null>;
+  received: React.RefObject<HTMLInputElement | null>;
 }
 
 interface ShippingStatusOption {
@@ -136,7 +140,11 @@ const AdminOrderDetailPage: React.FC = () => {
   const [fullUrl, setFullUrl] = useState('');
 
   const fileInputRefs: FileInputRefs = {
-    shipmentProof: useRef<HTMLInputElement>(null)
+    shipmentProof: useRef<HTMLInputElement>(null),
+    packagedProduct: useRef<HTMLInputElement>(null),
+    pickedUp: useRef<HTMLInputElement>(null),
+    readyForPickup: useRef<HTMLInputElement>(null),
+    received: useRef<HTMLInputElement>(null)
   };
 
   // Helper function to render shipping status badge
@@ -667,9 +675,18 @@ const AdminOrderDetailPage: React.FC = () => {
       return null;
     }
 
+    // Use the correct ref for each photo type
+    const refMap: Record<keyof UploadedImages, keyof FileInputRefs> = {
+      packagedProduct: 'packagedProduct',
+      pickedUp: 'pickedUp',
+      readyForPickup: 'readyForPickup',
+      received: 'received',
+      shipmentProof: 'shipmentProof'
+    };
+    const refKey = refMap[type];
+
     const handleUploadClick = (): void => {
-      // Use shipmentProof ref for now (we can extend this later)
-      fileInputRefs.shipmentProof.current?.click();
+      fileInputRefs[refKey].current?.click();
     };
 
     return (
@@ -684,7 +701,7 @@ const AdminOrderDetailPage: React.FC = () => {
         </Button>
         <input
           type="file"
-          ref={fileInputRefs.shipmentProof}
+          ref={fileInputRefs[refKey]}
           style={{ display: 'none' }}
           accept="image/*"
           onChange={(e) => handleFileInputChange(e, type)}
