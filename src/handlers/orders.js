@@ -287,7 +287,13 @@ export async function getOrderById(request, env) {
 
     // Step 2: Fetch order items
     failedQuery = 'fetching order items';
-    const { results: items } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(orderId).all();
+    const { results: rawItems } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(orderId).all();
+    
+    // Map database fields to frontend-expected field names
+    const items = rawItems.map(item => ({
+      ...item,
+      price: item.product_price // Map product_price to price for frontend compatibility
+    }));
 
     // Step 3: Fetch shipping images (with error handling)
     failedQuery = 'fetching shipping images';
@@ -1321,6 +1327,137 @@ export async function getOutletOrders(request, env) {
         'Content-Type': 'application/json',
         ...corsHeaders
       }
+    });
+  }
+}
+
+// Public endpoint for customer to mark order as received
+export async function markOrderAsReceived(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const orderId = url.pathname.split('/')[3]; // /api/orders/:id/mark-received
+    const { customer_phone, customer_name } = await request.json();
+
+    if (!orderId || !customer_phone || !customer_name) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Order ID, customer phone, and customer name are required for verification' 
+      }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    if (!env.DB) {
+      throw new Error("Database binding not found.");
+    }
+
+    // Verify customer info matches order
+    const order = await env.DB.prepare(`
+      SELECT id, customer_name, customer_phone, shipping_status 
+      FROM orders 
+      WHERE id = ?
+    `).bind(orderId).first();
+
+    if (!order) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Order not found' 
+      }), { 
+        status: 404, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // Verify customer details match (case-insensitive and phone number flexible)
+    const orderPhone = order.customer_phone?.replace(/\D/g, ''); // Remove non-digits
+    const inputPhone = customer_phone?.replace(/\D/g, '');
+    const orderName = order.customer_name?.toLowerCase().trim();
+    const inputName = customer_name?.toLowerCase().trim();
+
+    if (orderPhone !== inputPhone || orderName !== inputName) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Customer verification failed. Please check your name and phone number.' 
+      }), { 
+        status: 403, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // Check if already received
+    if (order.shipping_status?.toLowerCase() === 'diterima') {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Order is already marked as received' 
+      }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // Update order status to received
+    const updateResult = await env.DB.prepare(
+      'UPDATE orders SET shipping_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind('diterima', orderId).run();
+
+    if (updateResult.meta.changes === 0) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Failed to update order status' 
+      }), { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // Create audit log
+    const logId = `log_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    await env.DB.prepare(
+      `INSERT INTO order_update_logs (
+        id, order_id, user_id, update_type, old_value, new_value, user_role, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      logId,
+      orderId,
+      null, // No user ID for customer action
+      'shipping_status',
+      order.shipping_status,
+      'diterima',
+      'customer',
+      `Order marked as received by customer: ${customer_name}`
+    ).run();
+
+    console.log(`✅ Order ${orderId} marked as received by customer: ${customer_name}`);
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: 'Order successfully marked as received',
+      order_id: orderId,
+      new_status: 'diterima'
+    }), { 
+      status: 200, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
+
+  } catch (error) {
+    console.error('Error marking order as received:', error);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Internal server error' 
+    }), { 
+      status: 500, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });
   }
 }

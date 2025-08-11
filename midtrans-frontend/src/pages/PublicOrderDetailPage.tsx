@@ -1,12 +1,41 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  Box, Button, Center, Divider, Grid, GridItem, Heading, HStack,
-  Step, StepDescription, StepIcon, StepIndicator, StepNumber, 
-  StepSeparator, StepStatus, StepTitle, Stepper,
   Container,
-  Text, VStack, Badge, Table, Tbody, Tr, Td, Th, Thead, Spinner,
-  Alert, AlertIcon, Card, CardBody, CardHeader
+  Card,
+  CardBody,
+  CardHeader,
+  VStack,
+  HStack,
+  Text,
+  Heading,
+  Badge,
+  Button,
+  Grid,
+  GridItem,
+  Box,
+  Divider,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  Center,
+  Spinner,
+  Alert,
+  AlertIcon,
+  Step,
+  StepDescription,
+  StepIcon,
+  StepIndicator,
+  StepNumber,
+  StepSeparator,
+  StepStatus,
+  StepTitle,
+  Stepper,
+  useSteps,
+  useToast
 } from '@chakra-ui/react';
 import { publicApi, PublicOrder } from '../api/publicApi';
 import { formatCurrency } from '../utils/formatters';
@@ -20,6 +49,8 @@ const PublicOrderDetailPage = () => {
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [markingReceived, setMarkingReceived] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -83,7 +114,7 @@ const PublicOrderDetailPage = () => {
     );
   };
 
-  const getPaymentSteps = () => {
+  const getOrderProgressSteps = () => {
     if (!order) return [];
     
     const isPaid = order.payment_status === 'paid' || order.payment_status === 'settlement';
@@ -105,8 +136,8 @@ const PublicOrderDetailPage = () => {
       },
       {
         title: 'Pengiriman',
-        description: isShipping || isReceived ? 'Sedang dikirim' : (isProcessing ? 'Siap kirim' : 'Menunggu proses'),
-        status: isShipping || isReceived ? 'complete' : (isProcessing ? 'active' : 'incomplete')
+        description: isReceived ? 'Pengiriman selesai' : (isShipping ? 'Sedang dikirim' : (isProcessing ? 'Siap kirim' : 'Menunggu proses')),
+        status: isReceived ? 'complete' : (isShipping ? 'active' : (isProcessing ? 'active' : (isPaid ? 'incomplete' : 'incomplete')))
       },
       {
         title: 'Selesai',
@@ -153,14 +184,68 @@ const PublicOrderDetailPage = () => {
 
   const isPaid = order.payment_status === 'paid' || order.payment_status === 'settlement';
   const isReceived = order.shipping_status === 'diterima';
-  const steps = getPaymentSteps();
-  const currentStep = steps.findIndex(step => step.status === 'active');
+  const steps = getOrderProgressSteps();
+  const currentStep = steps.findIndex((step: any) => step.status === 'active');
 
   // Tentukan apakah harus menampilkan foto berdasarkan shipping_area
   const isLuarKota = order.shipping_area === 'luar-kota';
   // Untuk luar kota: tampilkan foto produk dikemas dan pengiriman (tidak termasuk diterima)
   // Untuk dalam kota: tampilkan semua tahapan foto
   const photoSlotsToShow = isLuarKota ? ['packaged_product', 'picked_up'] : ['ready_for_pickup', 'picked_up', 'delivered'];
+
+  // Handle mark order as received
+  const handleMarkAsReceived = async () => {
+    if (!order) return;
+    
+    try {
+      setMarkingReceived(true);
+      
+      const response = await fetch(`/api/orders/${order.id}/mark-received`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customer_phone: order.customer_phone,
+          customer_name: order.customer_name,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast({
+          title: 'Pesanan Berhasil Dikonfirmasi',
+          description: 'Pesanan telah berhasil ditandai sebagai diterima. Terima kasih!',
+          status: 'success',
+          duration: 5000,
+          isClosable: true,
+        });
+        
+        // Update order status in local state
+        setOrder(prev => prev ? { ...prev, shipping_status: 'diterima' } : null);
+      } else {
+        toast({
+          title: 'Gagal Mengonfirmasi Pesanan',
+          description: data.error || 'Terjadi kesalahan saat mengonfirmasi pesanan.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error('Error marking order as received:', error);
+      toast({
+        title: 'Kesalahan Sistem',
+        description: 'Tidak dapat terhubung ke server. Silakan coba lagi nanti.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setMarkingReceived(false);
+    }
+  };
 
   return (
     <Container maxW="container.lg" py={8} px={{ base: 4, md: 6 }}>
@@ -193,7 +278,7 @@ const PublicOrderDetailPage = () => {
                   <Box>
                     <Heading size="sm" mb={4}>Progress Pesanan</Heading>
                     <Stepper index={currentStep} orientation="vertical" height="200px" gap="0">
-                      {steps.map((step, index) => (
+                      {steps.map((step: any, index: number) => (
                         <Step key={index}>
                           <StepIndicator>
                             <StepStatus
@@ -338,7 +423,14 @@ const PublicOrderDetailPage = () => {
                 Perbarui Status
               </Button>
               {isPaid && !isReceived && (
-                <Button colorScheme="green" size="lg">
+                <Button 
+                  colorScheme="green" 
+                  size="lg" 
+                  onClick={handleMarkAsReceived}
+                  isLoading={markingReceived}
+                  loadingText="Memproses..."
+                  disabled={markingReceived}
+                >
                   Pesanan Sudah Diterima
                 </Button>
               )}

@@ -1,11 +1,10 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
-import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDetails, refreshOrderStatus, getAdminOrders, deleteOrder, getOutletOrders, getDeliveryOrders } from './handlers/orders.js';
+import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDetails, refreshOrderStatus, getAdminOrders, deleteOrder, getOutletOrders, getDeliveryOrders, markOrderAsReceived } from './handlers/orders.js';
 import { debugOutletOrderFiltering, fixOutletOrderAssignment } from './handlers/debug-outlet.js';
 import { getOutletOrdersRelational, migrateOrdersToRelational } from './handlers/orders-relational.js';
 import { updateOutletOrderStatus } from './handlers/outletOrderUpdate.js';
 import { getUserNotifications, markNotificationRead, markAllNotificationsRead } from './handlers/notifications.js';
-import { markOrderAsReceived } from './handlers/received.js';
 import { getProducts, createProduct, updateProduct, deleteProduct } from './handlers/products.js';
 // Legacy shipping handler removed - using direct Cloudflare Images endpoints instead
 import { getLocations } from './handlers/locations.js';
@@ -176,6 +175,11 @@ router.put('/api/orders/:id/update-status', verifyToken, (request, env) => {
 router.post('/api/orders/:id/refresh-status', (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return refreshOrderStatus(request, env);
+});
+// Customer endpoint to mark order as received (no auth required, verified by customer info)
+router.post('/api/orders/:id/mark-received', (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return markOrderAsReceived(request, env);
 });
 router.delete('/api/orders/:id', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
