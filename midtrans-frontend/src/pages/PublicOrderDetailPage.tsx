@@ -228,7 +228,7 @@ const PublicOrderDetailPage = () => {
                   <Box>
                     <Heading size="sm" mb={2}>Informasi Pengiriman</Heading>
                     <Text><strong>Status Pengiriman:</strong> {getShippingStatusBadge(order)}</Text>
-                    <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam_kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
+                    <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                     <Text><strong>Jasa Kurir:</strong> {order.courier_service || 'TRAVEL'}</Text>
                     {order.tracking_number && (
                       <HStack>
