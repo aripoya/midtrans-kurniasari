@@ -86,7 +86,7 @@ const PublicOrderDetailPage = () => {
   const getPaymentSteps = () => {
     if (!order) return [];
     
-    const isPaid = order.status === 'paid' || order.status === 'settlement';
+    const isPaid = order.payment_status === 'paid' || order.payment_status === 'settlement';
     const normalizedStatus = normalizeShippingStatus(order.shipping_status);
     const isProcessing = normalizedStatus === 'dikemas' || normalizedStatus === 'siap kirim';
     const isShipping = normalizedStatus === 'dalam pengiriman';
