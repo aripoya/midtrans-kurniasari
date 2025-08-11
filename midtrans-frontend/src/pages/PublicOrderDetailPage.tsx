@@ -290,22 +290,45 @@ const PublicOrderDetailPage = () => {
                   <Box>
                     <Heading size="sm" mb={4}>Progress Pesanan</Heading>
                     <Stepper index={currentStep} orientation="vertical" height="200px" gap="0">
-                      {steps.map((step: any, index: number) => (
-                        <Step key={index}>
-                          <StepIndicator>
-                            <StepStatus
-                              complete={<StepIcon />}
-                              incomplete={<StepNumber />}
-                              active={<StepNumber />}
-                            />
-                          </StepIndicator>
-                          <Box flexShrink="0">
-                            <StepTitle>{step.title}</StepTitle>
-                            <StepDescription>{step.description}</StepDescription>
-                          </Box>
-                          <StepSeparator />
-                        </Step>
-                      ))}
+                      {steps.map((step: any, index: number) => {
+                        // Special styling for the final step (Selesai) when completed
+                        const isFinalStep = index === steps.length - 1;
+                        const isFinalStepCompleted = isFinalStep && step.status === 'complete';
+                        
+                        return (
+                          <Step key={index}>
+                            <StepIndicator 
+                              sx={isFinalStepCompleted ? {
+                                '& .chakra-step__icon': {
+                                  backgroundColor: 'green.500',
+                                  color: 'white',
+                                  borderColor: 'green.500'
+                                }
+                              } : {}}
+                            >
+                              <StepStatus
+                                complete={<StepIcon />}
+                                incomplete={<StepNumber />}
+                                active={<StepNumber />}
+                              />
+                            </StepIndicator>
+                            <Box flexShrink="0">
+                              <StepTitle 
+                                color={isFinalStepCompleted ? 'green.600' : undefined}
+                                fontWeight={isFinalStepCompleted ? 'bold' : undefined}
+                              >
+                                {step.title}
+                              </StepTitle>
+                              <StepDescription 
+                                color={isFinalStepCompleted ? 'green.500' : undefined}
+                              >
+                                {step.description}
+                              </StepDescription>
+                            </Box>
+                            <StepSeparator />
+                          </Step>
+                        );
+                      })}
                     </Stepper>
                   </Box>
                 </VStack>
