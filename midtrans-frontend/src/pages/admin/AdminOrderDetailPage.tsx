@@ -62,6 +62,7 @@ interface UploadedImages {
   pickedUp: string | null;
   received: string | null;
   shipmentProof: string | null;
+  packagedProduct: string | null; // Foto produk sudah dikemas (untuk luar kota)
 }
 
 interface Location {
@@ -119,7 +120,8 @@ const AdminOrderDetailPage: React.FC = () => {
     readyForPickup: null,
     pickedUp: null,
     received: null,
-    shipmentProof: null
+    shipmentProof: null,
+    packagedProduct: null,
   });
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [formChanged, setFormChanged] = useState<boolean>(false);
@@ -178,10 +180,12 @@ const AdminOrderDetailPage: React.FC = () => {
       'picked_up': 'pickedUp', 
       'delivered': 'received',
       'shipment_proof': 'shipmentProof',
+      'packaged_product': 'packagedProduct',
       // Indonesian types (from delivery dashboard)
       'siap_kirim': 'readyForPickup',
       'pengiriman': 'pickedUp',
-      'diterima': 'received'
+      'diterima': 'received',
+      'produk_dikemas': 'packagedProduct'
     };
     console.log(`🔗 [MAPPING DEBUG] Input type: "${backendType}" → Output: "${typeMapping[backendType] || 'NULL'}"`);
     return typeMapping[backendType] || null;
@@ -323,7 +327,8 @@ const AdminOrderDetailPage: React.FC = () => {
         readyForPickup: null,
         pickedUp: null,
         received: null,
-        shipmentProof: null
+        shipmentProof: null,
+        packagedProduct: null
       });
       
       // Get locations
@@ -424,7 +429,8 @@ const AdminOrderDetailPage: React.FC = () => {
             readyForPickup: null,
             pickedUp: null,
             received: null,
-            shipmentProof: null
+            shipmentProof: null,
+            packagedProduct: null
           };
           
           const imagesList = Array.isArray(imagesRes.data) ? imagesRes.data : [];
@@ -645,20 +651,24 @@ const AdminOrderDetailPage: React.FC = () => {
 
   // Helper to render upload button - conditional based on area and status
   const renderUploadButton = (type: keyof UploadedImages): React.ReactElement | null => {
-    // Admin can only upload shipmentProof (bukti pengiriman)
-    if (type !== 'shipmentProof') {
-      return null;
-    }
-
-    // Only show upload for "luar kota" orders with "siap kirim" status
     const isLuarKota = shippingArea === 'luar-kota';
-    const isSiapKirim = shippingStatus === 'siap kirim';
     
-    if (!isLuarKota || !isSiapKirim) {
+    // For luar kota orders: allow upload of packagedProduct and pickedUp
+    if (isLuarKota && (type === 'packagedProduct' || type === 'pickedUp')) {
+      // Admin can upload these photo types for luar kota
+    } else if (!isLuarKota && type === 'shipmentProof') {
+      // Legacy: Admin can upload shipmentProof for luar kota with siap kirim status
+      const isSiapKirim = shippingStatus === 'siap kirim';
+      if (!isSiapKirim) {
+        return null;
+      }
+    } else {
+      // Other types not allowed for admin
       return null;
     }
 
     const handleUploadClick = (): void => {
+      // Use shipmentProof ref for now (we can extend this later)
       fileInputRefs.shipmentProof.current?.click();
     };
 
@@ -1169,22 +1179,22 @@ useEffect(() => {
             <Heading size="md">Status Foto Pesanan</Heading>
           </CardHeader>
           <CardBody>
-            <SimpleGrid columns={{ base: 1, md: isLuarKota ? 1 : 3 }} spacing={4}>
+            <SimpleGrid columns={{ base: 1, md: isLuarKota ? 2 : 3 }} spacing={4}>
               {/* Conditional rendering based on shipping area */}
               {isLuarKota ? (
-                // Luar Kota - show upload foto for siap kirim status, and received photo
+                // Luar Kota - show Foto Produk Sudah Dikemas and Foto Pengiriman only
                 <>
-                  {/* Upload foto for siap kirim status */}
+                  {/* Foto Produk Sudah Dikemas untuk luar kota */}
+                  <Box>
+                    <Text fontWeight="semibold" mb={2}>Foto Produk Sudah Dikemas</Text>
+                    {renderUploadedImage('packagedProduct')}
+                    {renderUploadButton('packagedProduct')}
+                  </Box>
+                  {/* Foto Pengiriman untuk luar kota */}
                   <Box>
                     <Text fontWeight="semibold" mb={2}>Foto Pengiriman</Text>
-                    {renderUploadedImage('shipmentProof')}
-                    {renderUploadButton('shipmentProof')}
-                  </Box>
-                  {/* Always show received photo for luar kota */}
-                  <Box>
-                    <Text fontWeight="semibold" mb={2}>Foto Diterima</Text>
-                    {renderUploadedImage('received')}
-                    {renderUploadButton('received')}
+                    {renderUploadedImage('pickedUp')}
+                    {renderUploadButton('pickedUp')}
                   </Box>
                 </>
               ) : (

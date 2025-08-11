@@ -158,7 +158,9 @@ const PublicOrderDetailPage = () => {
 
   // Tentukan apakah harus menampilkan foto berdasarkan shipping_area
   const isLuarKota = order.shipping_area === 'luar_kota';
-  const photoSlotsToShow = isLuarKota ? ['delivered'] : ['ready_for_pickup', 'picked_up', 'delivered'];
+  // Untuk luar kota: tampilkan foto produk dikemas dan pengiriman (tidak termasuk diterima)
+  // Untuk dalam kota: tampilkan semua tahapan foto
+  const photoSlotsToShow = isLuarKota ? ['packaged_product', 'picked_up'] : ['ready_for_pickup', 'picked_up', 'delivered'];
 
   return (
     <Container maxW="container.lg" py={8} px={{ base: 4, md: 6 }}>
@@ -245,7 +247,8 @@ const PublicOrderDetailPage = () => {
                         const labels = {
                           ready_for_pickup: 'Foto Siap Kirim',
                           picked_up: 'Foto Pengiriman', 
-                          delivered: 'Foto Diterima'
+                          delivered: 'Foto Diterima',
+                          packaged_product: 'Foto Produk Sudah Dikemas'
                         };
                         
                         const imageUrl = order.shipping_images?.find(img => 
