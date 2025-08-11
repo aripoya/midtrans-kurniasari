@@ -25,6 +25,7 @@ export interface PublicOrder {
   total_amount: number;
   shipping_cost: number;
   status: string;
+  payment_status: string;
   shipping_status: string;
   shipping_area: string;
   pickup_method: string;

@@ -151,7 +151,7 @@ const PublicOrderDetailPage = () => {
     );
   }
 
-  const isPaid = order.status === 'paid' || order.status === 'settlement';
+  const isPaid = order.payment_status === 'paid' || order.payment_status === 'settlement';
   const isReceived = order.shipping_status === 'diterima';
   const steps = getPaymentSteps();
   const currentStep = steps.findIndex(step => step.status === 'active');
