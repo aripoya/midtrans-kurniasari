@@ -236,12 +236,34 @@ const PublicOrderDetailPage = () => {
                         {order.courier_service?.toLowerCase() === 'tiki' ? (
                           <Badge 
                             as="a"
-                            href="https://www.tiki.id/id/track"
+                            href={`https://www.tiki.id/id/track?resi=${order.tracking_number}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             colorScheme="blue" 
                             cursor="pointer"
                             _hover={{ textDecoration: 'none', opacity: 0.8 }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              // Open TIKI tracking with automation attempt
+                              const trackingUrl = `https://www.tiki.id/id/track`;
+                              const newWindow = window.open(trackingUrl, '_blank');
+                              
+                              // Attempt to fill resi after page loads (limited by CORS)
+                              if (newWindow) {
+                                setTimeout(() => {
+                                  try {
+                                    // Copy resi to clipboard as fallback
+                                    navigator.clipboard.writeText(order.tracking_number || '').then(() => {
+                                      console.log('Resi number copied to clipboard:', order.tracking_number);
+                                    }).catch(() => {
+                                      console.log('Could not copy to clipboard');
+                                    });
+                                  } catch (error) {
+                                    console.log('Clipboard not available');
+                                  }
+                                }, 1000);
+                              }
+                            }}
                           >
                             LACAK RESI
                           </Badge>
