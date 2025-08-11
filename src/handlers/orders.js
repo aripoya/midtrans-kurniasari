@@ -318,8 +318,25 @@ export async function getOrderById(request, env) {
     // Log shipping_area untuk debugging
     console.log(`[getOrderById] Order ${orderId} shipping_area: ${order.shipping_area}`);
 
+    // Step 5: Process payment response if exists (for consistent payment status across admin and public)
+    let processedOrder = { ...order };
+    if (order.payment_response) {
+      try {
+        const paymentDetails = JSON.parse(order.payment_response);
+        processedOrder = {
+          ...processedOrder,
+          payment_method: paymentDetails.payment_type || processedOrder.payment_method,
+          payment_time: paymentDetails.settlement_time || processedOrder.payment_time,
+          payment_status: paymentDetails.transaction_status || processedOrder.payment_status,
+        };
+        console.log(`[getOrderById] Processed payment status for ${orderId}: ${paymentDetails.transaction_status || 'no-change'}`);
+      } catch (e) {
+        console.error(`[getOrderById] Error parsing payment_response for order ${orderId}:`, e);
+      }
+    }
+
     const finalOrder = {
-      ...order,
+      ...processedOrder,
       lokasi_pengiriman: lokasiPengirimanNama,
       lokasi_pengambilan: lokasiPengambilanNama,
       items,
