@@ -236,7 +236,7 @@ const PublicOrderDetailPage = () => {
                         {order.courier_service?.toLowerCase() === 'tiki' ? (
                           <Badge 
                             as="a"
-                            href={`https://www.tiki.id/tracking?waybill=${order.tracking_number}`}
+                            href="https://www.tiki.id/id/track"
                             target="_blank"
                             rel="noopener noreferrer"
                             colorScheme="blue" 
