@@ -220,7 +220,7 @@ const PublicOrderDetailPage = () => {
                     <Heading size="sm" mb={2}>Detail Pembayaran</Heading>
                     <Text><strong>Total:</strong> {formatCurrency(order.total_amount)}</Text>
                     <Text><strong>Status:</strong> <Badge colorScheme={isPaid ? 'green' : 'red'}>{isPaid ? 'LUNAS' : 'BELUM BAYAR'}</Badge></Text>
-                    <Text><strong>Metode:</strong> {order.pickup_method || 'qris'}</Text>
+                    <Text><strong>Metode:</strong> {order.pickup_method === 'deliveryman' ? 'kurir outlet' : (order.pickup_method || 'qris')}</Text>
                   </Box>
 
                   <Divider />
@@ -229,7 +229,9 @@ const PublicOrderDetailPage = () => {
                     <Heading size="sm" mb={2}>Informasi Pengiriman</Heading>
                     <Text><strong>Status Pengiriman:</strong> {getShippingStatusBadge(order)}</Text>
                     <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
-                    <Text><strong>Jasa Kurir:</strong> {order.courier_service || 'TRAVEL'}</Text>
+                    {order.shipping_area !== 'dalam-kota' && (
+                      <Text><strong>Jasa Kurir:</strong> {order.courier_service || 'TRAVEL'}</Text>
+                    )}
                     {order.tracking_number && (
                       <HStack>
                         <Text><strong>No. Resi:</strong> {order.tracking_number}</Text>
