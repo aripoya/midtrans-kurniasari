@@ -274,6 +274,29 @@ const AdminOrderDetailPage: React.FC = () => {
     }
   };
 
+  // Helper function to map display labels to DB codes
+  const mapDisplayLabelToDbCode = (displayLabel: string | null | undefined): string | null => {
+    if (!displayLabel) return null;
+    
+    // Mapping for pickup_method / lokasi_pengambilan
+    const pickupMethodMapping: Record<string, string> = {
+      'Pickup Sendiri di Outlet': 'pickup_sendiri',
+      'Antar ke Alamat': 'alamat_customer', 
+      'Kurir Outlet': 'deliveryman'
+    };
+    
+    // Mapping for lokasi_pengiriman 
+    const lokasiPengirimanMapping: Record<string, string> = {
+      'Dalam Kota': 'dalam_kota',
+      'Luar Kota': 'luar_kota'
+    };
+    
+    // Check both mappings
+    return pickupMethodMapping[displayLabel] || 
+           lokasiPengirimanMapping[displayLabel] || 
+           displayLabel; // Fallback to original value if no mapping found
+  };
+
   // Handle status update
   const handleUpdateStatus = async (): Promise<void> => {
     setIsUpdating(true);
@@ -282,15 +305,16 @@ const AdminOrderDetailPage: React.FC = () => {
         status: shippingStatus,  // Fixed: backend expects 'status' not 'shipping_status'
         shipping_area: shippingArea,
         // For Luar Kota orders, set all irrelevant fields to null since they're not relevant for out-of-city deliveries
-        pickup_method: shippingArea === 'luar-kota' ? null : pickupMethod,
+        pickup_method: shippingArea === 'luar-kota' ? null : mapDisplayLabelToDbCode(pickupMethod),
         courier_service: courierService,
         tracking_number: trackingNumber,
-        lokasi_pengiriman: shippingArea === 'luar-kota' ? null : lokasi_pengiriman,
-        lokasi_pengambilan: shippingArea === 'luar-kota' ? null : order?.lokasi_pengambilan || null,
+        lokasi_pengiriman: shippingArea === 'luar-kota' ? null : mapDisplayLabelToDbCode(lokasi_pengiriman),
+        lokasi_pengambilan: shippingArea === 'luar-kota' ? null : mapDisplayLabelToDbCode(order?.lokasi_pengambilan),
         tipe_pesanan: shippingArea === 'luar-kota' ? null : order?.tipe_pesanan || null,
         admin_note: adminNote
       };
       
+      console.log('PATCH updateData (after mapping):', updateData); // Debug log
       const result = await adminApi.updateOrderDetails(id!, updateData);
       if (result.success) {
         await loadAllData();
