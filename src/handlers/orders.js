@@ -988,34 +988,17 @@ export async function updateOrderDetails(request, env) {
     if (courier_service !== undefined) { updateFields.push('courier_service = ?'); updateParams.push(courier_service); }
     if (tipe_pesanan !== undefined) { updateFields.push('tipe_pesanan = ?'); updateParams.push(tipe_pesanan); }
 
+    // REDESIGNED SHIPPING INFO LOGIC - REMOVE INVALID VALIDATION
+    // lokasi_pengambilan should always be outlet name, lokasi_pengiriman should be customer address
+    // No need for locations table validation since these are actual outlet names and customer addresses
     if (lokasiPengirimanName !== undefined) {
-      if (lokasiPengirimanName) {
-        // Periksa apakah lokasi valid, tapi gunakan langsung nama_lokasi (bukan kode_area yang sudah dihapus)
-        const location = await env.DB.prepare("SELECT id FROM locations WHERE nama_lokasi = ?").bind(lokasiPengirimanName).first();
-        if (!location) {
-          return new Response(JSON.stringify({ success: false, error: `Invalid location name for lokasi_pengiriman: ${lokasiPengirimanName}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        }
-        updateFields.push('lokasi_pengiriman = ?');
-        updateParams.push(lokasiPengirimanName); // Gunakan nama lokasi langsung
-      } else {
-        updateFields.push('lokasi_pengiriman = ?');
-        updateParams.push(null);
-      }
+      updateFields.push('lokasi_pengiriman = ?');
+      updateParams.push(lokasiPengirimanName || null);
     }
 
     if (lokasiPengambilanName !== undefined) {
-      if (lokasiPengambilanName) {
-        // Periksa apakah lokasi valid, tapi gunakan langsung nama_lokasi (bukan kode_area yang sudah dihapus)
-        const location = await env.DB.prepare("SELECT id FROM locations WHERE nama_lokasi = ?").bind(lokasiPengambilanName).first();
-        if (!location) {
-          return new Response(JSON.stringify({ success: false, error: `Invalid location name for lokasi_pengambilan: ${lokasiPengambilanName}` }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-        }
-        updateFields.push('lokasi_pengambilan = ?');
-        updateParams.push(lokasiPengambilanName); // Gunakan nama lokasi langsung
-      } else {
-        updateFields.push('lokasi_pengambilan = ?');
-        updateParams.push(null);
-      }
+      updateFields.push('lokasi_pengambilan = ?');
+      updateParams.push(lokasiPengambilanName || null);
     }
 
     if (updateFields.length === 0) {

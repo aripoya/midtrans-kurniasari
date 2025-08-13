@@ -274,28 +274,23 @@ const AdminOrderDetailPage: React.FC = () => {
     }
   };
 
-  // Helper function to map display labels to correct backend values
+  // Helper function to map display labels to correct backend values for REDESIGNED STRUCTURE
   const mapDisplayLabelToBackendValue = (displayLabel: string | null | undefined, fieldType: 'pickup_method' | 'location'): string | null => {
     if (!displayLabel) return null;
     
-    // For pickup_method field - map to internal codes
+    // For pickup_method field - map to internal codes  
     if (fieldType === 'pickup_method') {
       const pickupMethodMapping: Record<string, string> = {
         'Pickup Sendiri di Outlet': 'pickup_sendiri',
-        'Antar ke Alamat': 'alamat_customer', 
-        'Kurir Outlet': 'deliveryman'
+        'Kurir Outlet': 'deliveryman',
+        'Ojek Online': 'ojek_online'
       };
       return pickupMethodMapping[displayLabel] || displayLabel;
     }
     
-    // For location fields (lokasi_pengiriman/lokasi_pengambilan) - backend expects null for non-location display labels
+    // For location fields - REDESIGNED: these are actual outlet names or customer addresses
     if (fieldType === 'location') {
-      // These are pickup method labels, not actual locations - should be null
-      const nonLocationLabels = ['Pickup Sendiri di Outlet', 'Antar ke Alamat', 'Kurir Outlet'];
-      if (nonLocationLabels.includes(displayLabel)) {
-        return null; // Don't send pickup method labels as location names
-      }
-      // If it's an actual location name, send as-is
+      // Send actual location values as-is (outlet names, customer addresses)
       return displayLabel;
     }
     
