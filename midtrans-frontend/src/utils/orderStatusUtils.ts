@@ -20,7 +20,8 @@ export type NormalizedShippingStatus =
   | "siap kirim"
   | "siap di ambil"
   | "dalam pengiriman"
-  | "diterima";
+  | "diterima"
+  | "sudah diambil";
 
 /**
  * Normalizes shipping status to a consistent format
@@ -43,6 +44,10 @@ export const normalizeShippingStatus = (
     lowercaseStatus === "delivered"
   ) {
     return "diterima";
+  } else if (
+    lowercaseStatus === "sudah diambil"
+  ) {
+    return "sudah diambil";
   } else if (
     lowercaseStatus === "sedang dikirim" ||
     lowercaseStatus === "dalam pengiriman" ||
@@ -81,6 +86,7 @@ export const getShippingStatusConfig = (
 
   const statusConfig: Record<NormalizedShippingStatus, StatusConfig> = {
     diterima: { color: "green", text: "Diterima" },
+    "sudah diambil": { color: "green", text: "Sudah Diambil" },
     "dalam pengiriman": { color: "orange", text: "Dalam Pengiriman" },
     "siap kirim": { color: "purple", text: "Siap Kirim" },
     "siap di ambil": { color: "teal", text: "Siap Ambil" },
@@ -106,6 +112,7 @@ export const getShippingStatusOptions = (): StatusOption[] => [
   { value: "siap di ambil", label: "Siap Ambil" },
   { value: "dalam pengiriman", label: "Dalam Pengiriman" },
   { value: "diterima", label: "Diterima" },
+  { value: "sudah diambil", label: "Sudah Diambil" },
 ];
 
 /**
@@ -165,9 +172,10 @@ export const getNextStatus = (
     "menunggu diproses": "dikemas",
     dikemas: "siap kirim",
     "siap kirim": "dalam pengiriman",
-    "siap di ambil": "diterima",
+    "siap di ambil": "sudah diambil", // For pickup_sendiri orders
     "dalam pengiriman": "diterima",
     diterima: "diterima", // Final status
+    "sudah diambil": "sudah diambil", // Final status for pickup orders
   };
 
   return statusProgression[normalized];
@@ -196,9 +204,10 @@ export const isValidStatusTransition = (
     "menunggu diproses": ["dikemas", "siap kirim", "siap di ambil"],
     dikemas: ["siap kirim", "siap di ambil", "dalam pengiriman"],
     "siap kirim": ["dalam pengiriman", "diterima"],
-    "siap di ambil": ["diterima"],
+    "siap di ambil": ["sudah diambil"], // For pickup_sendiri orders
     "dalam pengiriman": ["diterima"],
     diterima: [], // Final status, no further transitions
+    "sudah diambil": [], // Final status for pickup orders, no further transitions
   };
 
   return validTransitions[normalizedFrom]?.includes(normalizedTo) || false;

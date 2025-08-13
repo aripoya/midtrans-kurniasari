@@ -808,13 +808,14 @@ export async function modifyUpdateOrderStatus(request, env) {
       'dikemas', 'diproses',
       'siap kirim', 'siap diambil', 'siap di ambil',
       'dalam pengiriman', 'sedang dikirim', 'dikirim',
-      'diterima', 'received', 'sudah di terima'
+      'diterima', 'received', 'sudah di terima',
+      'sudah diambil' // NEW STATUS for pickup_sendiri orders
     ];
     if (!allowedStatuses.includes(status.toLowerCase())) {
       return new Response(JSON.stringify({ 
         success: false, 
         error: 'Invalid status value', 
-        allowedValues: ['menunggu diproses', 'pending', 'dikemas', 'siap kirim', 'siap di ambil', 'sedang dikirim', 'diterima', 'received'] 
+        allowedValues: ['menunggu diproses', 'pending', 'dikemas', 'siap kirim', 'siap di ambil', 'sedang dikirim', 'diterima', 'received', 'sudah diambil'] 
       }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
