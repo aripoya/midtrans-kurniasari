@@ -339,8 +339,8 @@ export async function getOutlets(request, env) {
             });
         }
 
-        // Get all outlets
-        const outlets = await env.DB.prepare('SELECT id, name, location, is_active FROM outlets')
+        // Get all outlets from unified table
+        const outlets = await env.DB.prepare('SELECT id, name, location_alias as location, is_active FROM outlets_unified')
             .all();
 
         return new Response(JSON.stringify({
