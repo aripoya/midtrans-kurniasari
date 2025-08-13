@@ -210,9 +210,9 @@ const NewOrderPage: React.FC = () => {
         phone: formData.phone,
         customer_address: formData.customer_address,
         email: formData.email,
-        // Use user's shipping info inputs
-        lokasi_pengiriman: formData.shipping_area === 'dalam_kota' ? 'dalam_kota' : 'luar_kota',
-        lokasi_pengambilan: formData.pickup_method === 'pickup_sendiri' ? 'outlet' : 'alamat_customer',
+        // Use user's actual shipping info inputs - FIXED MAPPING
+        lokasi_pengiriman: formData.shipping_area === 'dalam_kota' ? 'Dalam Kota' : 'Luar Kota',
+        lokasi_pengambilan: formData.pickup_method === 'pickup_sendiri' ? 'Ambil Sendiri di Outlet' : 'Antar ke Alamat',
         shipping_area: formData.shipping_area,
         pickup_method: formData.pickup_method,
         courier_service: formData.courier_service || null,
