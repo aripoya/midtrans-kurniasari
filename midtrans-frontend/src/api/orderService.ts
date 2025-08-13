@@ -24,7 +24,8 @@ export interface OrderData {
   lokasi_pengambilan?: string;
   shipping_area: 'dalam_kota' | 'luar_kota';
   pickup_method: string;
-  courier_service?: string;
+  courier_service?: string | null;
+  shipping_notes?: string | null;
   tracking_number?: string;
   total_amount: number;
   items: OrderItem[];

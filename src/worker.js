@@ -16,6 +16,7 @@ import { resetOutletPassword, checkDatabaseSchema, createCustomersTable, testLog
 import { migrateExistingOrdersToOutlets, getMigrationStatus } from './handlers/migrate-outlets.js';
 import { createRelationalDBStructure, getRelationalDBStatus } from './handlers/migrate-relational-db.js';
 import { migrateSafeRelationalDB, getSafeMigrationStatus } from './handlers/migrate-safe-db.js';
+import { migrateShippingInfoFields, getOrdersTableSchema } from './handlers/migrate-shipping-info.js';
 
 console.log('Initializing router');
 const router = Router();
@@ -362,6 +363,17 @@ router.post('/api/admin/migrate-safe-db', verifyToken, (request, env) => {
 router.get('/api/admin/safe-migration-status', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return getSafeMigrationStatus(request, env);
+});
+
+// Shipping Info Fields Migration endpoints
+router.post('/api/admin/migrate-shipping-info', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return migrateShippingInfoFields(request, env);
+});
+
+router.get('/api/admin/orders-table-schema', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getOrdersTableSchema(request, env);
 });
 
 // Cloudflare Images endpoints for image uploads and management

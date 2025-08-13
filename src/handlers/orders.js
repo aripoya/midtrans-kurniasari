@@ -180,8 +180,8 @@ export async function createOrder(request, env) {
     });
 
     await env.DB.prepare(`
-      INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_response, shipping_status, customer_address, outlet_id, lokasi_pengiriman, lokasi_pengambilan, shipping_area)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_response, shipping_status, customer_address, outlet_id, lokasi_pengiriman, lokasi_pengambilan, shipping_area, pickup_method, courier_service, shipping_notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
         orderId,
         customer_name,
@@ -196,7 +196,10 @@ export async function createOrder(request, env) {
         safeOutletId,
         orderData.lokasi_pengiriman || null,
         orderData.lokasi_pengambilan || null,
-        orderData.shipping_area || null
+        orderData.shipping_area || null,
+        orderData.pickup_method || null,
+        orderData.courier_service || null,
+        orderData.shipping_notes || null
       ).run();
 
     // Statements for inserting into 'order_items' table
