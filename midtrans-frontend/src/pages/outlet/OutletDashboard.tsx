@@ -313,7 +313,7 @@ const OutletDashboard: React.FC = () => {
 
   const updateOrderStatus = async (orderId: string, newStatus: ShippingStatus): Promise<void> => {
     try {
-      console.log('📦 Memperbarui status pengiriman:', orderId, newStatus);
+      console.log('📦 Memperbarui status pesanan:', orderId, newStatus);
       
       // Update UI optimistically untuk pengalaman pengguna yang lebih baik
       // Kita akan tetap menampilkan status baru sebelum konfirmasi dari server
@@ -565,7 +565,7 @@ const OutletDashboard: React.FC = () => {
                   <Th>Nama Pelanggan</Th>
                   <Th>Total</Th>
                   <Th>Status</Th>
-                  <Th>Status Pengiriman</Th>
+                  <Th>Status Pesanan</Th>
                   <Th>Tanggal</Th>
                   <Th>Aksi</Th>
                 </Tr>

@@ -218,13 +218,13 @@ const updateShippingStatus = async (orderId, newStatus ) => {
       setStats(updatedStats);
       toast({
         title: 'Status berhasil diperbarui',
-        description: `Status pengiriman berhasil diubah menjadi ${newStatus.replace(/-/g, ' ')}`,
+        description: `Status pesanan berhasil diubah menjadi ${newStatus.replace(/-/g, ' ')}`,
         status: 'success',
         duration: 5000,
         isClosable: true,
       });
     } else {
-      throw new Error(result.message || 'Gagal memperbarui status pengiriman');
+      throw new Error(result.message || 'Gagal memperbarui status pesanan');
     }
   } catch (error) {
     toast({

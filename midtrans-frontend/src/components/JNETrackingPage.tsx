@@ -207,7 +207,7 @@ const JNETrackingPage: React.FC = () => {
                   </Text>
                   <Text>
                     <Badge colorScheme="red" mr={2}>3</Badge>
-                    Klik tombol "Track" untuk melihat status pengiriman
+                    Klik tombol "Track" untuk melihat status pesanan
                   </Text>
                   <Text>
                     <Badge colorScheme="red" mr={2}>4</Badge>

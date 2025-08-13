@@ -180,7 +180,7 @@ function OutletAdminView() {
         
         toast({
           title: 'Status berhasil diperbarui',
-          description: `Status pengiriman berhasil diubah menjadi ${newStatus}`,
+          description: `Status pesanan berhasil diubah menjadi ${newStatus}`,
           status: 'success',
           duration: 5000,
           isClosable: true,
@@ -191,7 +191,7 @@ function OutletAdminView() {
       } else {
         toast({
           title: 'Error',
-          description: data.message || 'Gagal memperbarui status pengiriman.',
+          description: data.message || 'Gagal memperbarui status pesanan.',
           status: 'error',
           duration: 5000,
           isClosable: true,
@@ -201,7 +201,7 @@ function OutletAdminView() {
       console.error('Error updating shipping status:', err);
       toast({
         title: 'Error',
-        description: 'Terjadi kesalahan saat memperbarui status pengiriman.',
+        description: 'Terjadi kesalahan saat memperbarui status pesanan.',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -323,7 +323,7 @@ function OutletAdminView() {
                   <Th>Pelanggan</Th>
                   <Th>Total</Th>
                   <Th>Status Pembayaran</Th>
-                  <Th>Status Pengiriman</Th>
+                  <Th>Status Pesanan</Th>
                   <Th>Aksi</Th>
                 </Tr>
               </Thead>

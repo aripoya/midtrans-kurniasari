@@ -87,9 +87,9 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
       await handleRefreshStatus();
       setPhotoPreview(null);
       setPhotoFile(null);
-      // Update status pengiriman jika upload berhasil
+      // Update status pesanan jika upload berhasil
       if (result && result.data && result.data.imageUrl) {
-        // Perbarui status pengiriman berdasarkan jenis foto yang diupload
+        // Perbarui status pesanan berdasarkan jenis foto yang diupload
         let newStatus = 'dalam pengiriman';
         
         if (selectedPhotoType === 'siap_kirim') {
@@ -466,7 +466,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
     });
   }, [order, toast]);
 
-  // Fungsi untuk mengambil gambar status pengiriman
+  // Fungsi untuk mengambil gambar status pesanan
   // Helper function untuk transformasi URL yang konsisten dengan admin page
   const transformURL = (url) => {
     // Tambahkan cache busting dengan timestamp
@@ -589,7 +589,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
     }
   };
   
-  // Fungsi untuk mendapatkan status pengiriman - memoized untuk performance
+  // Fungsi untuk mendapatkan status pesanan - memoized untuk performance
   const getShippingStatusBadge = useCallback((order) => {
     if (!order || !order.shipping_status) return <Badge colorScheme="gray">Menunggu Diproses</Badge>;
     
@@ -666,7 +666,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
                   <StepIndicator>
                     {index === 2 && order && order.shipping_status ? (
                        <Box position="relative" width="100%" height="100%" borderRadius="50%" overflow="hidden" display="flex" alignItems="center" justifyContent="center">
-                         {/* Progress lingkaran hijau berdasarkan status pengiriman */}
+                         {/* Progress lingkaran hijau berdasarkan status pesanan */}
                          <Box 
                            position="absolute" 
                            top="0" 
@@ -757,7 +757,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
                 <Text><strong>Metode:</strong> <Tag>{order.payment_method || 'N/A'}</Tag></Text>
                 {isPublicOrderPage && (
                   <>
-                    <Text mt={4}><strong>Status Pengiriman:</strong> {getShippingStatusBadge(order)}</Text>
+                    <Text mt={4}><strong>Status Pesanan:</strong> {getShippingStatusBadge(order)}</Text>
                     {order.shipping_area && (
                       <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                     )}
@@ -831,7 +831,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
               <Box mt={6} mb={4} p={4} borderWidth="1px" borderRadius="lg" bg="white">
                 <Heading size="sm" mb={3}>Upload Foto</Heading>
                 <Text fontSize="sm" color="gray.600" mb={4}>
-                  Pilih jenis foto dan unggah untuk memperbarui status pengiriman.
+                  Pilih jenis foto dan unggah untuk memperbarui status pesanan.
                 </Text>
                 
                 <RadioGroup onChange={setSelectedPhotoType} value={selectedPhotoType} mb={4}>
@@ -894,7 +894,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
                       </Text>
                       
                       <Text fontSize="xs" color="gray.500" mt={1}>
-                        *Status pengiriman akan otomatis diperbarui menjadi 
+                        *Status pesanan akan otomatis diperbarui menjadi 
                         "{selectedPhotoType === 'siap_kirim' ? 'Siap Kirim' : 
                           selectedPhotoType === 'pengiriman' ? 'Dalam Pengiriman' : 'Diterima'}"
                       </Text>
@@ -919,7 +919,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
               </Box>
             )}
             
-            {/* Tampilkan link ke foto status pengiriman jika ada */}
+            {/* Tampilkan link ke foto status pesanan jika ada */}
             {(isPublicOrderPage || isDeliveryView) && (Object.values(shippingImages).some(Boolean)) && (
               <Box mt={6} mb={4}>
                 <Heading size="sm" mb={3}>Status Foto Pesanan</Heading>

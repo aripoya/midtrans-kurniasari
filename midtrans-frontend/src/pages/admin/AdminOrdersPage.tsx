@@ -350,7 +350,7 @@ const AdminOrdersPage: React.FC = () => {
                     <Text><strong>Email:</strong> {order.customer_email}</Text>
                     <Text><strong>Total:</strong> Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
                     <Text><strong>Status Pembayaran:</strong> {getPaymentStatusBadge(order.payment_status)}</Text>
-                    <Text><strong>Status Pengiriman:</strong> {getShippingStatusBadge(order.shipping_status)}</Text>
+                    <Text><strong>Status Pesanan:</strong> {getShippingStatusBadge(order.shipping_status)}</Text>
                     <Button
                       as={RouterLink}
                       to={`/admin/orders/${order.id}`}

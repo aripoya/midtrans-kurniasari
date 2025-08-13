@@ -253,7 +253,7 @@ export const adminApi = {
     }
   },
 
-  // Update detail pesanan termasuk status pengiriman, area pengiriman dan metode pengambilan
+  // Update detail pesanan termasuk status pesanan, area pengiriman dan metode pengambilan
   updateOrderDetails: async (
     orderId: string,
     shippingData: UpdateOrderDetailsRequest
@@ -403,7 +403,7 @@ export const adminApi = {
     }
   },
 
-  // Upload gambar status pengiriman
+  // Upload gambar status pesanan
   uploadShippingImage: async (
     orderId: string,
     imageType: "ready_for_pickup" | "picked_up" | "delivered" | "shipment_proof" | "packaged_product",
@@ -451,7 +451,7 @@ export const adminApi = {
     }
   },
 
-  // Mendapatkan gambar status pengiriman
+  // Mendapatkan gambar status pesanan
   getShippingImages: async (
     orderId: string
   ): Promise<ShippingImagesResponse> => {
@@ -479,7 +479,7 @@ export const adminApi = {
     }
   },
 
-  // Menghapus gambar status pengiriman
+  // Menghapus gambar status pesanan
   deleteShippingImage: async (
     orderId: string,
     imageType: "siap_kirim" | "pengiriman" | "diterima"
@@ -508,7 +508,7 @@ export const adminApi = {
     }
   },
 
-  // Update status pengiriman pesanan
+  // Update status pesanan pesanan
   updateOrderShippingStatus: async (
     orderId: string,
     status: string
@@ -537,7 +537,7 @@ export const adminApi = {
     } catch (error: any) {
       console.error("❌ Error updating shipping status:", error);
 
-      let errorMessage = "Error saat memperbarui status pengiriman";
+      let errorMessage = "Error saat memperbarui status pesanan";
       if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
       } else if (error.response?.data?.message) {

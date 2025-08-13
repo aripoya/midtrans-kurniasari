@@ -122,9 +122,9 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       const result = await adminApi.uploadShippingImage(id, selectedPhotoType, photoFile);
       console.log('Upload result:', result);
       
-      // Update status pengiriman jika upload berhasil
+      // Update status pesanan jika upload berhasil
       if (result && result.data && result.data.imageUrl) {
-        // Perbarui status pengiriman berdasarkan jenis foto yang diupload
+        // Perbarui status pesanan berdasarkan jenis foto yang diupload
         let newStatus = 'dalam pengiriman';
         
         if (selectedPhotoType === 'ready_for_pickup') {
@@ -363,7 +363,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     return <Badge colorScheme={colorScheme}>{displayText}</Badge>;
   };
 
-  // Fungsi untuk mendapatkan status pengiriman
+  // Fungsi untuk mendapatkan status pesanan
   const getShippingStatusBadge = (order: LocalOrder): JSX.Element => {
     const status = normalizeShippingStatus(order.shipping_status);
     const config = getShippingStatusConfig(status);

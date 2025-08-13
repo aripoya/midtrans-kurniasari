@@ -195,7 +195,7 @@ const TIKITrackingPage: React.FC = () => {
                   </Text>
                   <Text>
                     <Badge colorScheme="blue" mr={2}>3</Badge>
-                    Klik "Lacak Resi" untuk melihat status pengiriman
+                    Klik "Lacak Resi" untuk melihat status pesanan
                   </Text>
                 </VStack>
               </VStack>

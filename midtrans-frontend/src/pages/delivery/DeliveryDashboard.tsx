@@ -232,7 +232,7 @@ const DeliveryDashboard: React.FC = () => {
       }
     } catch (err: unknown) {
       console.error('Error updating shipping status:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Terjadi kesalahan saat memperbarui status pengiriman.';
+      const errorMessage = err instanceof Error ? err.message : 'Terjadi kesalahan saat memperbarui status pesanan.';
       
       toast({
         title: 'Error',
@@ -375,7 +375,7 @@ const DeliveryDashboard: React.FC = () => {
                     <Th>Nama Pelanggan</Th>
                     <Th>Alamat</Th>
                     <Th>Lokasi Pengiriman</Th>
-                    <Th>Status Pengiriman</Th>
+                    <Th>Status Pesanan</Th>
                     <Th>Aksi</Th>
                   </Tr>
                 </Thead>

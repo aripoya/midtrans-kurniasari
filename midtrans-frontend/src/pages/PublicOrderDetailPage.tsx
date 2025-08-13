@@ -347,7 +347,7 @@ const PublicOrderDetailPage = () => {
 
                   <Box>
                     <Heading size="sm" mb={2}>Informasi Pengiriman</Heading>
-                    <Text><strong>Status Pengiriman:</strong> {getShippingStatusBadge(order)}</Text>
+                    <Text><strong>Status Pesanan:</strong> {getShippingStatusBadge(order)}</Text>
                     <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                     {order.shipping_area !== 'dalam-kota' && (
                       <Text><strong>Jasa Kurir:</strong> {order.courier_service || 'TRAVEL'}</Text>

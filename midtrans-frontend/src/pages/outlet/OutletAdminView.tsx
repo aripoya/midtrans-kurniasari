@@ -200,7 +200,7 @@ const OutletAdminView: React.FC = () => {
 
         toast({
           title: 'Berhasil',
-          description: `Status pengiriman berhasil diubah menjadi ${newStatus}`,
+          description: `Status pesanan berhasil diubah menjadi ${newStatus}`,
           status: 'success',
           duration: 3000,
           isClosable: true,
@@ -215,7 +215,7 @@ const OutletAdminView: React.FC = () => {
       console.error('Error updating shipping status:', error);
       toast({
         title: 'Error',
-        description: 'Gagal mengubah status pengiriman.',
+        description: 'Gagal mengubah status pesanan.',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -341,7 +341,7 @@ const OutletAdminView: React.FC = () => {
                   <Th>Pelanggan</Th>
                   <Th>Total</Th>
                   <Th>Status Pembayaran</Th>
-                  <Th>Status Pengiriman</Th>
+                  <Th>Status Pesanan</Th>
                   <Th>Aksi</Th>
                 </Tr>
               </Thead>

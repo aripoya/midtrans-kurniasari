@@ -859,7 +859,7 @@ useEffect(() => {
                     </Td>
                   </Tr>
                   <Tr>
-                    <Td fontWeight="semibold">Status Pengiriman</Td>
+                    <Td fontWeight="semibold">Status Pesanan</Td>
                     <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
                   </Tr>
                   <Tr>
@@ -1022,7 +1022,7 @@ useEffect(() => {
             <VStack spacing={4} align="stretch">
               {/* Shipping Status */}
               <FormControl>
-                <FormLabel>Status Pengiriman</FormLabel>
+                <FormLabel>Status Pesanan</FormLabel>
                 <Select
                   value={shippingStatus}
                   onChange={(e) => setShippingStatus(e.target.value)}
