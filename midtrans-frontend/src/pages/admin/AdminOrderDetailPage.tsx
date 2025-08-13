@@ -1053,21 +1053,38 @@ useEffect(() => {
                 </RadioGroup>
               </FormControl>
 
-              {/* Lokasi Pengiriman - only show for Dalam Kota */}
+              {/* Lokasi Pengiriman - show differently for pickup vs delivery */}
               {shippingArea === 'dalam-kota' && (
                 <FormControl>
                   <FormLabel>Lokasi Pengiriman</FormLabel>
-                  <Select
-                    value={lokasi_pengiriman}
-                    onChange={(e) => setLokasiPengiriman(e.target.value)}
-                  >
-                    <option value="">Pilih Lokasi</option>
-                    {locations.map((location) => (
-                      <option key={location.id} value={location.nama_lokasi}>
-                        {location.nama_lokasi}
-                      </option>
-                    ))}
-                  </Select>
+                  {pickupMethod === 'deliveryman' ? (
+                    // For delivery orders: show customer address as shipping destination
+                    <Box 
+                      p={3} 
+                      border="1px solid" 
+                      borderColor="gray.200" 
+                      borderRadius="md" 
+                      bg="gray.50"
+                    >
+                      <Text fontSize="sm" color="gray.600" mb={1}>Alamat Pengiriman:</Text>
+                      <Text fontWeight="medium">
+                        {order?.customer_address || 'Alamat customer tidak tersedia'}
+                      </Text>
+                    </Box>
+                  ) : (
+                    // For pickup orders: show location dropdown
+                    <Select
+                      value={lokasi_pengiriman}
+                      onChange={(e) => setLokasiPengiriman(e.target.value)}
+                    >
+                      <option value="">Pilih Lokasi</option>
+                      {locations.map((location) => (
+                        <option key={location.id} value={location.nama_lokasi}>
+                          {location.nama_lokasi}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
                 </FormControl>
               )}
 
