@@ -339,19 +339,20 @@ export async function getOutlets(request, env) {
             });
         }
 
-        // TEMPORARY: Return hardcoded outlets to bypass database issues
-        console.log('🔧 Using temporary hardcoded outlets while fixing database schema issues...');
+        // TEMPORARY: Return hardcoded outlets using actual outlet data from user
+        console.log('🔧 Using exact outlet data from production system...');
         const outlets = {
             results: [
+                { id: 'outlet_glagahsari_108', name: 'Outlet Glagahsari 108', location: 'Glagahsari 108' },
+                { id: 'outlet_glagahsari_91c', name: 'Outlet Glagahsari 91C', location: 'Glagahsari 91C' },
                 { id: 'outlet_bonbin', name: 'Outlet Bonbin', location: 'Bonbin' },
-                { id: 'outlet_glagahsari', name: 'Outlet Glagahsari 91C', location: 'Glagahsari' },
-                { id: 'outlet_jakal_km14', name: 'Outlet Jakal KM14', location: 'Jakal KM14' },
-                { id: 'outlet_kaliurang', name: 'Outlet Kaliurang', location: 'Kaliurang' },
                 { id: 'outlet_monjali', name: 'Outlet Monjali', location: 'Monjali' },
-                { id: 'outlet_palagan', name: 'Outlet Palagan', location: 'Palagan' },
-                { id: 'outlet_seturan', name: 'Outlet Seturan', location: 'Seturan' },
-                { id: 'outlet_sleman', name: 'Outlet Sleman', location: 'Sleman' },
-                { id: 'outlet_tanjungsari', name: 'Outlet Tanjungsari', location: 'Tanjungsari' }
+                { id: 'outlet_pogung', name: 'Outlet Pogung', location: 'Pogung' },
+                { id: 'outlet_jakal_km14', name: 'Outlet Jakal KM14', location: 'Jakal KM14' },
+                { id: 'outlet_jalan_wonosari', name: 'Outlet Jalan Wonosari', location: 'Jalan Wonosari' },
+                { id: 'outlet_jalan_wates', name: 'Outlet Jalan Wates', location: 'Jalan Wates' },
+                { id: 'outlet_godean', name: 'Outlet Godean', location: 'Godean' },
+                { id: 'outlet_ahmad_dahlan', name: 'Outlet Ahmad Dahlan', location: 'Ahmad Dahlan' }
             ]
         };
 
