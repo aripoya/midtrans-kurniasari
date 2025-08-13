@@ -274,27 +274,32 @@ const AdminOrderDetailPage: React.FC = () => {
     }
   };
 
-  // Helper function to map display labels to DB codes
-  const mapDisplayLabelToDbCode = (displayLabel: string | null | undefined): string | null => {
+  // Helper function to map display labels to correct backend values
+  const mapDisplayLabelToBackendValue = (displayLabel: string | null | undefined, fieldType: 'pickup_method' | 'location'): string | null => {
     if (!displayLabel) return null;
     
-    // Mapping for pickup_method / lokasi_pengambilan
-    const pickupMethodMapping: Record<string, string> = {
-      'Pickup Sendiri di Outlet': 'pickup_sendiri',
-      'Antar ke Alamat': 'alamat_customer', 
-      'Kurir Outlet': 'deliveryman'
-    };
+    // For pickup_method field - map to internal codes
+    if (fieldType === 'pickup_method') {
+      const pickupMethodMapping: Record<string, string> = {
+        'Pickup Sendiri di Outlet': 'pickup_sendiri',
+        'Antar ke Alamat': 'alamat_customer', 
+        'Kurir Outlet': 'deliveryman'
+      };
+      return pickupMethodMapping[displayLabel] || displayLabel;
+    }
     
-    // Mapping for lokasi_pengiriman 
-    const lokasiPengirimanMapping: Record<string, string> = {
-      'Dalam Kota': 'dalam_kota',
-      'Luar Kota': 'luar_kota'
-    };
+    // For location fields (lokasi_pengiriman/lokasi_pengambilan) - backend expects null for non-location display labels
+    if (fieldType === 'location') {
+      // These are pickup method labels, not actual locations - should be null
+      const nonLocationLabels = ['Pickup Sendiri di Outlet', 'Antar ke Alamat', 'Kurir Outlet'];
+      if (nonLocationLabels.includes(displayLabel)) {
+        return null; // Don't send pickup method labels as location names
+      }
+      // If it's an actual location name, send as-is
+      return displayLabel;
+    }
     
-    // Check both mappings
-    return pickupMethodMapping[displayLabel] || 
-           lokasiPengirimanMapping[displayLabel] || 
-           displayLabel; // Fallback to original value if no mapping found
+    return displayLabel; // Fallback
   };
 
   // Handle status update
@@ -305,11 +310,11 @@ const AdminOrderDetailPage: React.FC = () => {
         status: shippingStatus,  // Fixed: backend expects 'status' not 'shipping_status'
         shipping_area: shippingArea,
         // For Luar Kota orders, set all irrelevant fields to null since they're not relevant for out-of-city deliveries
-        pickup_method: shippingArea === 'luar-kota' ? null : mapDisplayLabelToDbCode(pickupMethod),
+        pickup_method: shippingArea === 'luar-kota' ? null : mapDisplayLabelToBackendValue(pickupMethod, 'pickup_method'),
         courier_service: courierService,
         tracking_number: trackingNumber,
-        lokasi_pengiriman: shippingArea === 'luar-kota' ? null : mapDisplayLabelToDbCode(lokasi_pengiriman),
-        lokasi_pengambilan: shippingArea === 'luar-kota' ? null : mapDisplayLabelToDbCode(order?.lokasi_pengambilan),
+        lokasi_pengiriman: shippingArea === 'luar-kota' ? null : mapDisplayLabelToBackendValue(lokasi_pengiriman, 'location'),
+        lokasi_pengambilan: shippingArea === 'luar-kota' ? null : mapDisplayLabelToBackendValue(order?.lokasi_pengambilan, 'location'),
         tipe_pesanan: shippingArea === 'luar-kota' ? null : order?.tipe_pesanan || null,
         admin_note: adminNote
       };
