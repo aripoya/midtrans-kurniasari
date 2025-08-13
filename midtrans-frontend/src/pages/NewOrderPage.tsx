@@ -202,7 +202,7 @@ const NewOrderPage: React.FC = () => {
         email: formData.email,
         lokasi_pengiriman: 'dalam_kota',
         lokasi_pengambilan: 'outlet',
-        shipping_area: 'dalam_kota',
+        shipping_area: 'dalam_kota' as const,
         pickup_method: 'delivery',
         items: items.map(item => ({
           id: item.productId,
@@ -221,12 +221,12 @@ const NewOrderPage: React.FC = () => {
       const response = await orderService.createOrder(orderData);
       console.log('🚀 [DEBUG] Order service response:', JSON.stringify(response, null, 2));
       
-      if (response.success && response.data) {
+      if (response.success && response.token) {
         // Load Midtrans script and show payment page
         await loadMidtransScript();
         
         if (window.snap) {
-          window.snap.pay(response.data.snap_token, {
+          window.snap.pay(response.token, {
             onSuccess: (result: MidtransCallbackResult) => {
               toast({
                 title: "Pembayaran berhasil!",
@@ -235,7 +235,7 @@ const NewOrderPage: React.FC = () => {
                 duration: 5000,
                 isClosable: true,
               });
-              navigate(`/orders/${response.data.order_id}`);
+              navigate(`/orders/${response.orderId}`);
             },
             onPending: (result: MidtransCallbackResult) => {
               toast({
@@ -245,7 +245,7 @@ const NewOrderPage: React.FC = () => {
                 duration: 5000,
                 isClosable: true,
               });
-              navigate(`/orders/${response.data.order_id}`);
+              navigate(`/orders/${response.orderId}`);
             },
             onError: (result: MidtransCallbackResult) => {
               toast({
@@ -258,14 +258,14 @@ const NewOrderPage: React.FC = () => {
             },
             onClose: () => {
               // User closed the payment popup
-              navigate(`/orders/${response.data.order_id}`);
+              navigate(`/orders/${response.orderId}`);
             }
           });
         } else {
           throw new Error('Midtrans script not loaded');
         }
       } else {
-        throw new Error(response.message || 'Gagal membuat pesanan');
+        throw new Error(response.error || 'Gagal membuat pesanan');
       }
     } catch (error) {
       console.error('Error creating order:', error);

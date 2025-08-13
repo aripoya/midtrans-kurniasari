@@ -4,7 +4,7 @@ import { AxiosResponse } from 'axios';
 
 // TypeScript interfaces for order service
 export interface OrderItem {
-  id?: string;
+  id?: string | null;
   // Frontend format
   product_name?: string;
   product_price?: number;
@@ -17,8 +17,11 @@ export interface OrderItem {
 
 export interface OrderData {
   customer_name: string;
-  customer_phone: string;
+  phone: string;
+  email: string;
   customer_address: string;
+  lokasi_pengiriman?: string;
+  lokasi_pengambilan?: string;
   shipping_area: 'dalam_kota' | 'luar_kota';
   pickup_method: string;
   courier_service?: string;
@@ -57,9 +60,9 @@ export interface OrderResponse {
 
 export interface CreateOrderResponse {
   success: boolean;
-  order?: Order;
-  data?: any;
-  payment_url?: string;
+  orderId?: string;
+  token?: string;
+  redirect_url?: string;
   error?: string;
 }
 
