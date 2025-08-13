@@ -339,9 +339,25 @@ export async function getOutlets(request, env) {
             });
         }
 
-        // Get all outlets from unified table
-        const outlets = await env.DB.prepare('SELECT id, name, location_alias as location, is_active FROM outlets_unified')
-            .all();
+        // Get all outlets with fallback logic
+        let outlets;
+        try {
+            // Try unified table first
+            outlets = await env.DB.prepare('SELECT id, name, location_alias as location, is_active FROM outlets_unified')
+                .all();
+            console.log('✅ Using outlets_unified table, found:', outlets.results?.length || 0, 'outlets');
+        } catch (unifiedError) {
+            console.warn('⚠️ outlets_unified table not available:', unifiedError.message);
+            try {
+                // Fallback to original outlets table
+                outlets = await env.DB.prepare('SELECT id, name, location, is_active FROM outlets')
+                    .all();
+                console.log('✅ Fallback to outlets table, found:', outlets.results?.length || 0, 'outlets');
+            } catch (fallbackError) {
+                console.error('❌ Both outlets tables failed:', fallbackError.message);
+                throw fallbackError;
+            }
+        }
 
         return new Response(JSON.stringify({
             success: true,

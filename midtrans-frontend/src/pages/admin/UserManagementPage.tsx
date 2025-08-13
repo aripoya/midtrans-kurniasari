@@ -93,14 +93,21 @@ const UserManagementPage: React.FC = () => {
           }
 
           // Load outlets dynamically from backend
+          console.log('🚀 Starting to fetch outlets...');
           const outletsRes = await adminApi.getOutlets();
           console.log('🏪 Outlets API response:', outletsRes);
+          console.log('🏪 Outlets response type:', typeof outletsRes);
+          console.log('🏪 Outlets response keys:', Object.keys(outletsRes || {}));
+          
           if (outletsRes.success && (outletsRes.outlets || outletsRes.data)) {
             const outletsList = outletsRes.outlets || outletsRes.data || [];
             console.log('🏪 Processed outlets:', outletsList);
+            console.log('🏪 Outlets count:', outletsList.length);
+            console.log('🏪 First outlet:', outletsList[0]);
             setOutlets(outletsList);
           } else {
             console.warn('🏪 Outlets API failed or returned no data:', outletsRes);
+            console.error('🏪 API Error details:', outletsRes.error);
             setOutlets([]);
           }
         } catch (error) {
