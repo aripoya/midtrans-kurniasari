@@ -369,7 +369,12 @@ export async function getOutlets(request, env) {
 
         return new Response(JSON.stringify({
             success: true,
-            outlets: outlets.results
+            outlets: outlets.results,
+            debug: {
+                total_outlets: outlets.results?.length || 0,
+                sample_outlet: outlets.results?.[0] || null,
+                available_columns: outlets.results?.[0] ? Object.keys(outlets.results[0]) : []
+            }
         }), {
             status: 200,
             headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
