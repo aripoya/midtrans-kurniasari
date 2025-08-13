@@ -49,6 +49,13 @@ export interface ShippingImage {
   created_at: string;
 }
 
+export interface Outlet {
+  id: string;
+  name: string;
+  location?: string;
+  is_active?: boolean;
+}
+
 export interface Location {
   code: string;
   name: string;
@@ -102,6 +109,13 @@ export interface LocationsResponse {
   success: boolean;
   data: Location[] | null;
   error: string | null;
+}
+
+export interface OutletsResponse {
+  success: boolean;
+  outlets?: Outlet[];
+  data?: Outlet[];
+  error?: string | null;
 }
 
 // Request payload interfaces
@@ -821,40 +835,83 @@ export const adminApi = {
   },
 
   // Reset user password
-  resetPassword: async (
+  resetPassword(
     userId: string,
     newPassword: string
-  ): Promise<ApiResponse> => {
-    try {
-      const payload: ResetPasswordRequest = { password: newPassword };
-
-      const response: AxiosResponse = await axios.post(
-        `${API_BASE_URL}/api/admin/users/${userId}/reset-password`,
-        payload,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${getAdminToken()}`,
-          },
-        }
-      );
-
-      return {
-        success: true,
-        data: response.data,
-        error: null,
-      };
-    } catch (error: any) {
-      console.error("Error resetting password:", error);
-      return {
+  ): Promise<ApiResponse> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
         success: false,
         data: null,
-        error:
-          error.response?.data?.error ||
-          error.message ||
-          "Error saat reset password user",
-      };
+        error: "No admin token available",
+      });
     }
+
+    return axios
+      .put(
+        `${API_BASE_URL}/api/users/${userId}/reset-password`,
+        { password: newPassword },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      )
+      .then((response: AxiosResponse<ApiResponse>) => {
+        return response.data;
+      })
+      .catch((error) => {
+        console.error("Error resetting user password:", error);
+        return {
+          success: false,
+          data: null,
+          error:
+            error.response?.data?.error ||
+            error.message ||
+            "Error saat reset password user",
+        };
+      });
+  },
+
+  // Get all outlets for admin
+  getOutlets(): Promise<OutletsResponse> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        outlets: [],
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_BASE_URL}/api/outlets`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      .then((response: AxiosResponse<OutletsResponse>) => {
+        console.log("🏪 Outlets API response:", response.data);
+        return {
+          success: true,
+          outlets: response.data.outlets || [],
+          data: response.data.outlets || [],
+        };
+      })
+      .catch((error) => {
+        console.error("Error fetching outlets:", error);
+        return {
+          success: false,
+          outlets: [],
+          error:
+            error.response?.data?.error ||
+            error.message ||
+            "Error fetching outlets from server",
+        };
+      });
   },
 };
 

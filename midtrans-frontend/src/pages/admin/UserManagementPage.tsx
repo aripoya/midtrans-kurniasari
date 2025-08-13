@@ -75,15 +75,12 @@ const UserManagementPage: React.FC = () => {
   const { isOpen: isResetOpen, onOpen: onResetOpen, onClose: onResetClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   
-  const [outlets] = useState<Outlet[]>([
-    { id: 'outlet_bonbin', name: 'Outlet Bonbin' },
-    { id: 'outlet_jakal_km14', name: 'Outlet Jakal KM14' },
-    { id: 'outlet_glagahsari', name: 'Outlet Glagahsari 91C' }
-  ]);
+  const [outlets, setOutlets] = useState<Outlet[]>([]);
 
     const loadAllData = useCallback(async (): Promise<void> => {
       setLoading(true);
         try {
+          // Load locations
           const locationsRes = await adminApi.getLocations();
           console.log('🔍 Locations API response:', locationsRes);
           if (locationsRes.success && locationsRes.data) {
@@ -94,11 +91,24 @@ const UserManagementPage: React.FC = () => {
             console.warn('🔍 Locations API failed or returned no data:', locationsRes);
             setLocations([]);
           }
-        } catch (locError) {
-          console.error('Error loading locations:', locError);
+
+          // Load outlets dynamically from backend
+          const outletsRes = await adminApi.getOutlets();
+          console.log('🏪 Outlets API response:', outletsRes);
+          if (outletsRes.success && (outletsRes.outlets || outletsRes.data)) {
+            const outletsList = outletsRes.outlets || outletsRes.data || [];
+            console.log('🏪 Processed outlets:', outletsList);
+            setOutlets(outletsList);
+          } else {
+            console.warn('🏪 Outlets API failed or returned no data:', outletsRes);
+            setOutlets([]);
+          }
+        } catch (error) {
+          console.error('Error loading data:', error);
           setLocations([]); 
+          setOutlets([]);
         }
-    }, [ toast]);
+    }, [toast]);
 
   useEffect(() => {
     fetchUsers();
