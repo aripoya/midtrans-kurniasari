@@ -28,6 +28,7 @@ interface Order {
   customer_name: string;
   customer_phone: string;
   customer_email?: string;
+  customer_address?: string; // Added for delivery destination mapping
   total_amount: number;
   payment_status: string;
   shipping_status: string;
@@ -301,16 +302,21 @@ const AdminOrderDetailPage: React.FC = () => {
   const handleUpdateStatus = async (): Promise<void> => {
     setIsUpdating(true);
     try {
+      // FIXED: Proper mapping for delivery orders
+      // lokasi_pengambilan = outlet (where item is picked up FROM)
+      // lokasi_pengantaran = customer address (where item is delivered TO)
       const updateData = {
         status: shippingStatus,  // Fixed: backend expects 'status' not 'shipping_status'
-        shipping_area: shippingArea,
-        // For Luar Kota orders, set all irrelevant fields to null since they're not relevant for out-of-city deliveries
-        pickup_method: shippingArea === 'luar-kota' ? null : mapDisplayLabelToBackendValue(pickupMethod, 'pickup_method'),
+        shipping_area: shippingArea as "dalam-kota" | "luar-kota" | undefined,
+        // For Luar Kota orders, set all irrelevant fields to undefined since they're not relevant for out-of-city deliveries
+        pickup_method: shippingArea === 'luar-kota' ? undefined : mapDisplayLabelToBackendValue(pickupMethod, 'pickup_method') || undefined,
         courier_service: courierService,
         tracking_number: trackingNumber,
-        lokasi_pengiriman: shippingArea === 'luar-kota' ? null : mapDisplayLabelToBackendValue(lokasi_pengiriman, 'location'),
-        lokasi_pengambilan: shippingArea === 'luar-kota' ? null : mapDisplayLabelToBackendValue(order?.lokasi_pengambilan, 'location'),
-        tipe_pesanan: shippingArea === 'luar-kota' ? null : order?.tipe_pesanan || null,
+        // For delivery orders: lokasi_pengiriman = outlet, lokasi_pengambilan = outlet, lokasi_pengantaran = customer address
+        lokasi_pengiriman: shippingArea === 'luar-kota' ? undefined : (order?.lokasi_pengiriman || "Outlet Bonbin"),
+        lokasi_pengambilan: shippingArea === 'luar-kota' ? undefined : (order?.lokasi_pengiriman || "Outlet Bonbin"), 
+        lokasi_pengantaran: order?.customer_address, // Customer address for delivery destination
+        tipe_pesanan: shippingArea === 'luar-kota' ? undefined : order?.tipe_pesanan || undefined,
         admin_note: adminNote
       };
       

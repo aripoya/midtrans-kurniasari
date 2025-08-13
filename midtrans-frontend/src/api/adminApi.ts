@@ -129,6 +129,12 @@ export interface UpdateOrderDetailsRequest {
   admin_note?: string;
   shipping_area?: "dalam-kota" | "luar-kota";
   pickup_method?: string;
+  courier_service?: string;
+  tracking_number?: string;
+  lokasi_pengiriman?: string;
+  lokasi_pengambilan?: string;
+  lokasi_pengantaran?: string; // Customer address for delivery destination
+  tipe_pesanan?: string;
 }
 
 export interface UpdateShippingStatusRequest {
