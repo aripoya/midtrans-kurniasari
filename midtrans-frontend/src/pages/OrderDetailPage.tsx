@@ -473,9 +473,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                     <Text><strong>Telepon:</strong> {order.customer_phone}</Text>
                     <Text><strong>Alamat:</strong> {order.customer_address}</Text>
                     <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam_kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
-                    <Text><strong>Metode Pengambilan:</strong> {order.pickup_method}</Text>
-                    {order.courier_service && (
-                      <Text><strong>Layanan Kurir:</strong> {order.courier_service}</Text>
+                    <Text><strong>Metode Pengambilan:</strong> {
+                      order.pickup_method === 'pickup_sendiri' ? 'Pickup Sendiri di Outlet' : 
+                      order.pickup_method === 'alamat_customer' ? 'Antar ke Alamat' :
+                      order.pickup_method === 'deliveryman' ? 'Kurir Outlet' :
+                      order.pickup_method
+                    }</Text>
+                    {order.courier_service && order.shipping_area === 'luar_kota' && (
+                      <Text><strong>Jasa Kurir:</strong> {order.courier_service}</Text>
                     )}
                     {order.tracking_number && (
                       <Text><strong>Nomor Resi:</strong> {order.tracking_number}</Text>
