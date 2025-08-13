@@ -349,13 +349,21 @@ export async function getOutlets(request, env) {
         } catch (unifiedError) {
             console.warn('⚠️ outlets_unified table not available:', unifiedError.message);
             try {
-                // Fallback to original outlets table
-                outlets = await env.DB.prepare('SELECT id, name, location, is_active FROM outlets')
+                // Fallback to original outlets table (use existing columns only)
+                outlets = await env.DB.prepare('SELECT id, name, address as location FROM outlets')
                     .all();
                 console.log('✅ Fallback to outlets table, found:', outlets.results?.length || 0, 'outlets');
             } catch (fallbackError) {
-                console.error('❌ Both outlets tables failed:', fallbackError.message);
-                throw fallbackError;
+                console.warn('⚠️ Fallback with address failed, trying minimal columns:', fallbackError.message);
+                try {
+                    // Final fallback - minimal columns only
+                    outlets = await env.DB.prepare('SELECT id, name FROM outlets')
+                        .all();
+                    console.log('✅ Minimal outlets query, found:', outlets.results?.length || 0, 'outlets');
+                } catch (minimalError) {
+                    console.error('❌ All outlets queries failed:', minimalError.message);
+                    throw minimalError;
+                }
             }
         }
 
