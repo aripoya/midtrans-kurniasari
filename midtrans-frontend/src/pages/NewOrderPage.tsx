@@ -197,14 +197,17 @@ const NewOrderPage: React.FC = () => {
     try {
       const orderData = {
         customer_name: formData.customer_name,
-        customer_phone: formData.phone,
+        phone: formData.phone,
         customer_address: formData.customer_address,
         email: formData.email,
-        shipping_area: 'dalam_kota' as const,
+        lokasi_pengiriman: 'dalam_kota',
+        lokasi_pengambilan: 'outlet',
+        shipping_area: 'dalam_kota',
         pickup_method: 'delivery',
         items: items.map(item => ({
-          product_id: item.productId,
-          product_name: item.name,
+          id: item.productId,
+          name: item.name,
+          price: Number(item.price),
           product_price: Number(item.price),
           quantity: Number(item.quantity)
         })),
