@@ -849,8 +849,8 @@ export const adminApi = {
     }
 
     return axios
-      .put(
-        `${API_BASE_URL}/api/users/${userId}/reset-password`,
+      .post(
+        `${API_BASE_URL}/api/admin/users/${userId}/reset-password`,
         { password: newPassword },
         {
           headers: {
