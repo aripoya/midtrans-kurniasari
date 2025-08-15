@@ -755,37 +755,48 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
                 <Text><strong>Total:</strong> Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
                 <Text><strong>Status:</strong> {getStatusBadge(order.payment_status)}</Text>
                 <Text><strong>Metode:</strong> <Tag>{order.payment_method || 'N/A'}</Tag></Text>
-                {isPublicOrderPage && (
-                  <>
-                    <Text mt={4}><strong>Status Pesanan:</strong> {getShippingStatusBadge(order)}</Text>
-                    {order.shipping_area && (
-                      <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
-                    )}
-                    {order.pickup_method && order.shipping_area !== 'luar-kota' && (
-                      <Text>
-                        <strong>Metode {order.tipe_pesanan === 'Pesan Ambil' ? 'Ambil' : 'Antar'}:</strong> 
-                        {order.pickup_method === 'deliveryman' || order.pickup_method === 'sendiri' ? 
-                          (order.tipe_pesanan === 'Pesan Ambil' ? 'Di Ambil Konsumen' : 'Di Antar Deliveryman') : 
-                          (order.tipe_pesanan === 'Pesan Ambil' ? 'Di Ambil Driver Ojek Online' : 'Di Antar Driver Ojek Online')
-                        }
-                      </Text>
-                    )}
-                    {order.tipe_pesanan && order.shipping_area !== 'luar-kota' && (
-                      <Text><strong>Tipe Pesanan:</strong> {order.tipe_pesanan}</Text>
-                    )}
-                    {/* Display location information based on order type and shipping area */}
-                    {order.tipe_pesanan === 'Pesan Antar' && order.lokasi_pengiriman && order.shipping_area !== 'luar-kota' && (
-                      <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman}</Text>
-                    )}
-                    {order.tipe_pesanan === 'Pesan Ambil' && order.lokasi_pengambilan && (
-                      <Text><strong>Lokasi Pengambilan:</strong> {order.lokasi_pengambilan}</Text>
-                    )}
-                    {order.shipping_area === 'luar-kota' && (
-                      <>
-                        {order.courier_service && (
-                          <Text><strong>Jasa Kurir:</strong> {order.courier_service}</Text>
-                        )}
-                        {order.tracking_number ? (
+                {isPublicOrderPage && (() => {
+                  // Check if order is paid and has been managed by admin
+                  const isPaid = ['paid', 'settlement', 'capture'].includes(order.payment_status);
+                  const hasShippingInfo = order.shipping_status && 
+                    !['pending', 'belum bayar', ''].includes(order.shipping_status.toLowerCase());
+                  
+                  // Only show shipping information if order is paid AND has been processed by admin
+                  const shouldShowShippingInfo = isPaid && hasShippingInfo;
+                  
+                  return (
+                    <>
+                      {shouldShowShippingInfo && (
+                        <Text mt={4}><strong>Status Pesanan:</strong> {getShippingStatusBadge(order)}</Text>
+                      )}
+                      {shouldShowShippingInfo && order.shipping_area && (
+                        <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
+                      )}
+                      {shouldShowShippingInfo && order.pickup_method && order.shipping_area !== 'luar-kota' && (
+                        <Text>
+                          <strong>Metode {order.tipe_pesanan === 'Pesan Ambil' ? 'Ambil' : 'Antar'}:</strong> 
+                          {order.pickup_method === 'deliveryman' || order.pickup_method === 'sendiri' ? 
+                            (order.tipe_pesanan === 'Pesan Ambil' ? 'Di Ambil Konsumen' : 'Di Antar Deliveryman') : 
+                            (order.tipe_pesanan === 'Pesan Ambil' ? 'Di Ambil Driver Ojek Online' : 'Di Antar Driver Ojek Online')
+                          }
+                        </Text>
+                      )}
+                      {shouldShowShippingInfo && order.tipe_pesanan && order.shipping_area !== 'luar-kota' && (
+                        <Text><strong>Tipe Pesanan:</strong> {order.tipe_pesanan}</Text>
+                      )}
+                      {/* Display location information based on order type and shipping area */}
+                      {shouldShowShippingInfo && order.tipe_pesanan === 'Pesan Antar' && order.lokasi_pengiriman && order.shipping_area !== 'luar-kota' && (
+                        <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman}</Text>
+                      )}
+                      {shouldShowShippingInfo && order.tipe_pesanan === 'Pesan Ambil' && order.lokasi_pengambilan && (
+                        <Text><strong>Lokasi Pengambilan:</strong> {order.lokasi_pengambilan}</Text>
+                      )}
+                      {shouldShowShippingInfo && order.shipping_area === 'luar-kota' && (
+                        <>
+                          {order.courier_service && (
+                            <Text><strong>Jasa Kurir:</strong> {order.courier_service}</Text>
+                          )}
+                          {order.tracking_number ? (
                           <HStack>
                             <Text><strong>No. Resi:</strong> {order.tracking_number}</Text>
                             <Button
@@ -822,7 +833,8 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
                       </>
                     )}
                   </>
-                )}
+                );
+                })()}
               </GridItem>
             </Grid>
 
