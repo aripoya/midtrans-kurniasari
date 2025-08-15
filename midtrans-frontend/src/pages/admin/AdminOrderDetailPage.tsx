@@ -1201,8 +1201,8 @@ useEffect(() => {
                 </FormControl>
               )}
 
-              {/* Lokasi Pengiriman - show differently for pickup vs delivery */}
-              {shippingArea === 'dalam-kota' && (
+              {/* Lokasi Pengiriman - Hidden for Siap Ambil */}
+              {shippingStatus !== 'siap di ambil' && shippingArea === 'dalam-kota' && (
                 <FormControl>
                   <FormLabel>
                     {shippingStatus === 'Siap Kirim' ? 'Tujuan Pengiriman' : 'Lokasi Pengiriman'}
@@ -1238,8 +1238,8 @@ useEffect(() => {
                 </FormControl>
               )}
 
-              {/* Pickup Method - only show for Dalam Kota */}
-              {shippingArea === 'dalam-kota' && (
+              {/* Pickup Method - Hidden for Siap Ambil */}
+              {shippingStatus !== 'siap di ambil' && shippingArea === 'dalam-kota' && (
                 <FormControl>
                   <FormLabel>Metode Pengiriman</FormLabel>
                   <RadioGroup value={pickupMethod} onChange={setPickupMethod}>
@@ -1251,8 +1251,8 @@ useEffect(() => {
                 </FormControl>
               )}
 
-              {/* Courier Service - for deliveryman (Kurir Toko) */}
-              {pickupMethod === 'deliveryman' && shippingArea === 'dalam-kota' && (
+              {/* Courier Service - for deliveryman (Kurir Toko) - Hidden for Siap Ambil */}
+              {shippingStatus !== 'siap di ambil' && pickupMethod === 'deliveryman' && shippingArea === 'dalam-kota' && (
                 <FormControl>
                   <FormLabel>Nama Kurir</FormLabel>
                   <Input
@@ -1263,8 +1263,8 @@ useEffect(() => {
                 </FormControl>
               )}
 
-              {/* Courier Service - for ojek-online and luar-kota */}
-              {(pickupMethod === 'ojek-online' || shippingArea === 'luar-kota') && (
+              {/* Courier Service - for ojek-online and luar-kota - Hidden for Siap Ambil */}
+              {shippingStatus !== 'siap di ambil' && (pickupMethod === 'ojek-online' || shippingArea === 'luar-kota') && (
                 <FormControl>
                   <FormLabel>Layanan Kurir</FormLabel>
                   <Select
