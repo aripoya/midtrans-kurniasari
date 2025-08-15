@@ -899,7 +899,9 @@ useEffect(() => {
                   {/* Only show Lokasi Pengiriman for Dalam Kota orders */}
                   {order.lokasi_pengiriman && order.shipping_area === 'dalam-kota' && (
                     <Tr>
-                      <Td fontWeight="semibold">Lokasi Pengiriman</Td>
+                      <Td fontWeight="semibold">
+                        {order.shipping_status === 'Siap Kirim' ? 'Tujuan Pengiriman' : 'Lokasi Pengiriman'}
+                      </Td>
                       <Td>{order.lokasi_pengiriman}</Td>
                     </Tr>
                   )}
@@ -1065,7 +1067,9 @@ useEffect(() => {
               {/* Lokasi Pengiriman - show differently for pickup vs delivery */}
               {shippingArea === 'dalam-kota' && (
                 <FormControl>
-                  <FormLabel>Lokasi Pengiriman</FormLabel>
+                  <FormLabel>
+                    {shippingStatus === 'Siap Kirim' ? 'Tujuan Pengiriman' : 'Lokasi Pengiriman'}
+                  </FormLabel>
                   {pickupMethod === 'deliveryman' ? (
                     // For delivery orders: show customer address as shipping destination
                     <Box 
