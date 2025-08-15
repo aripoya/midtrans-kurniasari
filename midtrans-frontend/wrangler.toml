@@ -1,0 +1,10 @@
+name = "kurniasari-admin-frontend"
+compatibility_date = "2024-01-01"
+
+[env.production.vars]
+VITE_API_BASE_URL = "https://order-management-app-production.wahwooh.workers.dev"
+VITE_MIDTRANS_CLIENT_KEY = "Mid-client-KFJJn6yJ-aIkE8eq"
+
+[env.development.vars]
+VITE_API_BASE_URL = "https://order-management-app-production.wahwooh.workers.dev"
+VITE_MIDTRANS_CLIENT_KEY = "Mid-client-KFJJn6yJ-aIkE8eq"

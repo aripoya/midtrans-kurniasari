@@ -897,12 +897,18 @@ useEffect(() => {
                     </Td>
                   </Tr>
                   {/* Only show Lokasi Pengiriman for Dalam Kota orders */}
-                  {order.lokasi_pengiriman && order.shipping_area === 'dalam-kota' && (
+                  {order.shipping_area === 'dalam-kota' && (
                     <Tr>
                       <Td fontWeight="semibold">
                         {order.shipping_status === 'Siap Kirim' ? 'Tujuan Pengiriman' : 'Lokasi Pengiriman'}
                       </Td>
-                      <Td>{order.lokasi_pengiriman}</Td>
+                      <Td>
+                        {/* For delivery orders: show customer address, for pickup: show outlet */}
+                        {order.pickup_method === 'deliveryman' 
+                          ? (order.customer_address || 'Alamat customer tidak tersedia')
+                          : (order.lokasi_pengiriman || 'Outlet Bonbin')
+                        }
+                      </Td>
                     </Tr>
                   )}
                   {/* Only show Lokasi Pengambilan for Dalam Kota orders */}
