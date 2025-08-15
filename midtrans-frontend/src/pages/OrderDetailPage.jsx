@@ -1087,7 +1087,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
                 </Button>
               )}
               <Button onClick={handleRefreshStatus} isLoading={isRefreshing} variant="outline">
-                Perbarui Status
+                Perbarui Status Pembayaran
               </Button>
               {isPaid && !isReceived && (
                 <Button onClick={handleMarkAsReceived} isLoading={isMarkingAsReceived} colorScheme="green">
