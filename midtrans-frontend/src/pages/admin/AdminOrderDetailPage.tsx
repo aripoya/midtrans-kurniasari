@@ -904,7 +904,7 @@ useEffect(() => {
                       </Td>
                       <Td>
                         {/* For delivery orders: show customer address, for pickup: show outlet */}
-                        {order.pickup_method === 'deliveryman' 
+                        {(order.pickup_method === 'deliveryman' || order.pickup_method === 'alamat_customer' || order.pickup_method === 'ojek_online')
                           ? (order.customer_address || 'Alamat customer tidak tersedia')
                           : (order.lokasi_pengiriman || 'Outlet Bonbin')
                         }
@@ -921,10 +921,11 @@ useEffect(() => {
                   {/* Only show Metode Pengiriman for Dalam Kota orders */}
                   {order.pickup_method && order.shipping_area === 'dalam-kota' && (
                     <Tr>
-                      <Td fontWeight="semibold">Metode Pengiriman</Td>
+                      <Td fontWeight="semibold">Metode Pengambilan</Td>
                       <Td>
                         {order.pickup_method === 'deliveryman' ? 'Kurir Toko' : 
-                         order.pickup_method === 'ojek-online' ? 'Ojek Online' : 
+                         order.pickup_method === 'ojek_online' ? 'Ojek Online' : 
+                         order.pickup_method === 'pickup_sendiri' ? 'Ambil Sendiri di Outlet' :
                          order.pickup_method}
                       </Td>
                     </Tr>

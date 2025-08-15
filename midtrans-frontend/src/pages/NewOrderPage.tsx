@@ -1,11 +1,7 @@
 import React, { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Heading, FormControl, FormLabel, Input, Button,
-  VStack, HStack, Text, NumberInput, NumberInputField,
-  FormErrorMessage, useToast, Card, CardBody, Grid, GridItem,
-  Table, Thead, Tbody, Tr, Th, Td, TableContainer, IconButton,
-  useBreakpointValue, Stack, Divider, Flex, Textarea, Select
+  Box, Button, Card, CardBody, Flex, FormControl, FormErrorMessage, FormLabel, Grid, GridItem, Heading, HStack, IconButton, Input, NumberInput, NumberInputField, Table, TableContainer, Tbody, Td, Text, Textarea, Th, Thead, Tr, useBreakpointValue, useToast, VStack
 } from '@chakra-ui/react';
 import CreatableSelect from 'react-select/creatable';
 import { DeleteIcon } from '@chakra-ui/icons';
@@ -34,11 +30,6 @@ interface FormData {
   email: string;
   phone: string;
   customer_address: string;
-  // Shipping Information Fields - UPDATED FOR REDESIGN
-  shipping_area: 'dalam_kota' | 'luar_kota';
-  pickup_method: 'deliveryman' | 'pickup_sendiri' | 'ojek_online';
-  courier_service: 'travel' | 'kurir_outlet' | 'gojek' | 'grab' | '';
-  shipping_notes?: string;
 }
 
 interface FormErrors {
@@ -57,6 +48,8 @@ interface MidtransCallbackResult {
   payment_type: string;
 }
 
+
+
 const NewOrderPage: React.FC = () => {
   const isMobile = useBreakpointValue({ base: true, lg: false });
   const navigate = useNavigate();
@@ -69,12 +62,7 @@ const NewOrderPage: React.FC = () => {
     customer_name: '',
     email: '',
     phone: '',
-    customer_address: '',
-    // Shipping Information Defaults - UPDATED FOR REDESIGN
-    shipping_area: 'dalam_kota',
-    pickup_method: 'deliveryman',
-    courier_service: '',
-    shipping_notes: ''
+    customer_address: ''
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -210,13 +198,13 @@ const NewOrderPage: React.FC = () => {
         phone: formData.phone,
         customer_address: formData.customer_address,
         email: formData.email,
-        // REDESIGNED SHIPPING INFO LOGIC - CORRECT LOCATION MAPPING
-        lokasi_pengambilan: "Outlet Jakal KM14", // Always outlet location (pickup source)
+        // DEFAULT SHIPPING INFO - Since form fields were removed
+        lokasi_pengambilan: "Outlet Bonbin", // Default outlet for pickup
         lokasi_pengantaran: formData.customer_address, // Always customer address (delivery destination)
-        shipping_area: formData.shipping_area, // "dalam_kota" | "luar_kota"
-        pickup_method: formData.pickup_method, // "pickup_sendiri" | "deliveryman" | "ojek_online"
-        courier_service: formData.courier_service || null,
-        shipping_notes: formData.shipping_notes || null,
+        shipping_area: "dalam_kota" as 'dalam_kota' | 'luar_kota', // Default to dalam kota
+        pickup_method: "deliveryman" as 'deliveryman' | 'pickup_sendiri' | 'ojek_online', // Default pickup method
+        courier_service: null,
+        shipping_notes: null,
         items: items.map(item => ({
           id: item.productId,
           name: item.name,
@@ -357,94 +345,7 @@ const NewOrderPage: React.FC = () => {
             </Card>
           </GridItem>
 
-          <GridItem>
-            <Card>
-              <CardBody>
-                <Heading size="md" mb={4}>Informasi Pengiriman</Heading>
-                <VStack spacing={4} align="stretch">
-                  <FormControl isRequired isInvalid={!!errors.shipping_area}>
-                    <FormLabel>Area Pengiriman</FormLabel>
-                    <Select 
-                      name="shipping_area" 
-                      value={formData.shipping_area} 
-                      onChange={(e: ChangeEvent<HTMLSelectElement>) => {
-                        const newFormData = { ...formData, [e.target.name]: e.target.value as 'dalam_kota' | 'luar_kota' };
-                        setFormData(newFormData);
-                        if (errors[e.target.name]) setErrors({ ...errors, [e.target.name]: '' });
-                      }}
-                    >
-                      <option value="dalam_kota">Dalam Kota</option>
-                      <option value="luar_kota">Luar Kota</option>
-                    </Select>
-                    <FormErrorMessage>{errors.shipping_area}</FormErrorMessage>
-                  </FormControl>
 
-                  <FormControl isRequired isInvalid={!!errors.pickup_method}>
-                    <FormLabel>Metode Pengambilan</FormLabel>
-                    <Select 
-                      name="pickup_method" 
-                      value={formData.pickup_method} 
-                      onChange={(e: ChangeEvent<HTMLSelectElement>) => {
-                        const newFormData = { ...formData, [e.target.name]: e.target.value as 'deliveryman' | 'pickup_sendiri' | 'ojek_online', courier_service: '' as '' };
-                        setFormData(newFormData);
-                        if (errors[e.target.name]) setErrors({ ...errors, [e.target.name]: '' });
-                      }}
-                    >
-                      <option value="deliveryman">Kurir Outlet</option>
-                      <option value="ojek_online">Ojek Online</option>
-                      <option value="pickup_sendiri">Ambil Sendiri di Outlet</option>
-                    </Select>
-                    <FormErrorMessage>{errors.pickup_method}</FormErrorMessage>
-                  </FormControl>
-
-                  {(formData.pickup_method === 'deliveryman' || formData.pickup_method === 'ojek_online') && (
-                    <FormControl isRequired={formData.shipping_area === 'luar_kota'} isInvalid={!!errors.courier_service}>
-                      <FormLabel>
-                        Jasa Kurir
-                        {formData.shipping_area === 'luar_kota' && <Text as="span" color="red.500" ml={1}>*</Text>}
-                      </FormLabel>
-                      <Select 
-                        name="courier_service" 
-                        value={formData.courier_service} 
-                        onChange={(e: ChangeEvent<HTMLSelectElement>) => {
-                          const newFormData = { ...formData, [e.target.name]: e.target.value as 'travel' | 'kurir_outlet' | 'gojek' | 'grab' | '' };
-                          setFormData(newFormData);
-                          if (errors[e.target.name]) setErrors({ ...errors, [e.target.name]: '' });
-                        }}
-                        placeholder={formData.shipping_area === 'dalam_kota' ? 'Pilih jasa kurir (opsional)' : 'Pilih jasa kurir'}
-                      >
-                        {formData.shipping_area === 'dalam_kota' && formData.pickup_method === 'deliveryman' && (
-                          <option value="kurir_outlet">Kurir Outlet</option>
-                        )}
-                        {formData.shipping_area === 'dalam_kota' && formData.pickup_method === 'ojek_online' && (
-                          <>
-                            <option value="gojek">GoJek</option>
-                            <option value="grab">Grab</option>
-                          </>
-                        )}
-                        {formData.shipping_area === 'luar_kota' && (
-                          <option value="travel">TRAVEL</option>
-                        )}
-                      </Select>
-                      <FormErrorMessage>{errors.courier_service}</FormErrorMessage>
-                    </FormControl>
-                  )}
-
-                  <FormControl isInvalid={!!errors.shipping_notes}>
-                    <FormLabel>Catatan Pengiriman (Opsional)</FormLabel>
-                    <Textarea 
-                      name="shipping_notes" 
-                      value={formData.shipping_notes || ''} 
-                      onChange={handleFormChange}
-                      placeholder="Tambahkan catatan khusus untuk pengiriman..."
-                      rows={2}
-                    />
-                    <FormErrorMessage>{errors.shipping_notes}</FormErrorMessage>
-                  </FormControl>
-                </VStack>
-              </CardBody>
-            </Card>
-          </GridItem>
 
           <GridItem>
             <Card>
