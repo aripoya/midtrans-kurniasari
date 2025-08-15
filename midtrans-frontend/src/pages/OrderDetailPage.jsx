@@ -758,16 +758,23 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
                 {isPublicOrderPage && (() => {
                   // Check if order is paid and has been managed by admin
                   const isPaid = ['paid', 'settlement', 'capture'].includes(order.payment_status);
-                  const hasShippingInfo = order.shipping_status && 
-                    !['pending', 'belum bayar', ''].includes(order.shipping_status.toLowerCase());
                   
-                  // Only show shipping information if order is paid AND has been processed by admin
-                  const shouldShowShippingInfo = isPaid && hasShippingInfo;
+                  // More strict check: only show shipping info if admin has actually processed the order
+                  // Admin processing means shipping_status is NOT pending/empty and has a real processing status
+                  const adminProcessedStatuses = ['dikemas', 'siap kirim', 'siap ambil', 'dalam pengiriman', 'diterima', 'sudah di terima', 'sudah di ambil'];
+                  const hasBeenProcessedByAdmin = order.shipping_status && 
+                    adminProcessedStatuses.includes(order.shipping_status.toLowerCase().trim());
+                  
+                  // Only show shipping information if order is paid AND admin has processed it (not pending)
+                  const shouldShowShippingInfo = isPaid && hasBeenProcessedByAdmin;
                   
                   return (
                     <>
                       {shouldShowShippingInfo && (
-                        <Text mt={4}><strong>Status Pesanan:</strong> {getShippingStatusBadge(order)}</Text>
+                        <>
+                          <Heading size="sm" mt={6} mb={4}>Informasi Pengiriman</Heading>
+                          <Text><strong>Status Pesanan:</strong> {getShippingStatusBadge(order)}</Text>
+                        </>
                       )}
                       {shouldShowShippingInfo && order.shipping_area && (
                         <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
