@@ -345,46 +345,65 @@ const PublicOrderDetailPage = () => {
 
                   <Divider />
 
-                  <Box>
-                    <Heading size="sm" mb={2}>Informasi Pengiriman</Heading>
-                    <Text><strong>Status Pesanan:</strong> {getShippingStatusBadge(order)}</Text>
-                    <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
-                    {order.shipping_area !== 'dalam-kota' && (
-                      <Text><strong>Jasa Kurir:</strong> {order.courier_service || 'TRAVEL'}</Text>
-                    )}
-                    {order.tracking_number && (
-                      <HStack>
-                        <Text><strong>No. Resi:</strong> {order.tracking_number}</Text>
-                        {order.courier_service?.toLowerCase() === 'tiki' ? (
-                          <Badge 
-                            as="a"
-                            href={`/tiki-tracking?resi=${order.tracking_number}&orderId=${order.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            colorScheme="blue" 
-                            cursor="pointer"
-                            _hover={{ textDecoration: 'none', opacity: 0.8 }}
-                          >
-                            LACAK RESI
-                          </Badge>
-                        ) : order.courier_service?.toLowerCase() === 'jne' ? (
-                          <Badge 
-                            as="a"
-                            href={`/jne-tracking?resi=${order.tracking_number}&orderId=${order.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            colorScheme="red" 
-                            cursor="pointer"
-                            _hover={{ textDecoration: 'none', opacity: 0.8 }}
-                          >
-                            LACAK RESI
-                          </Badge>
-                        ) : (
-                          <Badge colorScheme="blue" cursor="pointer">Lacak Resi</Badge>
+                  {(() => {
+                    // Check if order is paid and has been processed by admin
+                    const isPaidOrder = isPaid;
+                    
+                    // More strict check: only show shipping info if admin has actually processed the order
+                    const adminProcessedStatuses = ['dikemas', 'siap kirim', 'siap ambil', 'dalam pengiriman', 'diterima', 'sudah di terima', 'sudah di ambil'];
+                    const hasBeenProcessedByAdmin = order.shipping_status && 
+                      adminProcessedStatuses.includes(order.shipping_status.toLowerCase().trim());
+                    
+                    // Only show shipping information if order is paid AND admin has processed it (not pending)
+                    const shouldShowShippingInfo = isPaidOrder && hasBeenProcessedByAdmin;
+
+                    if (!shouldShowShippingInfo) {
+                      return null; // Don't render shipping info section at all
+                    }
+
+                    return (
+                      <Box>
+                        <Heading size="sm" mb={2}>Informasi Pengiriman</Heading>
+                        <Text><strong>Status Pesanan:</strong> {getShippingStatusBadge(order)}</Text>
+                        <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
+                        {order.shipping_area !== 'dalam-kota' && (
+                          <Text><strong>Jasa Kurir:</strong> {order.courier_service || 'TRAVEL'}</Text>
                         )}
-                      </HStack>
-                    )}
-                  </Box>
+                        {order.tracking_number && (
+                          <HStack>
+                            <Text><strong>No. Resi:</strong> {order.tracking_number}</Text>
+                            {order.courier_service?.toLowerCase() === 'tiki' ? (
+                              <Badge 
+                                as="a"
+                                href={`/tiki-tracking?resi=${order.tracking_number}&orderId=${order.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                colorScheme="blue" 
+                                cursor="pointer"
+                                _hover={{ textDecoration: 'none', opacity: 0.8 }}
+                              >
+                                LACAK RESI
+                              </Badge>
+                            ) : order.courier_service?.toLowerCase() === 'jne' ? (
+                              <Badge 
+                                as="a"
+                                href={`/jne-tracking?resi=${order.tracking_number}&orderId=${order.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                colorScheme="red" 
+                                cursor="pointer"
+                                _hover={{ textDecoration: 'none', opacity: 0.8 }}
+                              >
+                                LACAK RESI
+                              </Badge>
+                            ) : (
+                              <Badge colorScheme="blue" cursor="pointer">Lacak Resi</Badge>
+                            )}
+                          </HStack>
+                        )}
+                      </Box>
+                    );
+                  })()}
 
                   <Divider />
 
