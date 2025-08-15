@@ -925,7 +925,9 @@ useEffect(() => {
                   )}
                   {order.courier_service && (
                     <Tr>
-                      <Td fontWeight="semibold">Layanan Kurir</Td>
+                      <Td fontWeight="semibold">
+                        {order.pickup_method === 'deliveryman' ? 'Nama Kurir' : 'Layanan Kurir'}
+                      </Td>
                       <Td>
                         {order.courier_service === 'gojek' ? 'Gojek' :
                          order.courier_service === 'grab' ? 'Grab' :
@@ -1111,6 +1113,18 @@ useEffect(() => {
                       <Radio value="ojek-online">Ojek Online</Radio>
                     </Stack>
                   </RadioGroup>
+                </FormControl>
+              )}
+
+              {/* Courier Service - for deliveryman (Kurir Toko) */}
+              {pickupMethod === 'deliveryman' && shippingArea === 'dalam-kota' && (
+                <FormControl>
+                  <FormLabel>Nama Kurir</FormLabel>
+                  <Input
+                    value={courierService}
+                    onChange={(e) => setCourierService(e.target.value)}
+                    placeholder="Masukkan nama kurir toko"
+                  />
                 </FormControl>
               )}
 
