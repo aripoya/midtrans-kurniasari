@@ -21,6 +21,36 @@ import ShippingImageDisplay from '../../components/ShippingImageDisplay';
 import { IoQrCodeOutline } from "react-icons/io5";
 import QRCodeGenerator from '../../components/QRCodeGenerator';
 import CustomModal from '../../components/CustomModal';
+// Outlet locations for pickup
+const OUTLET_LOCATIONS = [
+  { value: 'Outlet Glagahsari 108', label: 'Outlet Glagahsari 108' },
+  { value: 'Outlet Glagahsari 91C', label: 'Outlet Glagahsari 91C' },
+  { value: 'Outlet Bonbin', label: 'Outlet Bonbin' },
+  { value: 'Outlet Monjali', label: 'Outlet Monjali' },
+  { value: 'Outlet Pogung', label: 'Outlet Pogung' },
+  { value: 'Outlet Jakal KM14', label: 'Outlet Jakal KM14' },
+  { value: 'Outlet Jalan Wonosari', label: 'Outlet Jalan Wonosari' },
+  { value: 'Outlet Jalan Wates', label: 'Outlet Jalan Wates' },
+  { value: 'Outlet Godean', label: 'Outlet Godean' },
+  { value: 'Outlet Ahmad Dahlan', label: 'Outlet Ahmad Dahlan' }
+];
+
+// Helper function to format date with Indonesian day names
+const formatDateWithDay = (dateString: string): string => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+                  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  
+  const dayName = days[date.getDay()];
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  
+  return `${dayName}, ${day} ${month} ${year}`;
+};
+
 // TypeScript interfaces
 interface Order {
   id: string;
@@ -137,6 +167,13 @@ const AdminOrderDetailPage: React.FC = () => {
   const [trackingNumberError] = useState<string>('');
   const [locations, setLocations] = useState<any>([]);
   const [lokasi_pengiriman, setLokasiPengiriman] = useState<string>('');
+  
+  // Pickup details state for "Siap Ambil" status
+  const [pickupOutlet, setPickupOutlet] = useState<string>('');
+  const [pickedUpBy, setPickedUpBy] = useState<string>('');
+  const [pickupDate, setPickupDate] = useState<string>('');
+  const [pickupTime, setPickupTime] = useState<string>('');
+  
    const location = useLocation();
   const [fullUrl, setFullUrl] = useState('');
 
@@ -1061,6 +1098,95 @@ useEffect(() => {
                   ))}
                 </Select>
               </FormControl>
+
+              {/* Pickup Details for "Siap Ambil" Status */}
+              {shippingStatus === 'siap di ambil' && (
+                <>
+                  <Divider />
+                  <Text fontWeight="bold" color="blue.600" mb={2}>
+                    Detail Pengambilan Pesanan
+                  </Text>
+                  
+                  {/* Outlet Pengambilan */}
+                  <FormControl isRequired>
+                    <FormLabel>Outlet Pengambilan</FormLabel>
+                    <Select
+                      value={pickupOutlet}
+                      onChange={(e) => setPickupOutlet(e.target.value)}
+                      placeholder="Pilih outlet pengambilan"
+                    >
+                      {OUTLET_LOCATIONS.map((outlet) => (
+                        <option key={outlet.value} value={outlet.value}>
+                          {outlet.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  {/* Diambil Oleh */}
+                  <FormControl isRequired>
+                    <FormLabel>Diambil Oleh</FormLabel>
+                    <Input
+                      value={pickedUpBy}
+                      onChange={(e) => setPickedUpBy(e.target.value)}
+                      placeholder="Nama orang yang mengambil pesanan"
+                    />
+                  </FormControl>
+
+                  {/* Tanggal Pengambilan */}
+                  <FormControl isRequired>
+                    <FormLabel>Tanggal Pengambilan</FormLabel>
+                    <Input
+                      type="date"
+                      value={pickupDate}
+                      onChange={(e) => setPickupDate(e.target.value)}
+                    />
+                    {pickupDate && (
+                      <Text fontSize="sm" color="gray.600" mt={1}>
+                        {formatDateWithDay(pickupDate)}
+                      </Text>
+                    )}
+                  </FormControl>
+
+                  {/* Jam Pengambilan */}
+                  <FormControl isRequired>
+                    <FormLabel>Jam Pengambilan</FormLabel>
+                    <Select
+                      value={pickupTime}
+                      onChange={(e) => setPickupTime(e.target.value)}
+                      placeholder="Pilih jam pengambilan"
+                    >
+                      <option value="">Pilih Jam</option>
+                      <option value="08:30">08:30 WIB</option>
+                      <option value="09:00">09:00 WIB</option>
+                      <option value="09:30">09:30 WIB</option>
+                      <option value="10:00">10:00 WIB</option>
+                      <option value="10:30">10:30 WIB</option>
+                      <option value="11:00">11:00 WIB</option>
+                      <option value="11:30">11:30 WIB</option>
+                      <option value="12:00">12:00 WIB</option>
+                      <option value="12:30">12:30 WIB</option>
+                      <option value="13:00">13:00 WIB</option>
+                      <option value="13:30">13:30 WIB</option>
+                      <option value="14:00">14:00 WIB</option>
+                      <option value="14:30">14:30 WIB</option>
+                      <option value="15:00">15:00 WIB</option>
+                      <option value="15:30">15:30 WIB</option>
+                      <option value="16:00">16:00 WIB</option>
+                      <option value="16:30">16:30 WIB</option>
+                      <option value="17:00">17:00 WIB</option>
+                      <option value="17:30">17:30 WIB</option>
+                      <option value="18:00">18:00 WIB</option>
+                      <option value="18:30">18:30 WIB</option>
+                      <option value="19:00">19:00 WIB</option>
+                      <option value="19:30">19:30 WIB</option>
+                      <option value="20:00">20:00 WIB</option>
+                      <option value="20:30">20:30 WIB</option>
+                    </Select>
+                  </FormControl>
+                  <Divider />
+                </>
+              )}
 
               {/* Shipping Area */}
               <FormControl>
