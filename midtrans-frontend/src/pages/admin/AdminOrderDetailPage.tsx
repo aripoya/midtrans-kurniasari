@@ -313,8 +313,17 @@ const AdminOrderDetailPage: React.FC = () => {
         courier_service: courierService,
         tracking_number: trackingNumber,
         // For delivery orders: lokasi_pengiriman = outlet, lokasi_pengambilan = outlet, lokasi_pengantaran = customer address
-        lokasi_pengiriman: shippingArea === 'luar-kota' ? undefined : (order?.lokasi_pengiriman || "Outlet Bonbin"),
-        lokasi_pengambilan: shippingArea === 'luar-kota' ? undefined : (order?.lokasi_pengiriman || "Outlet Bonbin"), 
+        // CRITICAL FIX: Always send outlet name, never area labels like "Dalam Kota"
+        lokasi_pengiriman: shippingArea === 'luar-kota' ? undefined : 
+          // Ensure we send a valid outlet name, not area labels
+          (order?.lokasi_pengiriman && !['Dalam Kota', 'Luar Kota', 'dalam-kota', 'luar-kota'].includes(order.lokasi_pengiriman) 
+            ? order.lokasi_pengiriman 
+            : "Outlet Bonbin"),
+        lokasi_pengambilan: shippingArea === 'luar-kota' ? undefined : 
+          // Ensure we send a valid outlet name, not area labels  
+          (order?.lokasi_pengiriman && !['Dalam Kota', 'Luar Kota', 'dalam-kota', 'luar-kota'].includes(order.lokasi_pengiriman)
+            ? order.lokasi_pengiriman 
+            : "Outlet Bonbin"), 
         lokasi_pengantaran: order?.customer_address, // Customer address for delivery destination
         tipe_pesanan: shippingArea === 'luar-kota' ? undefined : order?.tipe_pesanan || undefined,
         admin_note: adminNote
