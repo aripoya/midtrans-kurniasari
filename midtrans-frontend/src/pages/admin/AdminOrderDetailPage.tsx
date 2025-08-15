@@ -1188,16 +1188,18 @@ useEffect(() => {
                 </>
               )}
 
-              {/* Shipping Area */}
-              <FormControl>
-                <FormLabel>Area Pengiriman</FormLabel>
-                <RadioGroup value={shippingArea} onChange={setShippingArea}>
-                  <Stack direction="row">
-                    <Radio value="dalam-kota">Dalam Kota</Radio>
-                    <Radio value="luar-kota">Luar Kota</Radio>
-                  </Stack>
-                </RadioGroup>
-              </FormControl>
+              {/* Shipping Area - Hidden for Siap Ambil */}
+              {shippingStatus !== 'siap di ambil' && (
+                <FormControl>
+                  <FormLabel>Area Pengiriman</FormLabel>
+                  <RadioGroup value={shippingArea} onChange={setShippingArea}>
+                    <Stack direction="row">
+                      <Radio value="dalam-kota">Dalam Kota</Radio>
+                      <Radio value="luar-kota">Luar Kota</Radio>
+                    </Stack>
+                  </RadioGroup>
+                </FormControl>
+              )}
 
               {/* Lokasi Pengiriman - show differently for pickup vs delivery */}
               {shippingArea === 'dalam-kota' && (
@@ -1291,20 +1293,22 @@ useEffect(() => {
                 </FormControl>
               )}
 
-              {/* Tracking Number */}
-              <FormControl>
-                <FormLabel>Nomor Resi (Opsional)</FormLabel>
-                <Input
-                  value={trackingNumber}
-                  onChange={(e) => setTrackingNumber(e.target.value)}
-                  placeholder="Masukkan nomor resi"
-                />
-                {trackingNumberError && (
-                  <Text color="red.500" fontSize="sm" mt={1}>
-                    {trackingNumberError}
-                  </Text>
-                )}
-              </FormControl>
+              {/* Tracking Number - Hidden for Siap Ambil */}
+              {shippingStatus !== 'siap di ambil' && (
+                <FormControl>
+                  <FormLabel>Nomor Resi (Opsional)</FormLabel>
+                  <Input
+                    value={trackingNumber}
+                    onChange={(e) => setTrackingNumber(e.target.value)}
+                    placeholder="Masukkan nomor resi"
+                  />
+                  {trackingNumberError && (
+                    <Text color="red.500" fontSize="sm" mt={1}>
+                      {trackingNumberError}
+                    </Text>
+                  )}
+                </FormControl>
+              )}
 
               {/* Admin Note */}
               <FormControl>
