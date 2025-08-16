@@ -82,6 +82,16 @@ const formatPickupDate = (dateString: string): string => {
   return dateString; // Return as-is if cannot format
 };
 
+// Helper function to check if status is pickup-related
+const isPickupStatus = (status: string): boolean => {
+  if (!status) return false;
+  const normalizedStatus = status.toLowerCase().trim();
+  return normalizedStatus === 'siap di ambil' || 
+         normalizedStatus === 'siap diambil' || 
+         normalizedStatus === 'sudah di ambil' || 
+         normalizedStatus === 'sudah diambil';
+};
+
 // TypeScript interfaces
 interface Order {
   id: string;
@@ -379,12 +389,10 @@ const AdminOrderDetailPage: React.FC = () => {
         admin_note: adminNote,
       };
 
-      // For pickup statuses: only include pickup fields, exclude all delivery fields
+      // For pickup statuses: let backend auto-populate pickup fields, exclude all delivery fields
       if (isPickupTransition) {
-        updateData.pickup_outlet = pickupOutlet;
-        updateData.picked_up_by = pickedUpBy;
-        updateData.pickup_date = pickupDate;
-        updateData.pickup_time = pickupTime;
+        // Don't send pickup fields - let backend auto-populate with current date/time and outlet info
+        // Backend will handle: pickup_outlet, picked_up_by, pickup_date, pickup_time
       } else {
         // For non-pickup statuses: include delivery fields as before
         updateData.shipping_area = shippingArea as "dalam-kota" | "luar-kota" | undefined;
@@ -1171,7 +1179,7 @@ useEffect(() => {
               </FormControl>
 
               {/* Pickup Details for Both Pickup Statuses */}
-              {(shippingStatus === 'siap di ambil' || shippingStatus === 'sudah di ambil') && (
+              {isPickupStatus(shippingStatus) && (
                 <>
                   <Divider />
                   <Text fontWeight="bold" color="blue.600" mb={2}>
@@ -1272,7 +1280,7 @@ useEffect(() => {
               )}
 
               {/* Shipping Area - Hidden for Pickup Statuses */}
-              {shippingStatus !== 'siap di ambil' && shippingStatus !== 'sudah di ambil' && (
+              {!isPickupStatus(shippingStatus) && (
                 <FormControl>
                   <FormLabel>Area Pengiriman</FormLabel>
                   <RadioGroup value={shippingArea} onChange={setShippingArea}>
@@ -1285,7 +1293,7 @@ useEffect(() => {
               )}
 
               {/* Lokasi Pengiriman - Hidden for Pickup Statuses */}
-              {shippingStatus !== 'siap di ambil' && shippingStatus !== 'sudah di ambil' && shippingArea === 'dalam-kota' && (
+              {!isPickupStatus(shippingStatus) && shippingArea === 'dalam-kota' && (
                 <FormControl>
                   <FormLabel>
                     {shippingStatus === 'Siap Kirim' ? 'Tujuan Pengiriman' : 'Lokasi Pengiriman'}
@@ -1322,7 +1330,7 @@ useEffect(() => {
               )}
 
               {/* Pickup Method - Hidden for Pickup Statuses */}
-              {shippingStatus !== 'siap di ambil' && shippingStatus !== 'sudah di ambil' && shippingArea === 'dalam-kota' && (
+              {!isPickupStatus(shippingStatus) && shippingArea === 'dalam-kota' && (
                 <FormControl>
                   <FormLabel>Metode Pengiriman</FormLabel>
                   <RadioGroup value={pickupMethod} onChange={setPickupMethod}>
@@ -1335,7 +1343,7 @@ useEffect(() => {
               )}
 
               {/* Courier Service - for deliveryman (Kurir Toko) - Hidden for Pickup Statuses */}
-              {shippingStatus !== 'siap di ambil' && shippingStatus !== 'sudah di ambil' && pickupMethod === 'deliveryman' && shippingArea === 'dalam-kota' && (
+              {!isPickupStatus(shippingStatus) && pickupMethod === 'deliveryman' && shippingArea === 'dalam-kota' && (
                 <FormControl>
                   <FormLabel>Nama Kurir</FormLabel>
                   <Input
@@ -1347,7 +1355,7 @@ useEffect(() => {
               )}
 
               {/* Courier Service - for ojek-online and luar-kota - Hidden for Pickup Statuses */}
-              {shippingStatus !== 'siap di ambil' && shippingStatus !== 'sudah di ambil' && (pickupMethod === 'ojek-online' || shippingArea === 'luar-kota') && (
+              {!isPickupStatus(shippingStatus) && (pickupMethod === 'ojek-online' || shippingArea === 'luar-kota') && (
                 <FormControl>
                   <FormLabel>Layanan Kurir</FormLabel>
                   <Select
@@ -1377,7 +1385,7 @@ useEffect(() => {
               )}
 
               {/* Tracking Number - Hidden for Pickup Statuses */}
-              {shippingStatus !== 'siap di ambil' && shippingStatus !== 'sudah di ambil' && (
+              {!isPickupStatus(shippingStatus) && (
                 <FormControl>
                   <FormLabel>Nomor Resi (Opsional)</FormLabel>
                   <Input
