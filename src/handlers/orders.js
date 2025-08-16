@@ -349,7 +349,12 @@ export async function getOrderById(request, env) {
       lokasi_pengiriman: lokasiPengirimanNama,
       lokasi_pengambilan: lokasiPengambilanNama,
       items,
-      shipping_images
+      shipping_images,
+      // Explicitly include pickup details from database
+      pickup_outlet: order.pickup_outlet || null,
+      picked_up_by: order.picked_up_by || null,
+      pickup_date: order.pickup_date || null,
+      pickup_time: order.pickup_time || null
       // shipping_area sudah termasuk dalam ...order
     };
 
@@ -785,10 +790,43 @@ export async function updateOrderStatus(request, env) {
       }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Update the order status
-    const updateResult = await env.DB.prepare(
-      'UPDATE orders SET shipping_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-    ).bind(status, orderId).run();
+    // Update the order status and handle pickup status transition
+    let updateQuery = 'UPDATE orders SET shipping_status = ?, updated_at = CURRENT_TIMESTAMP';
+    let updateParams = [status];
+    
+    // When status becomes pickup-related, clear delivery fields and set pickup fields
+    if (status.toLowerCase() === 'siap di ambil' || 
+        status.toLowerCase() === 'siap diambil' || 
+        status.toLowerCase() === 'sudah diambil' || 
+        status.toLowerCase() === 'sudah di ambil') {
+      // Clear delivery-related fields
+      updateQuery += ', shipping_area = NULL, pickup_method = NULL, courier_service = NULL, tracking_number = NULL, lokasi_pengiriman = NULL, lokasi_pengambilan = NULL, lokasi_pengantaran = NULL';
+      
+      // Set pickup fields with current outlet and user info
+      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const currentTime = new Date().toLocaleTimeString('en-GB', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta'
+      }); // HH:MM format in Jakarta timezone
+      
+      // Get the outlet name from current order
+      const outletName = currentOrder.outlet_name || 'Outlet Tidak Diketahui';
+      
+      // Get user name from request if available, fallback to role or default
+      let pickedUpBy = 'System';
+      if (request.user) {
+        pickedUpBy = request.user.username || request.user.name || request.user.role || 'Admin';
+      }
+      
+      updateQuery += ', pickup_outlet = ?, picked_up_by = ?, pickup_date = ?, pickup_time = ?';
+      updateParams.push(outletName, pickedUpBy, currentDate, currentTime);
+    }
+    
+    updateQuery += ' WHERE id = ?';
+    updateParams.push(orderId);
+    
+    const updateResult = await env.DB.prepare(updateQuery).bind(...updateParams).run();
 
     if (updateResult.meta.changes === 0) {
       return new Response(JSON.stringify({ 

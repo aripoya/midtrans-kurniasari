@@ -47,7 +47,7 @@ export async function updateOutletOrderStatus(request, env) {
     }
 
     // Validate shipping status values
-    const validStatuses = ['pending', 'processing', 'dikemas', 'siap kirim', 'shipping', 'delivered'];
+    const validStatuses = ['pending', 'processing', 'dikemas', 'siap kirim', 'siap di ambil', 'siap diambil', 'shipping', 'delivered', 'sudah diambil', 'sudah di ambil'];
     if (!validStatuses.includes(shipping_status)) {
       return new Response(JSON.stringify({
         success: false,
@@ -69,7 +69,8 @@ export async function updateOutletOrderStatus(request, env) {
     }
     
     const existingOrder = await env.DB.prepare(
-      `SELECT id, shipping_status, outlet_id FROM orders ${whereClause}`
+      `SELECT o.id, o.shipping_status, o.outlet_id, ou.name as outlet_name FROM orders o
+       LEFT JOIN outlets_unified ou ON o.outlet_id = ou.id ${whereClause}`
     ).bind(...bindParams).first();
     
     if (!existingOrder) {
@@ -82,10 +83,43 @@ export async function updateOutletOrderStatus(request, env) {
       });
     }
 
-    // Update shipping status
-    const updateResult = await env.DB.prepare(
-      `UPDATE orders SET shipping_status = ?, updated_at = datetime('now') ${whereClause}`
-    ).bind(shipping_status, ...bindParams).run();
+    // Update shipping status and handle pickup status transition
+    let updateQuery = 'UPDATE orders SET shipping_status = ?, updated_at = datetime(\'now\')';
+    let updateParams = [shipping_status];
+    
+    // When status becomes pickup-related, clear delivery fields and set pickup fields
+    if (shipping_status.toLowerCase() === 'siap di ambil' || 
+        shipping_status.toLowerCase() === 'siap diambil' || 
+        shipping_status.toLowerCase() === 'sudah diambil' || 
+        shipping_status.toLowerCase() === 'sudah di ambil') {
+      // Clear delivery-related fields
+      updateQuery += ', shipping_area = NULL, pickup_method = NULL, courier_service = NULL, tracking_number = NULL, lokasi_pengiriman = NULL, lokasi_pengambilan = NULL, lokasi_pengantaran = NULL';
+      
+      // Set pickup fields with current outlet and user info
+      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const currentTime = new Date().toLocaleTimeString('en-GB', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta'
+      }); // HH:MM format in Jakarta timezone
+      
+      // Get the outlet name from existing order
+      const outletName = existingOrder.outlet_name || 'Outlet Tidak Diketahui';
+      
+      // Get user name from request if available, fallback to role or default
+      let pickedUpBy = 'System';
+      if (request.user) {
+        pickedUpBy = request.user.username || request.user.name || request.user.role || 'Outlet Manager';
+      }
+      
+      updateQuery += ', pickup_outlet = ?, picked_up_by = ?, pickup_date = ?, pickup_time = ?';
+      updateParams.push(outletName, pickedUpBy, currentDate, currentTime);
+    }
+    
+    updateQuery += ` ${whereClause}`;
+    updateParams.push(...bindParams);
+    
+    const updateResult = await env.DB.prepare(updateQuery).bind(...updateParams).run();
     
     if (updateResult.changes === 0) {
       return new Response(JSON.stringify({

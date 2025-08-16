@@ -954,29 +954,33 @@ useEffect(() => {
                     </Tr>
                   )}
                   {/* Show Pickup Details for pickup statuses */}
-                  {(order.shipping_status === 'siap di ambil' || order.shipping_status === 'sudah di ambil') && (order as any).pickup_outlet && (
-                    <Tr>
-                      <Td fontWeight="semibold">Outlet Pengambilan</Td>
-                      <Td>{(order as any).pickup_outlet}</Td>
-                    </Tr>
-                  )}
-                  {(order.shipping_status === 'siap di ambil' || order.shipping_status === 'sudah di ambil') && (order as any).picked_up_by && (
-                    <Tr>
-                      <Td fontWeight="semibold">Diambil Oleh</Td>
-                      <Td>{(order as any).picked_up_by}</Td>
-                    </Tr>
-                  )}
-                  {(order.shipping_status === 'siap di ambil' || order.shipping_status === 'sudah di ambil') && (order as any).pickup_date && (
-                    <Tr>
-                      <Td fontWeight="semibold">Tanggal Pengambilan</Td>
-                      <Td>{(order as any).pickup_date}</Td>
-                    </Tr>
-                  )}
-                  {(order.shipping_status === 'siap di ambil' || order.shipping_status === 'sudah di ambil') && (order as any).pickup_time && (
-                    <Tr>
-                      <Td fontWeight="semibold">Jam Pengambilan</Td>
-                      <Td>{(order as any).pickup_time}</Td>
-                    </Tr>
+                  {(order.shipping_status?.toLowerCase().includes('siap') || order.shipping_status?.toLowerCase().includes('ambil')) && (
+                    <>
+                      {((order as any).pickup_outlet || pickupOutlet) && (
+                        <Tr>
+                          <Td fontWeight="semibold">Outlet Pengambilan</Td>
+                          <Td>{(order as any).pickup_outlet || pickupOutlet}</Td>
+                        </Tr>
+                      )}
+                      {((order as any).picked_up_by || pickedUpBy) && (
+                        <Tr>
+                          <Td fontWeight="semibold">Diambil Oleh</Td>
+                          <Td>{(order as any).picked_up_by || pickedUpBy}</Td>
+                        </Tr>
+                      )}
+                      {((order as any).pickup_date || pickupDate) && (
+                        <Tr>
+                          <Td fontWeight="semibold">Tanggal Pengambilan</Td>
+                          <Td>{(order as any).pickup_date || pickupDate}</Td>
+                        </Tr>
+                      )}
+                      {((order as any).pickup_time || pickupTime) && (
+                        <Tr>
+                          <Td fontWeight="semibold">Jam Pengambilan</Td>
+                          <Td>{(order as any).pickup_time || pickupTime}</Td>
+                        </Tr>
+                      )}
+                    </>
                   )}
                   {/* Only show Lokasi Pengambilan for Dalam Kota orders (non-pickup) */}
                   {order.lokasi_pengambilan && order.shipping_area === 'dalam-kota' && order.shipping_status !== 'siap di ambil' && order.shipping_status !== 'sudah di ambil' && (
