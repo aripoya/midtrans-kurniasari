@@ -1188,8 +1188,8 @@ useEffect(() => {
                 </>
               )}
 
-              {/* Shipping Area - Hidden for Siap Ambil */}
-              {shippingStatus !== 'siap di ambil' && (
+              {/* Shipping Area - Hidden for Pickup Statuses */}
+              {shippingStatus !== 'siap di ambil' && shippingStatus !== 'sudah di ambil' && (
                 <FormControl>
                   <FormLabel>Area Pengiriman</FormLabel>
                   <RadioGroup value={shippingArea} onChange={setShippingArea}>
@@ -1201,8 +1201,8 @@ useEffect(() => {
                 </FormControl>
               )}
 
-              {/* Lokasi Pengiriman - Hidden for Siap Ambil */}
-              {shippingStatus !== 'siap di ambil' && shippingArea === 'dalam-kota' && (
+              {/* Lokasi Pengiriman - Hidden for Pickup Statuses */}
+              {shippingStatus !== 'siap di ambil' && shippingStatus !== 'sudah di ambil' && shippingArea === 'dalam-kota' && (
                 <FormControl>
                   <FormLabel>
                     {shippingStatus === 'Siap Kirim' ? 'Tujuan Pengiriman' : 'Lokasi Pengiriman'}
@@ -1238,8 +1238,8 @@ useEffect(() => {
                 </FormControl>
               )}
 
-              {/* Pickup Method - Hidden for Siap Ambil */}
-              {shippingStatus !== 'siap di ambil' && shippingArea === 'dalam-kota' && (
+              {/* Pickup Method - Hidden for Pickup Statuses */}
+              {shippingStatus !== 'siap di ambil' && shippingStatus !== 'sudah di ambil' && shippingArea === 'dalam-kota' && (
                 <FormControl>
                   <FormLabel>Metode Pengiriman</FormLabel>
                   <RadioGroup value={pickupMethod} onChange={setPickupMethod}>
@@ -1251,8 +1251,8 @@ useEffect(() => {
                 </FormControl>
               )}
 
-              {/* Courier Service - for deliveryman (Kurir Toko) - Hidden for Siap Ambil */}
-              {shippingStatus !== 'siap di ambil' && pickupMethod === 'deliveryman' && shippingArea === 'dalam-kota' && (
+              {/* Courier Service - for deliveryman (Kurir Toko) - Hidden for Pickup Statuses */}
+              {shippingStatus !== 'siap di ambil' && shippingStatus !== 'sudah di ambil' && pickupMethod === 'deliveryman' && shippingArea === 'dalam-kota' && (
                 <FormControl>
                   <FormLabel>Nama Kurir</FormLabel>
                   <Input
@@ -1263,8 +1263,8 @@ useEffect(() => {
                 </FormControl>
               )}
 
-              {/* Courier Service - for ojek-online and luar-kota - Hidden for Siap Ambil */}
-              {shippingStatus !== 'siap di ambil' && (pickupMethod === 'ojek-online' || shippingArea === 'luar-kota') && (
+              {/* Courier Service - for ojek-online and luar-kota - Hidden for Pickup Statuses */}
+              {shippingStatus !== 'siap di ambil' && shippingStatus !== 'sudah di ambil' && (pickupMethod === 'ojek-online' || shippingArea === 'luar-kota') && (
                 <FormControl>
                   <FormLabel>Layanan Kurir</FormLabel>
                   <Select
@@ -1293,8 +1293,8 @@ useEffect(() => {
                 </FormControl>
               )}
 
-              {/* Tracking Number - Hidden for Siap Ambil */}
-              {shippingStatus !== 'siap di ambil' && (
+              {/* Tracking Number - Hidden for Pickup Statuses */}
+              {shippingStatus !== 'siap di ambil' && shippingStatus !== 'sudah di ambil' && (
                 <FormControl>
                   <FormLabel>Nomor Resi (Opsional)</FormLabel>
                   <Input
