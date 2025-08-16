@@ -51,6 +51,37 @@ const formatDateWithDay = (dateString: string): string => {
   return `${dayName}, ${day} ${month} ${year}`;
 };
 
+// Helper function to format pickup date to DD-MM-YYYY
+const formatPickupDate = (dateString: string): string => {
+  if (!dateString) return '';
+  
+  // If already in DD-MM-YYYY format, return as is
+  if (dateString.match(/^\d{2}-\d{2}-\d{4}$/)) {
+    return dateString;
+  }
+  
+  // If in YYYY-MM-DD format, convert to DD-MM-YYYY
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = dateString.split('-');
+    return `${day}-${month}-${year}`;
+  }
+  
+  // Try to parse as a date and format
+  try {
+    const date = new Date(dateString);
+    if (!isNaN(date.getTime())) {
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    }
+  } catch (e) {
+    console.warn('Failed to parse pickup date:', dateString);
+  }
+  
+  return dateString; // Return as-is if cannot format
+};
+
 // TypeScript interfaces
 interface Order {
   id: string;
@@ -974,7 +1005,7 @@ useEffect(() => {
                       {((order as any).pickup_date || pickupDate) && (
                         <Tr>
                           <Td fontWeight="semibold">Tanggal Pengambilan</Td>
-                          <Td>{(order as any).pickup_date || pickupDate}</Td>
+                          <Td>{formatPickupDate((order as any).pickup_date || pickupDate)}</Td>
                         </Tr>
                       )}
                       {((order as any).pickup_time || pickupTime) && (
