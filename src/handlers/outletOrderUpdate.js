@@ -96,7 +96,8 @@ export async function updateOutletOrderStatus(request, env) {
       updateQuery += ', shipping_area = NULL, pickup_method = NULL, courier_service = NULL, tracking_number = NULL, lokasi_pengiriman = NULL, lokasi_pengambilan = NULL';
       
       // Set pickup fields with current outlet and user info
-      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      const now = new Date();
+      const currentDate = `${now.getDate().toString().padStart(2, '0')}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getFullYear()}`; // DD-MM-YYYY format
       const currentTime = new Date().toLocaleTimeString('en-GB', { 
         hour: '2-digit', 
         minute: '2-digit',
