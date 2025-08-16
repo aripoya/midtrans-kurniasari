@@ -1102,8 +1102,8 @@ useEffect(() => {
                 </Select>
               </FormControl>
 
-              {/* Pickup Details for "Siap Ambil" Status */}
-              {shippingStatus === 'siap di ambil' && (
+              {/* Pickup Details for Both Pickup Statuses */}
+              {(shippingStatus === 'siap di ambil' || shippingStatus === 'sudah di ambil') && (
                 <>
                   <Divider />
                   <Text fontWeight="bold" color="blue.600" mb={2}>
