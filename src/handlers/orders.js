@@ -803,7 +803,7 @@ export async function updateOrderStatus(request, env) {
       console.log(`[DEBUG] Pickup transition detected for status: ${status}`);
       
       // Clear delivery-related fields
-      updateQuery += ', shipping_area = NULL, pickup_method = NULL, courier_service = NULL, tracking_number = NULL, lokasi_pengiriman = NULL, lokasi_pengambilan = NULL, lokasi_pengantaran = NULL';
+      updateQuery += ', shipping_area = NULL, pickup_method = NULL, courier_service = NULL, tracking_number = NULL, lokasi_pengiriman = NULL, lokasi_pengambilan = NULL';
       
       // Set pickup fields with current outlet and user info
       const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -1007,6 +1007,7 @@ export async function updateOrderDetails(request, env) {
 
     const updateFields = [];
     const updateParams = [];
+    let isPickupTransition = false;
 
     // Update shipping status jika ada
     if (status !== undefined) { 
@@ -1036,6 +1037,7 @@ export async function updateOrderDetails(request, env) {
           status.toLowerCase() === 'sudah diambil' || 
           status.toLowerCase() === 'sudah di ambil') {
         
+        isPickupTransition = true;
         console.log(`[DEBUG updateOrderDetails] Pickup transition detected for status: ${status}`);
         
         // Clear delivery-related fields
@@ -1045,7 +1047,6 @@ export async function updateOrderDetails(request, env) {
         updateFields.push('tracking_number = NULL');
         updateFields.push('lokasi_pengiriman = NULL');
         updateFields.push('lokasi_pengambilan = NULL');
-        updateFields.push('lokasi_pengantaran = NULL');
         
         // Set pickup fields with current outlet and user info
         const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -1085,13 +1086,19 @@ export async function updateOrderDetails(request, env) {
       updateFields.push('shipping_status = ?'); 
       updateParams.push(status); 
     }
-    // Aktifkan kembali shipping_area karena kolom sudah ditambahkan ke database
-    if (shipping_area !== undefined) { updateFields.push('shipping_area = ?'); updateParams.push(shipping_area); }
-    // Kolom pickup_method sudah ditambahkan kembali ke database
-    if (pickup_method !== undefined) { updateFields.push('pickup_method = ?'); updateParams.push(pickup_method); }
+    
+    // Skip delivery fields if this is a pickup transition (they were already set to NULL)
+    if (!isPickupTransition) {
+      // Aktifkan kembali shipping_area karena kolom sudah ditambahkan ke database
+      if (shipping_area !== undefined) { updateFields.push('shipping_area = ?'); updateParams.push(shipping_area); }
+      // Kolom pickup_method sudah ditambahkan kembali ke database
+      if (pickup_method !== undefined) { updateFields.push('pickup_method = ?'); updateParams.push(pickup_method); }
+      if (tracking_number !== undefined) { updateFields.push('tracking_number = ?'); updateParams.push(tracking_number); }
+      if (courier_service !== undefined) { updateFields.push('courier_service = ?'); updateParams.push(courier_service); }
+    }
+    
+    // Non-delivery fields that can always be updated
     if (admin_note !== undefined) { updateFields.push('admin_note = ?'); updateParams.push(admin_note); }
-    if (tracking_number !== undefined) { updateFields.push('tracking_number = ?'); updateParams.push(tracking_number); }
-    if (courier_service !== undefined) { updateFields.push('courier_service = ?'); updateParams.push(courier_service); }
     if (tipe_pesanan !== undefined) { updateFields.push('tipe_pesanan = ?'); updateParams.push(tipe_pesanan); }
     
     // Pickup detail fields for pickup statuses
@@ -1100,17 +1107,20 @@ export async function updateOrderDetails(request, env) {
     if (pickup_date !== undefined) { updateFields.push('pickup_date = ?'); updateParams.push(pickup_date); }
     if (pickup_time !== undefined) { updateFields.push('pickup_time = ?'); updateParams.push(pickup_time); }
 
-    // REDESIGNED SHIPPING INFO LOGIC - REMOVE INVALID VALIDATION
-    // lokasi_pengambilan should always be outlet name, lokasi_pengiriman should be customer address
-    // No need for locations table validation since these are actual outlet names and customer addresses
-    if (lokasiPengirimanName !== undefined) {
-      updateFields.push('lokasi_pengiriman = ?');
-      updateParams.push(lokasiPengirimanName || null);
-    }
+    // Skip lokasi fields if this is a pickup transition (they were already set to NULL)
+    if (!isPickupTransition) {
+      // REDESIGNED SHIPPING INFO LOGIC - REMOVE INVALID VALIDATION
+      // lokasi_pengambilan should always be outlet name, lokasi_pengiriman should be customer address
+      // No need for locations table validation since these are actual outlet names and customer addresses
+      if (lokasiPengirimanName !== undefined) {
+        updateFields.push('lokasi_pengiriman = ?');
+        updateParams.push(lokasiPengirimanName || null);
+      }
 
-    if (lokasiPengambilanName !== undefined) {
-      updateFields.push('lokasi_pengambilan = ?');
-      updateParams.push(lokasiPengambilanName || null);
+      if (lokasiPengambilanName !== undefined) {
+        updateFields.push('lokasi_pengambilan = ?');
+        updateParams.push(lokasiPengambilanName || null);
+      }
     }
 
     if (updateFields.length === 0) {

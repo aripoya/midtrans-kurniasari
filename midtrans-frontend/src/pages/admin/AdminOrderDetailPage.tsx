@@ -339,37 +339,40 @@ const AdminOrderDetailPage: React.FC = () => {
   const handleUpdateStatus = async (): Promise<void> => {
     setIsUpdating(true);
     try {
-      // FIXED: Proper mapping for delivery orders
-      // lokasi_pengambilan = outlet (where item is picked up FROM)
-      // lokasi_pengantaran = customer address (where item is delivered TO)
-      const updateData = {
+      // Check if this is a pickup transition
+      const isPickupTransition = ['siap di ambil', 'siap diambil', 'sudah di ambil', 'sudah diambil'].includes(shippingStatus);
+      
+      // Base update data
+      const updateData: any = {
         status: shippingStatus,  // Fixed: backend expects 'status' not 'shipping_status'
-        shipping_area: shippingArea as "dalam-kota" | "luar-kota" | undefined,
-        // For Luar Kota orders, set all irrelevant fields to undefined since they're not relevant for out-of-city deliveries
-        pickup_method: shippingArea === 'luar-kota' ? undefined : mapDisplayLabelToBackendValue(pickupMethod, 'pickup_method') || undefined,
-        courier_service: courierService,
-        tracking_number: trackingNumber,
-        // For delivery orders: lokasi_pengiriman = outlet, lokasi_pengambilan = outlet, lokasi_pengantaran = customer address
-        // CRITICAL FIX: Always send outlet name, never area labels like "Dalam Kota"
-        lokasi_pengiriman: shippingArea === 'luar-kota' ? undefined : 
+        admin_note: adminNote,
+      };
+
+      // For pickup statuses: only include pickup fields, exclude all delivery fields
+      if (isPickupTransition) {
+        updateData.pickup_outlet = pickupOutlet;
+        updateData.picked_up_by = pickedUpBy;
+        updateData.pickup_date = pickupDate;
+        updateData.pickup_time = pickupTime;
+      } else {
+        // For non-pickup statuses: include delivery fields as before
+        updateData.shipping_area = shippingArea as "dalam-kota" | "luar-kota" | undefined;
+        updateData.pickup_method = shippingArea === 'luar-kota' ? undefined : mapDisplayLabelToBackendValue(pickupMethod, 'pickup_method') || undefined;
+        updateData.courier_service = courierService;
+        updateData.tracking_number = trackingNumber;
+        updateData.lokasi_pengiriman = shippingArea === 'luar-kota' ? undefined : 
           // Ensure we send a valid outlet name, not area labels
           (order?.lokasi_pengiriman && !['Dalam Kota', 'Luar Kota', 'dalam-kota', 'luar-kota'].includes(order.lokasi_pengiriman) 
             ? order.lokasi_pengiriman 
-            : "Outlet Bonbin"),
-        lokasi_pengambilan: shippingArea === 'luar-kota' ? undefined : 
+            : "Outlet Bonbin");
+        updateData.lokasi_pengambilan = shippingArea === 'luar-kota' ? undefined : 
           // Ensure we send a valid outlet name, not area labels  
           (order?.lokasi_pengiriman && !['Dalam Kota', 'Luar Kota', 'dalam-kota', 'luar-kota'].includes(order.lokasi_pengiriman)
             ? order.lokasi_pengiriman 
-            : "Outlet Bonbin"), 
-        lokasi_pengantaran: order?.customer_address, // Customer address for delivery destination
-        tipe_pesanan: shippingArea === 'luar-kota' ? undefined : order?.tipe_pesanan || undefined,
-        admin_note: adminNote,
-        // Include pickup details for pickup statuses
-        pickup_outlet: (shippingStatus === 'siap di ambil' || shippingStatus === 'sudah di ambil') ? pickupOutlet : undefined,
-        picked_up_by: (shippingStatus === 'siap di ambil' || shippingStatus === 'sudah di ambil') ? pickedUpBy : undefined,
-        pickup_date: (shippingStatus === 'siap di ambil' || shippingStatus === 'sudah di ambil') ? pickupDate : undefined,
-        pickup_time: (shippingStatus === 'siap di ambil' || shippingStatus === 'sudah di ambil') ? pickupTime : undefined
-      };
+            : "Outlet Bonbin");
+        updateData.lokasi_pengantaran = order?.customer_address; // Customer address for delivery destination
+        updateData.tipe_pesanan = shippingArea === 'luar-kota' ? undefined : order?.tipe_pesanan || undefined;
+      }
       
       console.log('PATCH updateData (after mapping):', updateData); // Debug log
       const result = await adminApi.updateOrderDetails(id!, updateData);

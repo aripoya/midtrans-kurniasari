@@ -93,7 +93,7 @@ export async function updateOutletOrderStatus(request, env) {
         shipping_status.toLowerCase() === 'sudah diambil' || 
         shipping_status.toLowerCase() === 'sudah di ambil') {
       // Clear delivery-related fields
-      updateQuery += ', shipping_area = NULL, pickup_method = NULL, courier_service = NULL, tracking_number = NULL, lokasi_pengiriman = NULL, lokasi_pengambilan = NULL, lokasi_pengantaran = NULL';
+      updateQuery += ', shipping_area = NULL, pickup_method = NULL, courier_service = NULL, tracking_number = NULL, lokasi_pengiriman = NULL, lokasi_pengambilan = NULL';
       
       // Set pickup fields with current outlet and user info
       const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
