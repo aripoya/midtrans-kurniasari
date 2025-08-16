@@ -799,6 +799,9 @@ export async function updateOrderStatus(request, env) {
         status.toLowerCase() === 'siap diambil' || 
         status.toLowerCase() === 'sudah diambil' || 
         status.toLowerCase() === 'sudah di ambil') {
+      
+      console.log(`[DEBUG] Pickup transition detected for status: ${status}`);
+      
       // Clear delivery-related fields
       updateQuery += ', shipping_area = NULL, pickup_method = NULL, courier_service = NULL, tracking_number = NULL, lokasi_pengiriman = NULL, lokasi_pengambilan = NULL, lokasi_pengantaran = NULL';
       
@@ -821,6 +824,9 @@ export async function updateOrderStatus(request, env) {
       
       updateQuery += ', pickup_outlet = ?, picked_up_by = ?, pickup_date = ?, pickup_time = ?';
       updateParams.push(outletName, pickedUpBy, currentDate, currentTime);
+      
+      console.log(`[DEBUG] Final SQL Query: ${updateQuery}`);
+      console.log(`[DEBUG] SQL Parameters: `, updateParams);
     }
     
     updateQuery += ' WHERE id = ?';
