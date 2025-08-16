@@ -1088,7 +1088,10 @@ useEffect(() => {
                 <FormLabel>Status Pesanan</FormLabel>
                 <Select
                   value={shippingStatus}
-                  onChange={(e) => setShippingStatus(e.target.value)}
+                  onChange={(e) => {
+                    setShippingStatus(e.target.value);
+                    setFormChanged(true);
+                  }}
                 >
                   <option value="">Pilih Status</option>
                   {getShippingStatusOptionsByArea(shippingArea).map((option: ShippingStatusOption) => (
@@ -1112,7 +1115,10 @@ useEffect(() => {
                     <FormLabel>Outlet Pengambilan</FormLabel>
                     <Select
                       value={pickupOutlet}
-                      onChange={(e) => setPickupOutlet(e.target.value)}
+                      onChange={(e) => {
+                        setPickupOutlet(e.target.value);
+                        setFormChanged(true);
+                      }}
                       placeholder="Pilih outlet pengambilan"
                     >
                       {OUTLET_LOCATIONS.map((outlet) => (
@@ -1128,7 +1134,10 @@ useEffect(() => {
                     <FormLabel>Diambil Oleh</FormLabel>
                     <Input
                       value={pickedUpBy}
-                      onChange={(e) => setPickedUpBy(e.target.value)}
+                      onChange={(e) => {
+                        setPickedUpBy(e.target.value);
+                        setFormChanged(true);
+                      }}
                       placeholder="Nama orang yang mengambil pesanan"
                     />
                   </FormControl>
@@ -1139,7 +1148,10 @@ useEffect(() => {
                     <Input
                       type="date"
                       value={pickupDate}
-                      onChange={(e) => setPickupDate(e.target.value)}
+                      onChange={(e) => {
+                        setPickupDate(e.target.value);
+                        setFormChanged(true);
+                      }}
                     />
                     {pickupDate && (
                       <Text fontSize="sm" color="gray.600" mt={1}>
@@ -1153,7 +1165,10 @@ useEffect(() => {
                     <FormLabel>Jam Pengambilan</FormLabel>
                     <Select
                       value={pickupTime}
-                      onChange={(e) => setPickupTime(e.target.value)}
+                      onChange={(e) => {
+                        setPickupTime(e.target.value);
+                        setFormChanged(true);
+                      }}
                       placeholder="Pilih jam pengambilan"
                     >
                       <option value="">Pilih Jam</option>
