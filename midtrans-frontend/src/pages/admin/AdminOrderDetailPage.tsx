@@ -363,7 +363,12 @@ const AdminOrderDetailPage: React.FC = () => {
             : "Outlet Bonbin"), 
         lokasi_pengantaran: order?.customer_address, // Customer address for delivery destination
         tipe_pesanan: shippingArea === 'luar-kota' ? undefined : order?.tipe_pesanan || undefined,
-        admin_note: adminNote
+        admin_note: adminNote,
+        // Include pickup details for pickup statuses
+        pickup_outlet: (shippingStatus === 'siap di ambil' || shippingStatus === 'sudah di ambil') ? pickupOutlet : undefined,
+        picked_up_by: (shippingStatus === 'siap di ambil' || shippingStatus === 'sudah di ambil') ? pickedUpBy : undefined,
+        pickup_date: (shippingStatus === 'siap di ambil' || shippingStatus === 'sudah di ambil') ? pickupDate : undefined,
+        pickup_time: (shippingStatus === 'siap di ambil' || shippingStatus === 'sudah di ambil') ? pickupTime : undefined
       };
       
       console.log('PATCH updateData (after mapping):', updateData); // Debug log
@@ -948,8 +953,33 @@ useEffect(() => {
                       </Td>
                     </Tr>
                   )}
-                  {/* Only show Lokasi Pengambilan for Dalam Kota orders */}
-                  {order.lokasi_pengambilan && order.shipping_area === 'dalam-kota' && (
+                  {/* Show Pickup Details for pickup statuses */}
+                  {(order.shipping_status === 'siap di ambil' || order.shipping_status === 'sudah di ambil') && (order as any).pickup_outlet && (
+                    <Tr>
+                      <Td fontWeight="semibold">Outlet Pengambilan</Td>
+                      <Td>{(order as any).pickup_outlet}</Td>
+                    </Tr>
+                  )}
+                  {(order.shipping_status === 'siap di ambil' || order.shipping_status === 'sudah di ambil') && (order as any).picked_up_by && (
+                    <Tr>
+                      <Td fontWeight="semibold">Diambil Oleh</Td>
+                      <Td>{(order as any).picked_up_by}</Td>
+                    </Tr>
+                  )}
+                  {(order.shipping_status === 'siap di ambil' || order.shipping_status === 'sudah di ambil') && (order as any).pickup_date && (
+                    <Tr>
+                      <Td fontWeight="semibold">Tanggal Pengambilan</Td>
+                      <Td>{(order as any).pickup_date}</Td>
+                    </Tr>
+                  )}
+                  {(order.shipping_status === 'siap di ambil' || order.shipping_status === 'sudah di ambil') && (order as any).pickup_time && (
+                    <Tr>
+                      <Td fontWeight="semibold">Jam Pengambilan</Td>
+                      <Td>{(order as any).pickup_time}</Td>
+                    </Tr>
+                  )}
+                  {/* Only show Lokasi Pengambilan for Dalam Kota orders (non-pickup) */}
+                  {order.lokasi_pengambilan && order.shipping_area === 'dalam-kota' && order.shipping_status !== 'siap di ambil' && order.shipping_status !== 'sudah di ambil' && (
                     <Tr>
                       <Td fontWeight="semibold">Lokasi Pengambilan</Td>
                       <Td>{order.lokasi_pengambilan}</Td>

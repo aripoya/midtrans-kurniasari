@@ -948,7 +948,12 @@ export async function updateOrderDetails(request, env) {
       lokasi_pengiriman: lokasiPengirimanName,
       lokasi_pengambilan: lokasiPengambilanName,
       tipe_pesanan,
-      metode_pengiriman
+      metode_pengiriman,
+      // Pickup detail fields
+      pickup_outlet,
+      picked_up_by,
+      pickup_date,
+      pickup_time
     } = data;
 
     const orderCheck = await env.DB.prepare(`SELECT id FROM orders WHERE id = ?`).bind(orderId).first();
@@ -989,6 +994,12 @@ export async function updateOrderDetails(request, env) {
     if (tracking_number !== undefined) { updateFields.push('tracking_number = ?'); updateParams.push(tracking_number); }
     if (courier_service !== undefined) { updateFields.push('courier_service = ?'); updateParams.push(courier_service); }
     if (tipe_pesanan !== undefined) { updateFields.push('tipe_pesanan = ?'); updateParams.push(tipe_pesanan); }
+    
+    // Pickup detail fields for pickup statuses
+    if (pickup_outlet !== undefined) { updateFields.push('pickup_outlet = ?'); updateParams.push(pickup_outlet); }
+    if (picked_up_by !== undefined) { updateFields.push('picked_up_by = ?'); updateParams.push(picked_up_by); }
+    if (pickup_date !== undefined) { updateFields.push('pickup_date = ?'); updateParams.push(pickup_date); }
+    if (pickup_time !== undefined) { updateFields.push('pickup_time = ?'); updateParams.push(pickup_time); }
 
     // REDESIGNED SHIPPING INFO LOGIC - REMOVE INVALID VALIDATION
     // lokasi_pengambilan should always be outlet name, lokasi_pengiriman should be customer address
