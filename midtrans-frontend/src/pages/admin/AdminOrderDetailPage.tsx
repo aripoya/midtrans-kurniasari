@@ -389,10 +389,13 @@ const AdminOrderDetailPage: React.FC = () => {
         admin_note: adminNote,
       };
 
-      // For pickup statuses: let backend auto-populate pickup fields, exclude all delivery fields
+      // For pickup statuses: send pickup fields if user has filled them, exclude all delivery fields
       if (isPickupTransition) {
-        // Don't send pickup fields - let backend auto-populate with current date/time and outlet info
-        // Backend will handle: pickup_outlet, picked_up_by, pickup_date, pickup_time
+        // Send pickup fields if user has provided values, otherwise let backend auto-populate
+        if (pickupOutlet) updateData.pickup_outlet = pickupOutlet;
+        if (pickedUpBy) updateData.picked_up_by = pickedUpBy;
+        if (pickupDate) updateData.pickup_date = pickupDate;
+        if (pickupTime) updateData.pickup_time = pickupTime;
       } else {
         // For non-pickup statuses: include delivery fields as before
         updateData.shipping_area = shippingArea as "dalam-kota" | "luar-kota" | undefined;
@@ -530,6 +533,12 @@ const AdminOrderDetailPage: React.FC = () => {
       setPickupMethod(orderData.pickup_method || 'deliveryman');
       setCourierService(orderData.courier_service || '');
       setTrackingNumber(orderData.tracking_number || '');
+      
+      // Set pickup fields from existing order data
+      setPickupOutlet(orderData.pickup_outlet || '');
+      setPickedUpBy(orderData.picked_up_by || '');
+      setPickupDate(orderData.pickup_date || '');
+      setPickupTime(orderData.pickup_time || '');
 
       // Get shipping images - using public API as fallback since admin API returns empty
       try {
