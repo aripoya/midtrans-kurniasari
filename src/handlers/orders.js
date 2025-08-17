@@ -490,38 +490,65 @@ export async function deleteOrder(request, env) {
     }
 
     // Delete all related data first to maintain referential integrity
+    console.log(`[DELETE] Starting deletion process for order: ${orderId}`);
     
-    // Delete notifications
-    await env.DB.prepare(
-      `DELETE FROM notifications WHERE order_id = ?`
-    ).bind(orderId).run();
+    try {
+      // Delete notifications
+      const notifResult = await env.DB.prepare(
+        `DELETE FROM notifications WHERE order_id = ?`
+      ).bind(orderId).run();
+      console.log(`[DELETE] Deleted ${notifResult.meta.changes} notifications`);
+    } catch (e) {
+      console.log(`[DELETE] Notifications table may not exist: ${e.message}`);
+    }
     
-    // Delete shipping images
-    await env.DB.prepare(
-      `DELETE FROM shipping_images WHERE order_id = ?`
-    ).bind(orderId).run();
+    try {
+      // Delete shipping images
+      const imagesResult = await env.DB.prepare(
+        `DELETE FROM shipping_images WHERE order_id = ?`
+      ).bind(orderId).run();
+      console.log(`[DELETE] Deleted ${imagesResult.meta.changes} shipping images`);
+    } catch (e) {
+      console.log(`[DELETE] Shipping images table may not exist: ${e.message}`);
+    }
     
-    // Delete audit logs
-    await env.DB.prepare(
-      `DELETE FROM audit_logs WHERE order_id = ?`
-    ).bind(orderId).run();
+    try {
+      // Delete audit logs
+      const auditResult = await env.DB.prepare(
+        `DELETE FROM audit_logs WHERE order_id = ?`
+      ).bind(orderId).run();
+      console.log(`[DELETE] Deleted ${auditResult.meta.changes} audit logs`);
+    } catch (e) {
+      console.log(`[DELETE] Audit logs table may not exist: ${e.message}`);
+    }
     
-    // Delete order update logs
-    await env.DB.prepare(
-      `DELETE FROM order_update_logs WHERE order_id = ?`
-    ).bind(orderId).run();
+    try {
+      // Delete order update logs
+      const updateLogsResult = await env.DB.prepare(
+        `DELETE FROM order_update_logs WHERE order_id = ?`
+      ).bind(orderId).run();
+      console.log(`[DELETE] Deleted ${updateLogsResult.meta.changes} update logs`);
+    } catch (e) {
+      console.log(`[DELETE] Order update logs table may not exist: ${e.message}`);
+    }
     
-    // Delete order items
-    await env.DB.prepare(
-      `DELETE FROM order_items WHERE order_id = ?`
-    ).bind(orderId).run();
+    try {
+      // Delete order items
+      const itemsResult = await env.DB.prepare(
+        `DELETE FROM order_items WHERE order_id = ?`
+      ).bind(orderId).run();
+      console.log(`[DELETE] Deleted ${itemsResult.meta.changes} order items`);
+    } catch (e) {
+      console.log(`[DELETE] Order items deletion error: ${e.message}`);
+      throw e; // This one is critical
+    }
 
     // Finally delete the order
     const result = await env.DB.prepare(
       `DELETE FROM orders WHERE id = ?`
     ).bind(orderId).run();
     
-    console.log(`[DELETE] Successfully deleted order ${orderId} and ${result.meta.changes} related records`);
+    console.log(`[DELETE] Successfully deleted order ${orderId}, main record changes: ${result.meta.changes}`);
 
     return new Response(JSON.stringify({ 
       success: true, 
