@@ -814,7 +814,7 @@ export async function updateOrderStatus(request, env) {
   try {
     const url = new URL(request.url);
     const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id/status
-    const { status } = await request.json();
+    const { status, pickupOutlet, pickedUpBy, pickupDate, pickupTime } = await request.json();
 
     if (!orderId || !status) {
       return new Response(JSON.stringify({ success: false, error: 'Order ID and status are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
