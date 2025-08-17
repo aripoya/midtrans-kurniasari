@@ -489,15 +489,29 @@ export async function deleteOrder(request, env) {
         { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
 
-    // Delete order items first to maintain referential integrity
+    // Delete all related data first to maintain referential integrity
+    
+    // Delete shipping images
+    await env.DB.prepare(
+      `DELETE FROM shipping_images WHERE order_id = ?`
+    ).bind(orderId).run();
+    
+    // Delete audit logs
+    await env.DB.prepare(
+      `DELETE FROM audit_logs WHERE order_id = ?`
+    ).bind(orderId).run();
+    
+    // Delete order items
     await env.DB.prepare(
       `DELETE FROM order_items WHERE order_id = ?`
     ).bind(orderId).run();
 
-    // Then delete the order
+    // Finally delete the order
     const result = await env.DB.prepare(
       `DELETE FROM orders WHERE id = ?`
     ).bind(orderId).run();
+    
+    console.log(`[DELETE] Successfully deleted order ${orderId} and ${result.meta.changes} related records`);
 
     return new Response(JSON.stringify({ 
       success: true, 
