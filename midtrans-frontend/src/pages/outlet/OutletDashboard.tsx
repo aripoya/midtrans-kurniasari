@@ -192,14 +192,27 @@ const OutletDashboard: React.FC = () => {
         throw new Error(`Invalid photo type: ${type}`);
       }
       
-      // Use standardized adminApi.uploadShippingImage
-      const response = await adminApi.uploadShippingImage(selectedOrder.id, backendType, photoFiles[type]!);
+      // Map outlet types to backend types correctly
+      const backendTypeMapping: Record<string, 'ready_for_pickup' | 'picked_up' | 'delivered'> = {
+        'siap_kirim': 'ready_for_pickup',
+        'pengiriman': 'picked_up', 
+        'diterima': 'delivered'
+      };
       
-      if (response.success && response.data?.imageUrl) {
+      const correctBackendType = backendTypeMapping[backendType] || 'ready_for_pickup';
+      
+      // Use standardized adminApi.uploadShippingImage
+      const response = await adminApi.uploadShippingImage(selectedOrder.id, correctBackendType, photoFiles[type]!);
+      
+      console.log('📤 Modal upload response:', response);
+      
+      // Check backend success flag only
+      if (response.success) {
         // Update uploaded images state with the image URL from API response
+        const imageUrl = response.data?.imageUrl || '';
         setUploadedImages(prev => ({
           ...prev,
-          [type]: response.data!.imageUrl
+          [type]: imageUrl
         }));
         
         // Clear the file input
@@ -219,7 +232,7 @@ const OutletDashboard: React.FC = () => {
         // Refresh orders to get updated data
         await fetchOrders();
       } else {
-        throw new Error(response.error || 'Gagal upload foto');
+        throw new Error(response.error || 'Upload gagal dari server');
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -281,8 +294,9 @@ const OutletDashboard: React.FC = () => {
       // Use standardized adminApi.uploadShippingImage
       const response = await adminApi.uploadShippingImage(orderId, photoType, file);
       
-      console.log('📤 Upload response:', response);
+      console.log('📤 Quick upload response:', response);
       
+      // Check backend success flag, not just imageUrl existence
       if (response.success) {
         toast({
           title: '✅ Foto berhasil diupload',
@@ -295,7 +309,7 @@ const OutletDashboard: React.FC = () => {
         // Refresh orders to get updated data
         await fetchOrders();
       } else {
-        throw new Error(response.error || 'Gagal upload foto');
+        throw new Error(response.error || 'Upload gagal dari server');
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
