@@ -366,8 +366,19 @@ const PublicOrderDetailPage = () => {
                         <Heading size="sm" mb={2}>Informasi Pengiriman</Heading>
                         <Text><strong>Status Pesanan:</strong> {getShippingStatusBadge(order)}</Text>
                         <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
-                        {order.shipping_area !== 'dalam-kota' && (
-                          <Text><strong>Jasa Kurir:</strong> {order.courier_service || 'TRAVEL'}</Text>
+                        {order.lokasi_pengiriman && (
+                          <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman}</Text>
+                        )}
+                        {order.courier_service && (
+                          <Text><strong>Layanan Kurir:</strong> {
+                            order.courier_service === 'deliveryman' ? 'Kurir Toko' :
+                            order.courier_service === 'ojek_online' ? 'Ojek Online' :
+                            order.courier_service === 'gojek' ? 'Gojek' :
+                            order.courier_service === 'grab' ? 'Grab' :
+                            order.courier_service === 'jne' ? 'JNE' :
+                            order.courier_service === 'travel' ? 'Travel' :
+                            order.courier_service
+                          }</Text>
                         )}
                         {order.tracking_number && (
                           <HStack>
