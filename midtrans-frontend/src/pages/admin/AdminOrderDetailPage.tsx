@@ -389,13 +389,13 @@ const AdminOrderDetailPage: React.FC = () => {
         admin_note: adminNote,
       };
 
-      // For pickup statuses: send pickup fields if user has filled them, exclude all delivery fields
+      // For pickup statuses: always send pickup fields to allow editing, exclude all delivery fields
       if (isPickupTransition) {
-        // Send pickup fields if user has provided values, otherwise let backend auto-populate
-        if (pickupOutlet) updateData.pickup_outlet = pickupOutlet;
-        if (pickedUpBy) updateData.picked_up_by = pickedUpBy;
-        if (pickupDate) updateData.pickup_date = pickupDate;
-        if (pickupTime) updateData.pickup_time = pickupTime;
+        // Always send pickup fields during pickup transitions to allow editing
+        updateData.pickup_outlet = pickupOutlet || '';
+        updateData.picked_up_by = pickedUpBy || '';
+        updateData.pickup_date = pickupDate || '';
+        updateData.pickup_time = pickupTime || '';
       } else {
         // For non-pickup statuses: include delivery fields as before
         updateData.shipping_area = shippingArea as "dalam-kota" | "luar-kota" | undefined;

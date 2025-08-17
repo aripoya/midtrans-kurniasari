@@ -805,26 +805,43 @@ export async function updateOrderStatus(request, env) {
       // Clear delivery-related fields
       updateQuery += ', shipping_area = NULL, pickup_method = NULL, courier_service = NULL, tracking_number = NULL, lokasi_pengiriman = NULL, lokasi_pengambilan = NULL';
       
-      // Set pickup fields with current outlet and user info
-      const now = new Date();
-      const currentDate = `${now.getDate().toString().padStart(2, '0')}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getFullYear()}`; // DD-MM-YYYY format
-      const currentTime = new Date().toLocaleTimeString('en-GB', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        timeZone: 'Asia/Jakarta'
-      }); // HH:MM format in Jakarta timezone
+      // Set pickup fields - use frontend values if provided, otherwise auto-generate
+      let pickupOutletValue, pickedUpByValue, pickupDateValue, pickupTimeValue;
       
-      // Get the outlet name from current order
-      const outletName = currentOrder.outlet_name || 'Outlet Tidak Diketahui';
+      // Use frontend-provided values if available, otherwise auto-generate
+      if (pickupOutlet && pickupOutlet.trim()) {
+        pickupOutletValue = pickupOutlet.trim();
+      } else {
+        pickupOutletValue = currentOrder.outlet_name || 'Outlet Tidak Diketahui';
+      }
       
-      // Get user name from request if available, fallback to role or default
-      let pickedUpBy = 'System';
-      if (request.user) {
-        pickedUpBy = request.user.username || request.user.name || request.user.role || 'Admin';
+      if (pickedUpBy && pickedUpBy.trim()) {
+        pickedUpByValue = pickedUpBy.trim();
+      } else {
+        pickedUpByValue = request.user ? (request.user.username || request.user.name || request.user.role || 'Admin') : 'System';
+      }
+      
+      if (pickupDate && pickupDate.trim()) {
+        pickupDateValue = pickupDate.trim();
+      } else {
+        const now = new Date();
+        pickupDateValue = `${now.getDate().toString().padStart(2, '0')}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getFullYear()}`;
+      }
+      
+      if (pickupTime && pickupTime.trim()) {
+        pickupTimeValue = pickupTime.trim();
+      } else {
+        pickupTimeValue = new Date().toLocaleTimeString('en-GB', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          timeZone: 'Asia/Jakarta'
+        });
       }
       
       updateQuery += ', pickup_outlet = ?, picked_up_by = ?, pickup_date = ?, pickup_time = ?';
-      updateParams.push(outletName, pickedUpBy, currentDate, currentTime);
+      updateParams.push(pickupOutletValue, pickedUpByValue, pickupDateValue, pickupTimeValue);
+      
+      console.log(`[DEBUG] Pickup fields - Outlet: ${pickupOutletValue}, Picked up by: ${pickedUpByValue}, Date: ${pickupDateValue}, Time: ${pickupTimeValue}`);
       
       console.log(`[DEBUG] Final SQL Query: ${updateQuery}`);
       console.log(`[DEBUG] SQL Parameters: `, updateParams);
