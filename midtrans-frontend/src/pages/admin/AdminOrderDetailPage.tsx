@@ -1033,17 +1033,11 @@ useEffect(() => {
                       )}
                     </>
                   )}
-                  {/* Only show Lokasi Pengambilan for Dalam Kota orders (non-pickup) */}
-                  {order.lokasi_pengambilan && order.shipping_area === 'dalam-kota' && !isPickupStatus(order.shipping_status || '') && (
-                    <Tr>
-                      <Td fontWeight="semibold">Lokasi Pengambilan</Td>
-                      <Td>{order.lokasi_pengambilan}</Td>
-                    </Tr>
-                  )}
+                  {/* Lokasi Pengambilan removed - duplicate of Lokasi Pengiriman */}
                   {/* Only show Metode Pengiriman for Dalam Kota orders */}
                   {order.pickup_method && order.shipping_area === 'dalam-kota' && (
                     <Tr>
-                      <Td fontWeight="semibold">Metode Pengambilan</Td>
+                      <Td fontWeight="semibold">Metode Pengiriman</Td>
                       <Td>
                         {order.pickup_method === 'deliveryman' ? 'Kurir Toko' : 
                          order.pickup_method === 'ojek_online' ? 'Ojek Online' : 
