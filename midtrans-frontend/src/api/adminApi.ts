@@ -423,7 +423,7 @@ export const adminApi = {
 
       const formData = new FormData();
       formData.append("image", imageFile);
-      const response: AxiosResponse<{ imageUrl: string }> = await axios.post(
+      const response: AxiosResponse<any> = await axios.post(
         `${API_BASE_URL}/api/shipping/images/${orderId}/${imageType}`,
         formData,
         {
@@ -436,14 +436,23 @@ export const adminApi = {
 
       console.log("✅ Upload sukses:", response.data);
 
-      return {
-        success: true,
-        data: {
-          ...response.data,
-          imageUrl: response.data.imageUrl,
-        },
-        error: null,
-      };
+      // Backend returns { success: true, data: { imageUrl, imageId, ... } }
+      const responseData = response.data;
+      const imageUrl = responseData.data?.imageUrl || responseData.imageUrl;
+      
+      // Check if backend actually returned success=true
+      if (responseData.success) {
+        return {
+          success: true,
+          data: {
+            imageUrl: imageUrl,
+            ...responseData.data,
+          },
+          error: null,
+        };
+      } else {
+        throw new Error(responseData.error || 'Backend reported upload failure');
+      }
     } catch (error: any) {
       console.error("❌ Upload gagal:", error);
       return {
