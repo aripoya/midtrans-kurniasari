@@ -503,13 +503,39 @@ export async function deleteOrder(request, env) {
     }
     
     try {
-      // Delete shipping images
+      // First get images for R2 cleanup before deleting DB records
+      let imagesToDelete = [];
+      try {
+        const imageQuery = await env.DB.prepare(
+          `SELECT image_url, cloudflare_id FROM shipping_images WHERE order_id = ?`
+        ).bind(orderId).all();
+        imagesToDelete = imageQuery.results || [];
+      } catch (selectError) {
+        console.log(`[DELETE] Could not select images for cleanup: ${selectError.message}`);
+      }
+      
+      // Delete shipping images from database
       const imagesResult = await env.DB.prepare(
         `DELETE FROM shipping_images WHERE order_id = ?`
       ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${imagesResult.meta.changes} shipping images`);
+      console.log(`[DELETE] Deleted ${imagesResult.meta.changes} shipping images from database`);
+      
+      // Clean up R2 storage
+      if (imagesToDelete.length > 0 && env.SHIPPING_IMAGES) {
+        for (const image of imagesToDelete) {
+          try {
+            if (image.cloudflare_id) {
+              await env.SHIPPING_IMAGES.delete(image.cloudflare_id);
+              console.log(`[DELETE] Removed image ${image.cloudflare_id} from R2 storage`);
+            }
+          } catch (r2Error) {
+            console.log(`[DELETE] Failed to delete ${image.cloudflare_id} from R2: ${r2Error.message}`);
+          }
+        }
+      }
     } catch (e) {
-      console.log(`[DELETE] Shipping images table may not exist: ${e.message}`);
+      console.log(`[DELETE] Critical shipping images deletion error: ${e.message}`);
+      throw e; // This is critical for foreign key constraints
     }
     
     try {
