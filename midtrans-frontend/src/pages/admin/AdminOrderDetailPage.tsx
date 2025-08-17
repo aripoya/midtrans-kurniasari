@@ -1005,7 +1005,7 @@ useEffect(() => {
                     </Tr>
                   )}
                   {/* Show Pickup Details for pickup statuses */}
-                  {(order.shipping_status?.toLowerCase().includes('siap') || order.shipping_status?.toLowerCase().includes('ambil')) && (
+                  {isPickupStatus(order.shipping_status || '') && (
                     <>
                       {((order as any).pickup_outlet || pickupOutlet) && (
                         <Tr>
@@ -1034,7 +1034,7 @@ useEffect(() => {
                     </>
                   )}
                   {/* Only show Lokasi Pengambilan for Dalam Kota orders (non-pickup) */}
-                  {order.lokasi_pengambilan && order.shipping_area === 'dalam-kota' && order.shipping_status !== 'siap di ambil' && order.shipping_status !== 'sudah di ambil' && (
+                  {order.lokasi_pengambilan && order.shipping_area === 'dalam-kota' && !isPickupStatus(order.shipping_status || '') && (
                     <Tr>
                       <Td fontWeight="semibold">Lokasi Pengambilan</Td>
                       <Td>{order.lokasi_pengambilan}</Td>
