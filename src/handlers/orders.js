@@ -491,6 +491,11 @@ export async function deleteOrder(request, env) {
 
     // Delete all related data first to maintain referential integrity
     
+    // Delete notifications
+    await env.DB.prepare(
+      `DELETE FROM notifications WHERE order_id = ?`
+    ).bind(orderId).run();
+    
     // Delete shipping images
     await env.DB.prepare(
       `DELETE FROM shipping_images WHERE order_id = ?`
@@ -499,6 +504,11 @@ export async function deleteOrder(request, env) {
     // Delete audit logs
     await env.DB.prepare(
       `DELETE FROM audit_logs WHERE order_id = ?`
+    ).bind(orderId).run();
+    
+    // Delete order update logs
+    await env.DB.prepare(
+      `DELETE FROM order_update_logs WHERE order_id = ?`
     ).bind(orderId).run();
     
     // Delete order items
