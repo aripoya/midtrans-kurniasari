@@ -449,6 +449,39 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     window.print();
   };
 
+  // Fallback: download thermal receipt as PNG (useful for Android with Print Service apps)
+  const handleDownloadReceiptImage = async (): Promise<void> => {
+    try {
+      const el = document.getElementById('thermal-receipt') as HTMLElement | null;
+      if (!el) {
+        toast({ title: 'Elemen struk tidak ditemukan', status: 'error', duration: 2500, isClosable: true });
+        return;
+      }
+      // Preserve original inline styles, then force visible for capture
+      const originalStyle = el.getAttribute('style') || '';
+      el.setAttribute('style', originalStyle + ';display:block;position:static;width:56mm;background:#ffffff;padding:2mm 2mm;');
+
+      const canvas = await html2canvas(el, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true
+      });
+
+      const link = document.createElement('a');
+      link.download = `receipt-${order?.id || 'order'}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+
+      // Restore original style
+      if (originalStyle) el.setAttribute('style', originalStyle); else el.removeAttribute('style');
+
+      toast({ title: 'Gambar struk diunduh', status: 'success', duration: 1500, isClosable: true });
+    } catch (error) {
+      console.error('Error exporting receipt image:', error);
+      toast({ title: 'Gagal mengunduh gambar struk', status: 'error', duration: 3000, isClosable: true });
+    }
+  };
+
   useEffect(() => {
     fetchOrderDetails();
   }, [fetchOrderDetails]);
@@ -573,13 +606,22 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
               <HStack justify="space-between" wrap="wrap">
                 <Heading size="md">Detail Pesanan #{order.id}</Heading>
                 {isOutletView && (
-                  <Button
-                    onClick={handlePrintReceipt}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Print 56mm
-                  </Button>
+                  <HStack>
+                    <Button
+                      onClick={handlePrintReceipt}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Print 56mm
+                    </Button>
+                    <Button
+                      onClick={handleDownloadReceiptImage}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Unduh PNG 56mm
+                    </Button>
+                  </HStack>
                 )}
                 <HStack spacing={2}>
                   {getStatusBadge(order.payment_status)}
@@ -802,9 +844,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
             
             <HStack spacing={4} justify="center" wrap="wrap">
               {isOutletView && (
-                <Button onClick={handlePrintReceipt} colorScheme="gray" size="lg">
-                  Print 56mm
-                </Button>
+                <HStack>
+                  <Button onClick={handlePrintReceipt} colorScheme="gray" size="lg">
+                    Print 56mm
+                  </Button>
+                  <Button onClick={handleDownloadReceiptImage} variant="outline" size="lg">
+                    Unduh PNG 56mm
+                  </Button>
+                </HStack>
               )}
               {!isPaid && order.payment_url && (
                 <Button as="a" href={order.payment_url} target="_blank" colorScheme="teal" size="lg">
