@@ -620,7 +620,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
         activeStep = 3;
         steps[2].description = 'Pesanan dikirim';
         if (['received', 'Sudah Di Terima', 'Sudah Di Ambil', 'diterima'].includes(shippingStatus)) {
-          activeStep = 4;
+          activeStep = 4; // Set to step 4 (last step) when order is received
           steps[3].description = 'Pesanan telah diterima';
         }
       }

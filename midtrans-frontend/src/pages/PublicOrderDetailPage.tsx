@@ -190,13 +190,21 @@ const PublicOrderDetailPage = () => {
   
   // Calculate currentStep: if order is received, show all steps as complete (use last index)
   // Otherwise, find the active step or the last completed step
-  let currentStep = steps.findIndex((step: any) => step.status === 'active');
-  if (currentStep === -1) {
-    // No active step found, find the last completed step
-    const lastCompletedIndex = steps.map((step: any, index: number) => step.status === 'complete' ? index : -1)
-                                    .filter((index: number) => index !== -1)
-                                    .pop();
-    currentStep = lastCompletedIndex !== undefined ? lastCompletedIndex : 0;
+  let currentStep = 0;
+  
+  if (isReceived) {
+    // When order is received, all steps should be complete - set to last step index
+    currentStep = steps.length - 1;
+  } else {
+    // Find active step first
+    currentStep = steps.findIndex((step: any) => step.status === 'active');
+    if (currentStep === -1) {
+      // No active step found, find the last completed step
+      const lastCompletedIndex = steps.map((step: any, index: number) => step.status === 'complete' ? index : -1)
+                                      .filter((index: number) => index !== -1)
+                                      .pop();
+      currentStep = lastCompletedIndex !== undefined ? lastCompletedIndex : 0;
+    }
   }
 
   // Tentukan apakah harus menampilkan foto berdasarkan shipping_area
