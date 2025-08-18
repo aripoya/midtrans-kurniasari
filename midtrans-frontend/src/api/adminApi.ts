@@ -438,10 +438,14 @@ export const adminApi = {
 
       // Backend returns { success: true, data: { imageUrl, imageId, ... } }
       const responseData = response.data;
+      console.log("✅ Response data success:", responseData.success);
+      console.log("✅ Response data type:", typeof responseData.success);
+      
       const imageUrl = responseData.data?.imageUrl || responseData.imageUrl;
       
-      // Check if backend actually returned success=true
-      if (responseData.success) {
+      // Check if backend actually returned success=true (be more lenient)
+      if (responseData.success === true || responseData.success === "true") {
+        console.log("✅ Upload confirmed successful, returning success response");
         return {
           success: true,
           data: {
@@ -451,7 +455,8 @@ export const adminApi = {
           error: null,
         };
       } else {
-        throw new Error(responseData.error || 'Backend reported upload failure');
+        console.log("❌ Backend success flag was:", responseData.success);
+        throw new Error(responseData.error || `Backend reported upload failure. Success flag: ${responseData.success}`);
       }
     } catch (error: any) {
       console.error("❌ Upload gagal:", error);

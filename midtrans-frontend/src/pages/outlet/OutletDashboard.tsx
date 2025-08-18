@@ -295,9 +295,11 @@ const OutletDashboard: React.FC = () => {
       const response = await adminApi.uploadShippingImage(orderId, photoType, file);
       
       console.log('📤 Quick upload response:', response);
+      console.log('📤 Response success flag:', response.success);
+      console.log('📤 Response type:', typeof response.success);
       
       // Check backend success flag, not just imageUrl existence
-      if (response.success) {
+      if (response.success === true) {
         toast({
           title: '✅ Foto berhasil diupload',
           description: `Foto untuk status "${order.shipping_status}" berhasil disimpan`,
