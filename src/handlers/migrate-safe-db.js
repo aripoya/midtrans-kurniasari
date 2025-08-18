@@ -147,7 +147,7 @@ export async function migrateSafeRelationalDB(request, env) {
       SELECT id, lokasi_pengiriman, lokasi_pengambilan, shipping_area, outlet_id
       FROM orders 
       WHERE outlet_id IS NULL 
-      AND (lokasi_pengiriman IS NOT NULL OR lokasi_pengambilan IS NOT NULL)
+      AND (lokasi_pengiriman IS NOT NULL OR lokasi_pengambilan IS NOT NULL OR shipping_area IS NOT NULL)
       LIMIT 100
     `).all();
     
@@ -157,12 +157,18 @@ export async function migrateSafeRelationalDB(request, env) {
       // Find matching outlet
       const matchingOutlet = await env.DB.prepare(`
         SELECT id FROM outlets_unified 
-        WHERE (LOWER(?) LIKE LOWER('%' || location_alias || '%')
-        OR LOWER(?) LIKE LOWER('%' || name || '%'))
+        WHERE 
+          (LOWER(?) LIKE LOWER('%' || location_alias || '%') OR LOWER(?) LIKE LOWER('%' || name || '%'))
+          OR (LOWER(?) LIKE LOWER('%' || location_alias || '%') OR LOWER(?) LIKE LOWER('%' || name || '%'))
+          OR (LOWER(?) LIKE LOWER('%' || location_alias || '%') OR LOWER(?) LIKE LOWER('%' || name || '%'))
         LIMIT 1
       `).bind(
         order.lokasi_pengiriman || '',
-        order.lokasi_pengiriman || ''
+        order.lokasi_pengiriman || '',
+        order.lokasi_pengambilan || '',
+        order.lokasi_pengambilan || '',
+        order.shipping_area || '',
+        order.shipping_area || ''
       ).first();
       
       if (matchingOutlet) {

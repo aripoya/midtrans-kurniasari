@@ -9,7 +9,7 @@ import { getProducts, createProduct, updateProduct, deleteProduct } from './hand
 // Legacy shipping handler removed - using direct Cloudflare Images endpoints instead
 import { getLocations } from './handlers/locations.js';
 import { registerUser, loginUser, getUserProfile, getOutlets, createOutlet } from './handlers/auth.js';
-import { verifyToken, handleMiddlewareError } from './handlers/middleware.js';
+import { verifyToken, handleMiddlewareError, requireAdmin } from './handlers/middleware.js';
 import { resetAdminPassword } from './handlers/admin.js'; // Import the new handler
 import { getUsers, createUser, updateUser, deleteUser, resetUserPassword } from './handlers/user-management.js'; // Import user management handlers
 import { resetOutletPassword, checkDatabaseSchema, createCustomersTable, testLogin, getTableSchema, analyzeOutletLocations, createRealOutlets, mapOrdersToOutlets, resetAdminPasswordForDebug, debugDeliveryAssignments, addEmailColumnToUsers, addUpdatedAtColumnToUsers, debugCreateOrderUpdateLogsTable, modifyUpdateOrderStatus, debugOrderDetails, debugOutletSync } from './handlers/debug.js';
@@ -116,7 +116,7 @@ router.post('/api/outlets', verifyToken, (request, env) => {
 });
 
 // Order endpoints
-router.post('/api/orders', (request, env) => {
+router.post('/api/orders', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return createOrder(request, env);
 });
@@ -337,50 +337,126 @@ router.post('/api/admin/users/:id/reset-password', verifyToken, (request, env) =
 // Outlet Migration endpoints
 router.post('/api/admin/migrate-outlets', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
     return migrateExistingOrdersToOutlets(request, env);
 });
 
 router.get('/api/admin/migration-status', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
     return getMigrationStatus(request, env);
 });
 
 // Relational Database Migration endpoints
 router.post('/api/admin/migrate-relational-db', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
     return createRelationalDBStructure(request, env);
+});
+
+// Migrate existing orders using unified outlets mapping (helper)
+router.post('/api/admin/migrate-orders-relational', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+    return migrateOrdersToRelational(request, env);
 });
 
 router.get('/api/admin/relational-db-status', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
     return getRelationalDBStatus(request, env);
 });
 
 // Safe Migration endpoints (bypass FK constraints)
 router.post('/api/admin/migrate-safe-db', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
     return migrateSafeRelationalDB(request, env);
 });
 
 router.get('/api/admin/safe-migration-status', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
     return getSafeMigrationStatus(request, env);
 });
 
 // Shipping Info Fields Migration endpoints
 router.post('/api/admin/migrate-shipping-info', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
     return migrateShippingInfoFields(request, env);
 });
 
 router.get('/api/admin/orders-table-schema', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
     return getOrdersTableSchema(request, env);
 });
 
 // Admin Activity Migration endpoints
 router.post('/api/admin/migrate-admin-activity', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
     return migrateAdminActivity(request, env);
 });
 
@@ -693,9 +769,10 @@ router.get('/api/config', (request, env) => {
             status: 200,
             headers: { 
                 'Content-Type': 'application/json',
-                ...corsHeaders
+                ...corsHeaders(request)
             }
         });
+        
     } catch (error) {
         console.error('Error in /api/config endpoint:', error);
         throw error;

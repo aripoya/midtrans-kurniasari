@@ -325,33 +325,40 @@ export async function migrateOrdersToRelational(request, env) {
   try {
     console.log('🔄 Starting migration to relational order-outlet relationships...');
     
-    // Step 1: Map orders to outlets based on lokasi_pengiriman
+    // Step 1: Map orders to outlets based on lokasi_pengiriman/lokasi_pengambilan/shipping_area
     const migrationQuery = `
       UPDATE orders SET 
         outlet_id = (
-          SELECT o.id 
-          FROM outlets o 
-          WHERE LOWER(orders.lokasi_pengiriman) LIKE LOWER('%' || o.name || '%')
-             OR LOWER(orders.lokasi_pengiriman) LIKE LOWER('%' || o.location || '%')
+          SELECT ou.id 
+          FROM outlets_unified ou 
+          WHERE 
+            (orders.lokasi_pengiriman IS NOT NULL AND (
+              LOWER(orders.lokasi_pengiriman) LIKE LOWER('%' || ou.name || '%') OR
+              LOWER(orders.lokasi_pengiriman) LIKE LOWER('%' || ou.location_alias || '%')
+            ))
+            OR (orders.lokasi_pengambilan IS NOT NULL AND (
+              LOWER(orders.lokasi_pengambilan) LIKE LOWER('%' || ou.name || '%') OR
+              LOWER(orders.lokasi_pengambilan) LIKE LOWER('%' || ou.location_alias || '%')
+            ))
+            OR (orders.shipping_area IS NOT NULL AND (
+              LOWER(orders.shipping_area) LIKE LOWER('%' || ou.name || '%') OR
+              LOWER(orders.shipping_area) LIKE LOWER('%' || ou.location_alias || '%')
+            ))
           LIMIT 1
         )
       WHERE outlet_id IS NULL
-        AND lokasi_pengiriman IS NOT NULL
+        AND (lokasi_pengiriman IS NOT NULL OR lokasi_pengambilan IS NOT NULL OR shipping_area IS NOT NULL)
     `;
-    
+
     const migrationResult = await env.DB.prepare(migrationQuery).run();
-    
-    console.log('✅ Simplified migration: Using outlet_id only');
-    
-    console.log('✅ Migration completed successfully');
-    
+
+    console.log('✅ Migration completed successfully using outlets_unified');
+
     return new Response(JSON.stringify({
       success: true,
       message: 'Orders migrated to relational structure successfully',
       results: {
-        orders_mapped: migrationResult.changes || 0,
-        delivery_assignments: deliveryResult.changes || 0,
-        pickup_assignments: pickupResult.changes || 0
+        orders_mapped: migrationResult?.changes || 0
       }
     }), {
       headers: {

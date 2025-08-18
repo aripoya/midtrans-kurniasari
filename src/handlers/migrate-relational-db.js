@@ -135,18 +135,29 @@ export async function createRelationalDBStructure(request, env) {
     console.log('📋 Step 4: Updating orders table structure...');
     
     // Add outlet_id column if it doesn't exist (already done in previous migration)
-    // Update existing orders to link with unified outlets
+    // Update existing orders to link with unified outlets (using multiple location fields)
     await env.DB.prepare(`
-      UPDATE orders 
-      SET outlet_id = (
-        SELECT ou.id 
-        FROM outlets_unified ou 
-        WHERE LOWER(orders.lokasi_pengiriman) LIKE LOWER('%' || ou.location_alias || '%')
-        OR LOWER(orders.lokasi_pengiriman) LIKE LOWER('%' || ou.name || '%')
-        LIMIT 1
-      )
-      WHERE outlet_id IS NULL 
-      AND (lokasi_pengiriman IS NOT NULL OR lokasi_pengambilan IS NOT NULL)
+      UPDATE orders SET 
+        outlet_id = (
+          SELECT ou.id 
+          FROM outlets_unified ou 
+          WHERE 
+            (orders.lokasi_pengiriman IS NOT NULL AND (
+              LOWER(orders.lokasi_pengiriman) LIKE LOWER('%' || ou.name || '%') OR
+              LOWER(orders.lokasi_pengiriman) LIKE LOWER('%' || ou.location_alias || '%')
+            ))
+            OR (orders.lokasi_pengambilan IS NOT NULL AND (
+              LOWER(orders.lokasi_pengambilan) LIKE LOWER('%' || ou.name || '%') OR
+              LOWER(orders.lokasi_pengambilan) LIKE LOWER('%' || ou.location_alias || '%')
+            ))
+            OR (orders.shipping_area IS NOT NULL AND (
+              LOWER(orders.shipping_area) LIKE LOWER('%' || ou.name || '%') OR
+              LOWER(orders.shipping_area) LIKE LOWER('%' || ou.location_alias || '%')
+            ))
+          LIMIT 1
+        )
+      WHERE outlet_id IS NULL
+        AND (lokasi_pengiriman IS NOT NULL OR lokasi_pengambilan IS NOT NULL OR shipping_area IS NOT NULL)
     `).run();
 
     // Step 5: Create users-outlets relationship
@@ -158,12 +169,14 @@ export async function createRelationalDBStructure(request, env) {
       SET outlet_id = (
         SELECT ou.id 
         FROM outlets_unified ou 
-        WHERE ou.manager_username = users.username
-        OR LOWER(ou.name) LIKE LOWER('%' || users.username || '%')
+        WHERE 
+          LOWER(ou.manager_username) = LOWER(users.username)
+          OR LOWER(ou.name) LIKE LOWER('%' || users.username || '%')
+          OR LOWER(ou.location_alias) LIKE LOWER('%' || users.username || '%')
         LIMIT 1
       )
       WHERE role = 'outlet_manager' 
-      AND outlet_id IN (SELECT id FROM outlets_unified)
+        AND (outlet_id IS NULL OR outlet_id NOT IN (SELECT id FROM outlets_unified))
     `).run();
 
     // Step 6: Create views for backward compatibility
@@ -196,9 +209,6 @@ export async function createRelationalDBStructure(request, env) {
       message: 'Relational database structure created successfully'
     };
 
-    // Re-enable foreign key constraints after migration
-    await env.DB.prepare('PRAGMA foreign_keys = ON').run();
-    
     console.log('✅ Relational database migration completed:', migrationResult);
 
     return new Response(JSON.stringify({
@@ -220,6 +230,12 @@ export async function createRelationalDBStructure(request, env) {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
+  } finally {
+    try {
+      await env.DB.prepare('PRAGMA foreign_keys = ON').run();
+    } catch (fkErr) {
+      console.warn('⚠️ Could not re-enable foreign key constraints:', fkErr?.message || fkErr);
+    }
   }
 }
 
@@ -238,11 +254,11 @@ export async function getRelationalDBStatus(request, env) {
       throw new Error('Database not available');
     }
 
-    // Check if unified structure exists
+    // Check if unified structure exists (table + view)
     const tables = await env.DB.prepare(`
       SELECT name FROM sqlite_master 
-      WHERE type='table' 
-      AND name IN ('outlets_unified', 'locations_view')
+      WHERE (type='table' AND name='outlets_unified')
+         OR (type='view' AND name='locations_view')
     `).all();
 
     const hasUnifiedStructure = tables.results?.some(t => t.name === 'outlets_unified') || false;

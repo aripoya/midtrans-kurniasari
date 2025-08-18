@@ -185,10 +185,22 @@ export async function createOrder(request, env) {
     let createdByAdminName = null;
     let adminUser = null;
     
+    console.log('🔍 [ADMIN DEBUG] request.user:', request.user);
+    console.log('🔍 [ADMIN DEBUG] request.user exists:', !!request.user);
+    
     if (request.user) {
       createdByAdminId = request.user.id;
       createdByAdminName = request.user.name || request.user.username;
       adminUser = request.user;
+      
+      console.log('✅ [ADMIN DEBUG] Admin detected:');
+      console.log('   - createdByAdminId:', createdByAdminId);
+      console.log('   - createdByAdminName:', createdByAdminName);
+      console.log('   - request.user.id:', request.user.id);
+      console.log('   - request.user.name:', request.user.name);
+      console.log('   - request.user.username:', request.user.username);
+    } else {
+      console.log('❌ [ADMIN DEBUG] No admin user found in request');
     }
 
     await env.DB.prepare(`
