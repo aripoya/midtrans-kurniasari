@@ -347,16 +347,15 @@ export const adminApi = {
   ): Promise<OrdersResponse> => {
     try {
       console.log("[DEBUG] Fetching admin orders...");
-      console.log("[DEBUG] Using endpoint:", `${API_BASE_URL}/api/orders`);
+      console.log("[DEBUG] Using endpoint:", `${API_BASE_URL}/api/orders/admin`);
       console.log("[DEBUG] Token:", getAdminToken() ? "Present" : "Missing");
 
       const response: AxiosResponse = await axios.get(
-        `${API_BASE_URL}/api/orders`,
+        `${API_BASE_URL}/api/orders/admin`,
         {
           params: {
             offset,
             limit,
-            admin: true,
           },
           headers: {
             "Content-Type": "application/json",

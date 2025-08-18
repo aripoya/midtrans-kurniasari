@@ -147,7 +147,7 @@ export async function loginUser(request, env) {
 
         console.log(`LOGIN DB_FETCH: Searching for user '${username}' in the database.`);
         // Use password column directly since password_hash doesn't exist in production DB
-        const user = await env.DB.prepare('SELECT id, username, password, role, outlet_id FROM users WHERE username = ?')
+        const user = await env.DB.prepare('SELECT id, username, password, role, outlet_id, name FROM users WHERE username = ?')
             .bind(username)
             .first();
 
@@ -225,6 +225,7 @@ export async function loginUser(request, env) {
             { 
                 id: user.id, 
                 username: user.username,
+                name: user.name,
                 role: user.role,
                 outlet_id: user.outlet_id
             }, 
