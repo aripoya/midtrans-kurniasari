@@ -326,8 +326,10 @@ const AdminOrderDetailPage: React.FC = () => {
   const handleRefreshStatus = async (): Promise<void> => {
     setIsRefreshing(true);
     try {
-      const result = await refreshOrderStatus(id!);
-      if (result.success) {
+      const response = await refreshOrderStatus(id!);
+      console.log('🔄 Refresh status response:', response.data);
+      
+      if (response.data.success) {
         await loadAllData();
         toast({
           title: 'Success',
@@ -337,7 +339,7 @@ const AdminOrderDetailPage: React.FC = () => {
           isClosable: true,
         });
       } else {
-        throw new Error(result.error || 'Gagal memperbarui status');
+        throw new Error(response.data.error || 'Gagal memperbarui status');
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Terjadi kesalahan';
