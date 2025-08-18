@@ -613,16 +613,25 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
     const paymentStatus = order.payment_status || order.status;
     const shippingStatus = order.shipping_status;
 
+    // Debug logging
+    console.log('🔍 Stepper Debug - Payment Status:', paymentStatus);
+    console.log('🔍 Stepper Debug - Shipping Status:', shippingStatus);
+
     if (['paid', 'settlement', 'capture'].includes(paymentStatus)) {
       activeStep = 2;
       steps[1].description = 'Pembayaran berhasil';
-      if (['shipped', 'delivered', 'received', 'Sudah Di Terima', 'Sudah Di Ambil'].includes(shippingStatus)) {
+      
+      // Check if order has any shipping activity
+      if (['shipped', 'delivered', 'received', 'Sudah Di Terima', 'Sudah Di Ambil', 'diterima', 'Diterima'].includes(shippingStatus)) {
         activeStep = 3;
         steps[2].description = 'Pesanan dikirim';
-        if (['received', 'Sudah Di Terima', 'Sudah Di Ambil', 'diterima'].includes(shippingStatus)) {
+        
+        // Check if order is completed/received - include more variations
+        if (['received', 'Sudah Di Terima', 'Sudah Di Ambil', 'diterima', 'Diterima'].includes(shippingStatus)) {
           activeStep = 4; // Set to 4 to show all steps (0,1,2,3) as completed
           steps[2].description = 'Pesanan telah dikirim';
           steps[3].description = 'Pesanan telah diterima';
+          console.log('✅ Stepper Debug - Setting activeStep to 4 for completed order');
         }
       }
     } else if (paymentStatus === 'pending') {
@@ -632,6 +641,7 @@ function OrderDetailPage({ isOutletView, isDeliveryView }) {
       steps[1].description = 'Pembayaran Gagal';
     }
 
+    console.log('🔍 Stepper Debug - Final activeStep:', activeStep);
     return { steps, activeStep };
   };
 
