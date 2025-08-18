@@ -14,7 +14,7 @@ import { CartProvider } from './contexts/CartContext';
 // Page Components (.tsx)
 import OrdersPage from './pages/OrdersPage';
 import NewOrderPage from './pages/NewOrderPage';
-import OrderDetailPage from './pages/OrderDetailPage';
+import OrderDetailPage from './pages/OrderDetailPage.tsx';
 import PublicOrderDetailPage from './pages/PublicOrderDetailPage';
 import ProductsPage from './pages/ProductsPage';
 import DebugPage from './pages/DebugPage';
