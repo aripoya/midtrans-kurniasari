@@ -58,6 +58,12 @@ const NewOrderPage: React.FC = () => {
   const [items, setItems] = useState<OrderItem[]>([{ productId: '', name: '', price: '', quantity: 1, isCustom: false }]);
   const [products, setProducts] = useState<Product[]>([]);
   
+  // Styles for react-select to ensure proper overlay and full-width on mobile/desktop
+  const selectStyles: any = {
+    menuPortal: (base: any) => ({ ...base, zIndex: 9999 }),
+    container: (base: any) => ({ ...base, width: '100%' })
+  };
+  
   const [formData, setFormData] = useState<FormData>({
     customer_name: '',
     email: '',
@@ -289,7 +295,7 @@ const NewOrderPage: React.FC = () => {
       </Heading>
       
       <form onSubmit={handleSubmit}>
-        <Grid templateColumns={{ base: "1fr", xl: "2fr 3fr" }} gap={{ base: 6, md: 8 }}>
+        <Grid templateColumns={{ base: "1fr", lg: "1fr 1.2fr", xl: "2fr 3fr" }} gap={{ base: 6, md: 8 }}>
           <GridItem>
             <Card>
               <CardBody>
@@ -366,6 +372,9 @@ const NewOrderPage: React.FC = () => {
                               onChange={(option) => handleProductChange(index, option)}
                               onCreateOption={(inputValue) => handleProductChange(index, { value: inputValue, label: inputValue, __isNew__: true })}
                               value={item.name ? { value: item.productId || item.name, label: item.name } : null}
+                              styles={selectStyles}
+                              menuPosition="fixed"
+                              menuShouldBlockScroll
                               menuPortalTarget={document.body}
                             />
                             <FormErrorMessage>{errors[`items[${index}].name`]}</FormErrorMessage>
@@ -409,8 +418,8 @@ const NewOrderPage: React.FC = () => {
                     ))}
                   </VStack>
                 ) : (
-                  <TableContainer>
-                    <Table variant="simple">
+                  <TableContainer overflowX="auto">
+                    <Table variant="simple" size="sm">
                       <Thead>
                         <Tr>
                           <Th>Produk</Th>
@@ -432,6 +441,9 @@ const NewOrderPage: React.FC = () => {
                                   onChange={(option) => handleProductChange(index, option)}
                                   onCreateOption={(inputValue) => handleProductChange(index, { value: inputValue, label: inputValue, __isNew__: true })}
                                   value={item.name ? { value: item.productId || item.name, label: item.name } : null}
+                                  styles={selectStyles}
+                                  menuPosition="fixed"
+                                  menuShouldBlockScroll
                                   menuPortalTarget={document.body}
                                 />
                                 <FormErrorMessage>{errors[`items[${index}].name`]}</FormErrorMessage>
@@ -471,14 +483,16 @@ const NewOrderPage: React.FC = () => {
                   </TableContainer>
                 )}
 
-                <Flex direction={{ base: "column", sm: "row" }} w="full" mt={4} alignItems={{ base: "stretch", sm: "center" }} justifyContent={{ base: "center", sm: "flex-end" }} gap={3}>
-                  <Button onClick={addItem} colorScheme="teal" size="sm" w={{ base: "full", sm: "auto" }}>
-                    + Tambah Item
-                  </Button>
-                  <Box p={{ base: 3, md: 4 }} bg="gray.50" borderRadius="md" w={{ base: "full", sm: "auto" }} textAlign="center">
-                    <Heading size={{ base: "sm", md: "md" }}>Total: Rp {calculateTotal().toLocaleString('id-ID')}</Heading>
-                  </Box>
-                </Flex>
+                <Box position={{ base: "sticky", lg: "static" }} bottom="0" bg="white" zIndex={1} py={{ base: 3, md: 0 }} borderTop={{ base: "1px solid", md: "none" }} borderColor="gray.200">
+                  <Flex direction={{ base: "column", sm: "row" }} w="full" mt={4} alignItems={{ base: "stretch", sm: "center" }} justifyContent={{ base: "center", sm: "flex-end" }} gap={3}>
+                    <Button onClick={addItem} colorScheme="teal" size="sm" w={{ base: "full", sm: "auto" }}>
+                      + Tambah Item
+                    </Button>
+                    <Box p={{ base: 3, md: 4 }} bg="gray.50" borderRadius="md" w={{ base: "full", sm: "auto" }} textAlign="center">
+                      <Heading size={{ base: "sm", md: "md" }}>Total: Rp {calculateTotal().toLocaleString('id-ID')}</Heading>
+                    </Box>
+                  </Flex>
+                </Box>
               </CardBody>
             </Card>
           </GridItem>

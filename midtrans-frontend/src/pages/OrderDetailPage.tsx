@@ -11,7 +11,6 @@ import {
 } from '@chakra-ui/react';
 import { orderService } from '../api/orderService';
 import { refreshOrderStatus, markOrderAsReceived } from '../api/api';
-import { useAuth } from '../auth/AuthContext';
 import { normalizeShippingStatus, getShippingStatusConfig } from '../utils/orderStatusUtils';
 import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas';
@@ -61,7 +60,6 @@ interface OrderDetailPageProps {
 
 const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliveryView }) => {
   const { id } = useParams<{ id: string }>();
-  const auth = useAuth();
   const [order, setOrder] = useState<LocalOrder | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -177,6 +175,58 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     }
   };
 
+  // Map API order object to LocalOrder shape used by this component
+  const mapToLocalOrder = (apiOrder: any): LocalOrder => {
+    try {
+      const items = Array.isArray(apiOrder?.items)
+        ? apiOrder.items.map((it: any) => ({
+            product_name: it?.product_name || it?.name || '-',
+            quantity: Number(it?.quantity) || 0,
+            product_price: Number(it?.product_price ?? it?.price ?? 0),
+          }))
+        : [];
+      
+      const shipping_area: 'dalam_kota' | 'luar_kota' =
+        apiOrder?.shipping_area === 'luar_kota' || apiOrder?.shipping_area === 'luar-kota'
+          ? 'luar_kota'
+          : 'dalam_kota';
+      
+      const mapped: LocalOrder = {
+        id: String(apiOrder?.id || ''),
+        customer_name: apiOrder?.customer_name || apiOrder?.name || '-',
+        customer_phone: apiOrder?.customer_phone || apiOrder?.phone || '-',
+        customer_address: apiOrder?.customer_address || apiOrder?.address || '-',
+        shipping_area,
+        pickup_method: apiOrder?.pickup_method || '',
+        courier_service: apiOrder?.courier_service || undefined,
+        tracking_number: apiOrder?.tracking_number || undefined,
+        total_amount: Number(apiOrder?.total_amount) || 0,
+        payment_status: apiOrder?.payment_status || 'pending',
+        shipping_status: apiOrder?.shipping_status || 'menunggu diproses',
+        payment_url: apiOrder?.payment_url || undefined,
+        created_at: apiOrder?.created_at || new Date().toISOString(),
+        items,
+        shipping_images: apiOrder?.shipping_images || undefined,
+      };
+      return mapped;
+    } catch (e) {
+      console.error('[OrderDetailPage] Failed to map order, returning minimal shape', e);
+      return {
+        id: String(apiOrder?.id || ''),
+        customer_name: apiOrder?.customer_name || apiOrder?.name || '-',
+        customer_phone: apiOrder?.customer_phone || apiOrder?.phone || '-',
+        customer_address: apiOrder?.customer_address || apiOrder?.address || '-',
+        shipping_area: 'dalam_kota',
+        pickup_method: apiOrder?.pickup_method || '',
+        total_amount: Number(apiOrder?.total_amount) || 0,
+        payment_status: apiOrder?.payment_status || 'pending',
+        shipping_status: apiOrder?.shipping_status || 'menunggu diproses',
+        created_at: apiOrder?.created_at || new Date().toISOString(),
+        items: [],
+      } as LocalOrder;
+    }
+  };
+
   const fetchOrderDetails = useCallback(async (): Promise<void> => {
     if (!id) return;
     
@@ -184,25 +234,16 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       setLoading(true);
       setError(null);
       
-      let orderData;
+      // Gunakan API umum untuk semua view dan parse response
+      const response = await orderService.getOrderById(id);
+      const apiOrder: any = (response as any)?.order || (response as any)?.data || response;
       
-      // Tentukan API berdasarkan jenis view
-      if (isOutletView && auth?.hasRole?.('outlet_manager')) {
-        // Untuk outlet view, gunakan API khusus outlet
-        orderData = await orderService.getOutletOrderById(id);
-      } else if (isDeliveryView && auth?.hasRole?.('deliveryman')) {
-        // Untuk delivery view, gunakan API khusus delivery
-        orderData = await orderService.getDeliveryOrderById(id);
-      } else {
-        // Untuk public view atau admin view
-        orderData = await orderService.getOrderById(id);
-      }
-      
-      if (orderData) {
-        setOrder(orderData);
+      if (apiOrder) {
+        const mappedOrder: LocalOrder = mapToLocalOrder(apiOrder);
+        setOrder(mappedOrder);
         // Proses shipping images jika ada
-        if (orderData.shipping_images) {
-          processShippingImages(orderData.shipping_images);
+        if (mappedOrder.shipping_images) {
+          processShippingImages(mappedOrder.shipping_images);
         }
       } else {
         setError('Pesanan tidak ditemukan');
@@ -213,7 +254,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     } finally {
       setLoading(false);
     }
-  }, [id, isOutletView, isDeliveryView, auth]);
+  }, [id]);
 
   const handleRefreshStatus = async (): Promise<void> => {
     if (!id) return;
@@ -368,15 +409,16 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     const status = normalizeShippingStatus(order.shipping_status);
     const config = getShippingStatusConfig(status);
     
-    return <Badge colorScheme={config.color}>{config.label}</Badge>;
+    return <Badge colorScheme={config.color}>{config.text}</Badge>;
   };
 
   const getPaymentSteps = (): Array<{title: string, description: string, status: 'complete' | 'active' | 'incomplete'}> => {
     if (!order) return [];
 
     const isPaid = order.payment_status === 'paid';
-    const isShipped = ['siap_kirim', 'dalam_pengiriman', 'diterima'].includes(order.shipping_status);
-    const isReceived = order.shipping_status === 'diterima';
+    const normalizedStatus = normalizeShippingStatus(order.shipping_status);
+    const isShipped = ['siap kirim', 'dalam pengiriman', 'diterima'].includes(normalizedStatus);
+    const isReceived = normalizedStatus === 'diterima';
 
     return [
       {
@@ -391,7 +433,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       },
       {
         title: 'Pengiriman',
-        description: isReceived ? 'Pesanan dalam pengiriman' : 'Belum dikirim',
+        description: isShipped ? 'Pesanan dalam pengiriman' : 'Belum dikirim',
         status: isShipped ? (isReceived ? 'complete' : 'active') : 'incomplete'
       },
       {
@@ -400,6 +442,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         status: isReceived ? 'complete' : 'incomplete'
       }
     ];
+  };
+
+  // Handler print 56mm thermal receipt
+  const handlePrintReceipt = (): void => {
+    window.print();
   };
 
   useEffect(() => {
@@ -449,24 +496,100 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   // Tentukan apakah harus menampilkan foto berdasarkan shipping_area
   const isLuarKota = order.shipping_area === 'luar_kota';
   const photoSlotsToShow = isLuarKota ? ['delivered'] : ['ready_for_pickup', 'picked_up', 'delivered'];
+  const paymentText = order.payment_status === 'paid' ? 'Lunas' : order.payment_status === 'pending' ? 'Menunggu' : 'Gagal';
 
   return (
-    <Container maxW="container.lg" py={8} px={{ base: 4, md: 6 }}>
-      <VStack spacing={6} align="stretch">
-        <Card>
-          <CardHeader>
-            <HStack justify="space-between" wrap="wrap">
-              <Heading size="md">Detail Pesanan #{order.id}</Heading>
-              <HStack spacing={2}>
-                {getStatusBadge(order.payment_status)}
-                {getShippingStatusBadge(order)}
+    <>
+      {/* Print-only stylesheet for 56mm thermal receipt */}
+      <style>{`
+        #thermal-receipt { display: none; }
+        @media print {
+          @page { size: 56mm auto; margin: 0; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          body * { visibility: hidden !important; }
+          #thermal-receipt, #thermal-receipt * { visibility: visible !important; }
+          #thermal-receipt {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 56mm;
+            padding: 2mm 2mm;
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            color: #000;
+          }
+          #thermal-receipt .title { text-align: center; font-weight: bold; font-size: 12px; margin-bottom: 4px; }
+          #thermal-receipt hr { border: none; border-top: 1px dashed #000; margin: 4px 0; }
+          #thermal-receipt .section-title { font-weight: bold; margin: 2px 0; }
+          #thermal-receipt .line { display: flex; justify-content: space-between; gap: 6px; }
+          #thermal-receipt .items { margin-top: 2px; }
+          #thermal-receipt .item-name { word-break: break-word; }
+          #thermal-receipt .totals { margin-top: 6px; border-top: 1px dashed #000; padding-top: 4px; }
+        }
+      `}</style>
+
+      {/* Print-only content */}
+      <Box id="thermal-receipt">
+        <div className="title">Order #{order.id}</div>
+        <hr />
+        <div className="section">
+          <div className="section-title">Informasi Pelanggan</div>
+          <div className="line"><span>Nama</span><span>{order.customer_name || '-'}</span></div>
+          <div className="line"><span>Telepon</span><span>{order.customer_phone || '-'}</span></div>
+          <div className="line"><span>Alamat</span><span>{order.customer_address || '-'}</span></div>
+        </div>
+        <hr />
+        <div className="section">
+          <div className="section-title">Detail Pembayaran</div>
+          <div className="line"><span>Status</span><span>{paymentText}</span></div>
+          <div className="line"><span>Total</span><span>Rp {order.total_amount?.toLocaleString('id-ID')}</span></div>
+        </div>
+        <hr />
+        <div className="section">
+          <div className="section-title">Barang Pesanan</div>
+          <div className="items">
+            {order.items && order.items.map((it, idx) => (
+              <div key={idx} style={{ marginBottom: '2px' }}>
+                <div className="item-name">{it.product_name}</div>
+                <div className="line">
+                  <span>{it.quantity} x Rp {Number(it.product_price || 0).toLocaleString('id-ID')}</span>
+                  <span>Rp {(Number(it.product_price || 0) * Number(it.quantity || 0)).toLocaleString('id-ID')}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="totals line">
+            <span>Total</span>
+            <span>Rp {order.total_amount?.toLocaleString('id-ID')}</span>
+          </div>
+        </div>
+      </Box>
+
+      <Container maxW="container.lg" py={8} px={{ base: 4, md: 6 }}>
+        <VStack spacing={6} align="stretch">
+          <Card>
+            <CardHeader>
+              <HStack justify="space-between" wrap="wrap">
+                <Heading size="md">Detail Pesanan #{order.id}</Heading>
+                {isOutletView && (
+                  <Button
+                    onClick={handlePrintReceipt}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Print 56mm
+                  </Button>
+                )}
+                <HStack spacing={2}>
+                  {getStatusBadge(order.payment_status)}
+                  {getShippingStatusBadge(order)}
+                </HStack>
               </HStack>
-            </HStack>
-          </CardHeader>
-          <CardBody>
-            <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={6}>
-              <GridItem>
-                <VStack align="stretch" spacing={4}>
+            </CardHeader>
+            <CardBody>
+              <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={6}>
+                <GridItem>
+                  <VStack align="stretch" spacing={4}>
                   <Box>
                     <Heading size="sm" mb={2}>Informasi Pelanggan</Heading>
                     <Text><strong>Nama:</strong> {order.customer_name}</Text>
@@ -528,7 +651,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                         return (
                           <ShippingImageDisplay
                             key={type}
-                            imageUrl={shippingImages[type as keyof ShippingImages]}
+                            imageUrl={shippingImages[type as keyof ShippingImages] ?? undefined}
                             type={type}
                             label={labels[type as keyof typeof labels]}
                             showPlaceholder={true}
@@ -677,6 +800,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
             <Divider my={6} />
             
             <HStack spacing={4} justify="center" wrap="wrap">
+              {isOutletView && (
+                <Button onClick={handlePrintReceipt} colorScheme="gray" size="lg">
+                  Print 56mm
+                </Button>
+              )}
               {!isPaid && order.payment_url && (
                 <Button as="a" href={order.payment_url} target="_blank" colorScheme="teal" size="lg">
                   Lanjutkan Pembayaran
@@ -695,6 +823,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         </Card>
       </VStack>
     </Container>
+    </>
   );
 };
 
