@@ -509,6 +509,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           body * { visibility: hidden !important; }
           #thermal-receipt, #thermal-receipt * { visibility: visible !important; }
           #thermal-receipt {
+            display: block !important;
             position: absolute;
             left: 0;
             top: 0;
