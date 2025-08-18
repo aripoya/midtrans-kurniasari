@@ -39,6 +39,8 @@ export interface Order {
   outlet_id?: string;
   lokasi_pengiriman?: string;
   assigned_deliveryman_id?: string;
+  created_by_admin_id?: string;
+  created_by_admin_name?: string;
 }
 
 export interface ShippingImage {
@@ -47,6 +49,39 @@ export interface ShippingImage {
   image_type: "siap_kirim" | "pengiriman" | "diterima";
   image_url: string;
   created_at: string;
+}
+
+export interface AdminActivity {
+  id: number;
+  admin_id: string;
+  admin_name: string;
+  admin_email: string;
+  activity_type: string;
+  description: string;
+  order_id?: string;
+  ip_address: string;
+  created_at: string;
+}
+
+export interface AdminSession {
+  session_id: string;
+  admin_id: string;
+  admin_name: string;
+  admin_email: string;
+  ip_address: string;
+  login_at: string;
+  last_activity: string;
+}
+
+export interface AdminStats {
+  today: {
+    total_activities: number;
+    logins: number;
+    orders_created: number;
+    orders_updated: number;
+  };
+  active_sessions: number;
+  recent_orders: AdminActivity[];
 }
 
 export interface Outlet {
@@ -914,22 +949,149 @@ export const adminApi = {
         },
       })
       .then((response: AxiosResponse<OutletsResponse>) => {
-        console.log("🏪 Outlets API response:", response.data);
-        return {
-          success: true,
-          outlets: response.data.outlets || [],
-          data: response.data.outlets || [],
-        };
+        return response.data;
       })
       .catch((error) => {
-        console.error("Error fetching outlets:", error);
+        console.error("Error getting outlets:", error);
         return {
           success: false,
           outlets: [],
-          error:
-            error.response?.data?.error ||
-            error.message ||
-            "Error fetching outlets from server",
+          error: error.response?.data?.error || error.message || "Error getting outlets",
+        };
+      });
+  },
+
+  // Admin Activity Methods
+  getAdminActivity(filters: {
+    admin_id?: string;
+    activity_type?: string;
+    date_from?: string;
+    date_to?: string;
+    limit?: string;
+  } = {}): Promise<ApiResponse<AdminActivity[]>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) queryParams.append(key, value);
+    });
+
+    return axios
+      .get(`${API_BASE_URL}/api/admin/activity?${queryParams.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<AdminActivity[]>>) => {
+        return response.data;
+      })
+      .catch((error) => {
+        console.error("Error getting admin activity:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting admin activity",
+        };
+      });
+  },
+
+  getActiveSessions(): Promise<ApiResponse<AdminSession[]>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_BASE_URL}/api/admin/sessions`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<AdminSession[]>>) => {
+        return response.data;
+      })
+      .catch((error) => {
+        console.error("Error getting active sessions:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting active sessions",
+        };
+      });
+  },
+
+  getAdminStats(): Promise<ApiResponse<AdminStats>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_BASE_URL}/api/admin/stats`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<AdminStats>>) => {
+        return response.data;
+      })
+      .catch((error) => {
+        console.error("Error getting admin stats:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting admin stats",
+        };
+      });
+  },
+
+  logoutAdmin(sessionId?: string, adminId?: string): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .post(`${API_BASE_URL}/api/admin/logout`, 
+        { sessionId, adminId },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      )
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error) => {
+        console.error("Error during admin logout:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error during logout",
         };
       });
   },

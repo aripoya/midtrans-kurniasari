@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { createNotification } from './notifications.js';
 import { determineOutletFromLocation } from './outlet-assignment.js';
+import { AdminActivityLogger, getClientInfo } from '../utils/admin-activity-logger.js';
 
 // Simple order ID generator
 function generateOrderId() {
@@ -179,9 +180,20 @@ export async function createOrder(request, env) {
       lokasi_pengiriman: orderData.lokasi_pengiriman || null
     });
 
+    // Get admin info from request if authenticated
+    let createdByAdminId = null;
+    let createdByAdminName = null;
+    let adminUser = null;
+    
+    if (request.user) {
+      createdByAdminId = request.user.id;
+      createdByAdminName = request.user.name || request.user.username;
+      adminUser = request.user;
+    }
+
     await env.DB.prepare(`
-      INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_response, shipping_status, customer_address, outlet_id, lokasi_pengiriman, lokasi_pengambilan, shipping_area, pickup_method, courier_service, shipping_notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_response, shipping_status, customer_address, outlet_id, lokasi_pengiriman, lokasi_pengambilan, shipping_area, pickup_method, courier_service, shipping_notes, created_by_admin_id, created_by_admin_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
         orderId,
         customer_name,
@@ -199,7 +211,9 @@ export async function createOrder(request, env) {
         orderData.shipping_area || null,
         orderData.pickup_method || null,
         orderData.courier_service || null,
-        orderData.shipping_notes || null
+        orderData.shipping_notes || null,
+        createdByAdminId,
+        createdByAdminName
       ).run();
 
     // Statements for inserting into 'order_items' table
@@ -217,6 +231,18 @@ export async function createOrder(request, env) {
     // Batch execute item insertion statements
     if (dbStatements.length > 0) {
       await env.DB.batch(dbStatements);
+    }
+
+    // Log order creation activity if admin is authenticated
+    if (adminUser) {
+      try {
+        const activityLogger = new AdminActivityLogger(env);
+        const { ipAddress, userAgent } = getClientInfo(request);
+        await activityLogger.logOrderCreated(adminUser, orderId, customer_name, totalAmount, ipAddress, userAgent);
+      } catch (logError) {
+        console.error('Failed to log order creation activity:', logError);
+        // Don't fail the order creation if logging fails
+      }
     }
 
     return new Response(JSON.stringify({ success: true, orderId: orderId, ...midtransData }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } });

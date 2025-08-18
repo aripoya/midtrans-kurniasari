@@ -420,6 +420,12 @@ const PublicOrderDetailPage = () => {
                             )}
                           </HStack>
                         )}
+                        {order.courier_name && (
+                          <Text><strong>Nama Kurir:</strong> {order.courier_name}</Text>
+                        )}
+                        {order.admin_note && (
+                          <Text><strong>Catatan Admin:</strong> {order.admin_note}</Text>
+                        )}
                       </Box>
                     );
                   })()}

@@ -23,6 +23,7 @@ import AdminLoginPage from './pages/admin/AdminLoginPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
 import AdminOrderDetailPage from './pages/admin/AdminOrderDetailPage';
 import UserManagementPage from './pages/admin/UserManagementPage';
+import AdminActivityPage from './pages/admin/AdminActivityPage';
 import OutletDashboard from './pages/outlet/OutletDashboard';
 import OutletAdminView from './pages/outlet/OutletAdminView';
 import DeliveryDashboard from './pages/delivery/DeliveryDashboard';
@@ -65,6 +66,7 @@ const App: React.FC = () => {
                   <Route path="orders/new" element={<NewOrderPage />} />
                   <Route path="orders/:id" element={<AdminOrderDetailPage />} />
                   <Route path="users" element={<UserManagementPage />} />
+                  <Route path="activity" element={<AdminActivityPage />} />
                 </Route>
 
                 {/* Outlet Manager Routes */}

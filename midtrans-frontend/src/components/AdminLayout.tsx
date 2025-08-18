@@ -26,6 +26,9 @@ const AdminLayout: React.FC = () => {
             <Link as={RouterLink} to="/admin/users" fontWeight="medium">
               User Management
             </Link>
+            <Link as={RouterLink} to="/admin/activity" fontWeight="medium">
+              Aktivitas Admin
+            </Link>
           </HStack>
         </Flex>
       </Box>

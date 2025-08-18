@@ -349,6 +349,11 @@ const AdminOrdersPage: React.FC = () => {
                     <Text><strong>Tanggal:</strong> {formatDate(order.created_at)}</Text>
                     <Text><strong>Email:</strong> {order.customer_email}</Text>
                     <Text><strong>Total:</strong> Rp {order.total_amount?.toLocaleString('id-ID')}</Text>
+                    <Text><strong>Dibuat Oleh:</strong> {order.created_by_admin_name ? (
+                      <Badge colorScheme="blue" variant="subtle" ml={2}>
+                        {order.created_by_admin_name}
+                      </Badge>
+                    ) : '-'}</Text>
                     <Text><strong>Status Pembayaran:</strong> {getPaymentStatusBadge(order.payment_status)}</Text>
                     <Text><strong>Status Pesanan:</strong> {getShippingStatusBadge(order.shipping_status)}</Text>
                     <Button
@@ -375,6 +380,7 @@ const AdminOrdersPage: React.FC = () => {
                       <Th>Pelanggan</Th>
                       <Th>Total</Th>
                       <Th>Area Pengiriman</Th>
+                      <Th>Dibuat Oleh</Th>
                       <Th>Status Pembayaran</Th>
                       <Th>Status Pesanan</Th>
                       <Th>Aksi</Th>
@@ -389,6 +395,15 @@ const AdminOrdersPage: React.FC = () => {
                           <Td>{order.customer_name}</Td>
                           <Td>Rp {order.total_amount?.toLocaleString('id-ID')}</Td>
                           <Td>{order.lokasi_pengiriman || order.shipping_area || '-'}</Td>
+                          <Td>
+                            {order.created_by_admin_name ? (
+                              <Badge colorScheme="blue" variant="subtle">
+                                {order.created_by_admin_name}
+                              </Badge>
+                            ) : (
+                              <Text fontSize="sm" color="gray.500">-</Text>
+                            )}
+                          </Td>
                           <Td>{getPaymentStatusBadge(order.payment_status)}</Td>
                           <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
                           <Td>

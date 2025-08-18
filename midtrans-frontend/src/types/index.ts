@@ -79,6 +79,8 @@ export interface Order {
   // Assignments
   outlet_id?: string;
   assigned_deliveryman_id?: string;
+  courier_name?: string;
+  admin_note?: string;
   
   // Photos
   readyForPickup_photo_url?: string;

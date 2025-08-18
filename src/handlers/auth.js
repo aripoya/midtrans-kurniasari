@@ -2,6 +2,7 @@
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { AdminActivityLogger, getClientInfo } from '../utils/admin-activity-logger.js';
 
 // Register a new user
 export async function registerUser(request, env) {
@@ -231,6 +232,14 @@ export async function loginUser(request, env) {
             { expiresIn: '24h' }
         );
 
+        // Initialize activity logger and get client info
+        const activityLogger = new AdminActivityLogger(env);
+        const { ipAddress, userAgent } = getClientInfo(request);
+        
+        // Create session and log login activity
+        const sessionId = await activityLogger.createSession(user, ipAddress, userAgent);
+        await activityLogger.logLogin(user, ipAddress, userAgent, sessionId);
+        
         // Update last login timestamp with detailed error handling
         try {
             await env.DB.prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?')

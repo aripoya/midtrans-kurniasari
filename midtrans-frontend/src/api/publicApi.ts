@@ -34,6 +34,7 @@ export interface PublicOrder {
   lokasi_pengiriman?: string;
   lokasi_pengambilan?: string;
   admin_note?: string;
+  courier_name?: string;
   created_at: string;
   shipping_images?: Array<{
     id: string;

@@ -976,6 +976,16 @@ useEffect(() => {
                     <Td fontWeight="semibold">Tanggal Dibuat</Td>
                     <Td>{formatDate(order.created_at)}</Td>
                   </Tr>
+                  {order.created_by_admin_name && (
+                    <Tr>
+                      <Td fontWeight="semibold">Dibuat Oleh</Td>
+                      <Td>
+                        <Badge colorScheme="blue" variant="subtle">
+                          {order.created_by_admin_name}
+                        </Badge>
+                      </Td>
+                    </Tr>
+                  )}
                   {order.payment_method && (
                     <Tr>
                       <Td fontWeight="semibold">Metode Pembayaran</Td>

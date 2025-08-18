@@ -17,6 +17,8 @@ import { migrateExistingOrdersToOutlets, getMigrationStatus } from './handlers/m
 import { createRelationalDBStructure, getRelationalDBStatus } from './handlers/migrate-relational-db.js';
 import { migrateSafeRelationalDB, getSafeMigrationStatus } from './handlers/migrate-safe-db.js';
 import { migrateShippingInfoFields, getOrdersTableSchema } from './handlers/migrate-shipping-info.js';
+import { migrateAdminActivity } from './handlers/migrate-admin-activity.js';
+import { getAdminActivity, getActiveSessions, logoutUser, getAdminStats } from './handlers/admin-activity.js';
 
 console.log('Initializing router');
 const router = Router();
@@ -374,6 +376,33 @@ router.post('/api/admin/migrate-shipping-info', verifyToken, (request, env) => {
 router.get('/api/admin/orders-table-schema', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return getOrdersTableSchema(request, env);
+});
+
+// Admin Activity Migration endpoints
+router.post('/api/admin/migrate-admin-activity', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return migrateAdminActivity(request, env);
+});
+
+// Admin Activity Logging endpoints
+router.get('/api/admin/activity', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getAdminActivity(request, env);
+});
+
+router.get('/api/admin/sessions', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getActiveSessions(request, env);
+});
+
+router.post('/api/admin/logout', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return logoutUser(request, env);
+});
+
+router.get('/api/admin/stats', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getAdminStats(request, env);
 });
 
 // Cloudflare Images endpoints for image uploads and management
