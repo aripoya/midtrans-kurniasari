@@ -602,16 +602,19 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           line-height: 1.2;
           color: #000;
         }
-        #thermal-receipt .title { text-align: center; font-weight: bold; font-size: 12px; margin-bottom: 4px; overflow-wrap: anywhere; }
+        #thermal-receipt .title { text-align: center; font-weight: bold; font-size: 12px; margin-bottom: 6px; overflow-wrap: anywhere; }
         #thermal-receipt hr { border: none; border-top: 1px dashed #000; margin: 4px 0; }
-        #thermal-receipt .section-title { font-weight: bold; margin: 2px 0; }
+        #thermal-receipt .section-title { font-weight: bold; margin: 0 0 4px 0; }
         #thermal-receipt .line { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
         #thermal-receipt .label { flex: 1; min-width: 0; }
         #thermal-receipt .label::after { content: ':'; margin-left: 4px; }
         #thermal-receipt .value { text-align: right; word-break: break-word; -webkit-font-smoothing: antialiased; }
-        #thermal-receipt .items { margin-top: 2px; }
+        #thermal-receipt .items { margin-top: 4px; }
         #thermal-receipt .item-name { word-break: break-word; }
         #thermal-receipt .totals { margin-top: 6px; border-top: 1px dashed #000; padding-top: 4px; }
+        #thermal-receipt .separator { margin: 6px 0; }
+        #thermal-receipt .kv { margin: 1px 0; }
+        #thermal-receipt .kv .label::after { content: ': '; margin-left: 0; }
 
         /* Print overrides */
         @media print {
@@ -631,20 +634,20 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       {/* Print-only content */}
       <Box id="thermal-receipt">
         <div className="title">Order #{order.id}</div>
-        <hr />
+        <div className="separator">==============================</div>
         <div className="section">
           <div className="section-title">Informasi Pelanggan</div>
-          <div className="line"><span className="label">Nama</span><span className="value">{order.customer_name || '-'}</span></div>
-          <div className="line"><span className="label">Telepon</span><span className="value">{order.customer_phone || '-'}</span></div>
-          <div className="line"><span className="label">Alamat</span><span className="value">{order.customer_address || '-'}</span></div>
+          <div className="kv"><span className="label">Nama</span><span className="value">{order.customer_name || '-'}</span></div>
+          <div className="kv"><span className="label">Telp</span><span className="value">{order.customer_phone || '-'}</span></div>
+          <div className="kv"><span className="label">Alamat</span><span className="value">{order.customer_address || '-'}</span></div>
         </div>
-        <hr />
+        <div className="separator">==============================</div>
         <div className="section">
           <div className="section-title">Detail Pembayaran</div>
           <div className="line"><span className="label">Status</span><span className="value">{paymentText}</span></div>
           <div className="line"><span className="label">Total</span><span className="value">Rp {order.total_amount?.toLocaleString('id-ID')}</span></div>
         </div>
-        <hr />
+        <div className="separator">==============================</div>
         <div className="section">
           <div className="section-title">Barang Pesanan</div>
           <div className="items">
