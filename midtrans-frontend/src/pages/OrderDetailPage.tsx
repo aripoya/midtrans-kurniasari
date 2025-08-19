@@ -444,11 +444,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     ];
   };
 
-  // Handler print 56mm thermal receipt
-  const handlePrintReceipt = (): void => {
-    window.print();
-  };
-
   // Fallback: download thermal receipt as PNG (useful for Android with Print Service apps)
   const handleDownloadReceiptImage = async (): Promise<void> => {
     try {
@@ -482,61 +477,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     }
   };
 
-  // Share thermal receipt PNG via Web Share API (e.g., to RawBT)
-  const handleShareReceiptToRawBT = async (): Promise<void> => {
-    try {
-      const el = document.getElementById('thermal-receipt') as HTMLElement | null;
-      if (!el) {
-        toast({ title: 'Elemen struk tidak ditemukan', status: 'error', duration: 2500, isClosable: true });
-        return;
-      }
-
-      const originalStyle = el.getAttribute('style') || '';
-      el.setAttribute('style', originalStyle + ';display:block;position:static;width:56mm;background:#ffffff;padding:2mm 2mm;');
-
-      const canvas = await html2canvas(el, {
-        backgroundColor: '#ffffff',
-        scale: 2,
-        useCORS: true
-      });
-
-      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-      if (!blob) throw new Error('Gagal membuat blob gambar');
-
-      const file = new File([blob], `receipt-${order?.id || 'order'}.png`, { type: 'image/png' });
-      const nav: any = navigator;
-
-      if (nav?.share && nav?.canShare && nav.canShare({ files: [file] })) {
-        await nav.share({
-          files: [file],
-          title: `Receipt Order #${order?.id}`,
-          text: 'Thermal receipt 56mm'
-        });
-        toast({ title: 'Dibagikan ke aplikasi cetak', status: 'success', duration: 1500, isClosable: true });
-      } else if (nav?.share) {
-        // Fallback share without files (may not open RawBT, but attempt)
-        await nav.share({
-          title: `Receipt Order #${order?.id}`,
-          text: 'Unduh dan cetak struk',
-          url: canvas.toDataURL('image/png')
-        });
-      } else {
-        // Last fallback: download PNG
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `receipt-${order?.id || 'order'}.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast({ title: 'Perangkat tidak mendukung Share. PNG diunduh.', status: 'info', duration: 3000, isClosable: true });
-      }
-
-      if (originalStyle) el.setAttribute('style', originalStyle); else el.removeAttribute('style');
-    } catch (error) {
-      console.error('Error sharing receipt image:', error);
-      toast({ title: 'Gagal membagikan struk', status: 'error', duration: 3000, isClosable: true });
-    }
-  };
 
   useEffect(() => {
     fetchOrderDetails();
@@ -677,25 +617,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                 {isOutletView && (
                   <HStack>
                     <Button
-                      onClick={handlePrintReceipt}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Print 56mm
-                    </Button>
-                    <Button
                       onClick={handleDownloadReceiptImage}
                       variant="outline"
                       size="sm"
                     >
                       Unduh PNG 56mm
-                    </Button>
-                    <Button
-                      onClick={handleShareReceiptToRawBT}
-                      colorScheme="teal"
-                      size="sm"
-                    >
-                      Bagikan ke RawBT
                     </Button>
                   </HStack>
                 )}
@@ -921,14 +847,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
             <HStack spacing={4} justify="center" wrap="wrap">
               {isOutletView && (
                 <HStack>
-                  <Button onClick={handlePrintReceipt} colorScheme="gray" size="lg">
-                    Print 56mm
-                  </Button>
                   <Button onClick={handleDownloadReceiptImage} variant="outline" size="lg">
                     Unduh PNG 56mm
-                  </Button>
-                  <Button onClick={handleShareReceiptToRawBT} colorScheme="teal" size="lg">
-                    Bagikan ke RawBT
                   </Button>
                 </HStack>
               )}
