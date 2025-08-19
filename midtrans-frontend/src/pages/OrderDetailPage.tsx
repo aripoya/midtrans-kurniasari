@@ -454,7 +454,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       }
       // Preserve original inline styles, then force visible for capture
       const originalStyle = el.getAttribute('style') || '';
-      el.setAttribute('style', originalStyle + ';display:block;position:static;width:56mm;box-sizing:border-box;background:#ffffff;padding:2mm 2mm;font-family:Arial, sans-serif;font-size:10px;line-height:1.2;');
+      el.setAttribute('style', originalStyle + ';display:block;position:static;width:56mm;box-sizing:border-box;background:#ffffff;padding:2mm 2mm;font-family:Arial, sans-serif;font-size:20px;line-height:1.25;font-weight:600;');
 
       const canvas = await html2canvas(el, {
         backgroundColor: '#ffffff',
@@ -538,21 +538,22 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           width: 56mm;
           padding: 2mm 2mm;
           font-family: Arial, sans-serif;
-          font-size: 10px;
-          line-height: 1.2;
+          font-size: 20px;
+          line-height: 1.25;
+          font-weight: 600;
           color: #000;
         }
-        #thermal-receipt .title { text-align: center; font-weight: bold; font-size: 12px; margin-bottom: 6px; overflow-wrap: anywhere; }
+        #thermal-receipt .title { text-align: center; font-weight: 800; font-size: 24px; margin-bottom: 8px; overflow-wrap: anywhere; }
         #thermal-receipt hr { border: none; border-top: 1px dashed #000; margin: 4px 0; }
-        #thermal-receipt .section-title { font-weight: bold; margin: 0 0 4px 0; }
-        #thermal-receipt .line { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+        #thermal-receipt .section-title { font-weight: 700; margin: 0 0 6px 0; }
+        #thermal-receipt .line { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
         #thermal-receipt .label { flex: 1; min-width: 0; }
         #thermal-receipt .label::after { content: ':'; margin-left: 4px; }
         #thermal-receipt .value { text-align: right; word-break: break-word; -webkit-font-smoothing: antialiased; }
-        #thermal-receipt .items { margin-top: 4px; }
+        #thermal-receipt .items { margin-top: 6px; }
         #thermal-receipt .item-name { word-break: break-word; }
-        #thermal-receipt .totals { margin-top: 6px; border-top: 1px dashed #000; padding-top: 4px; }
-        #thermal-receipt .separator { margin: 6px 0; }
+        #thermal-receipt .totals { margin-top: 8px; border-top: 1px dashed #000; padding-top: 6px; }
+        #thermal-receipt .separator { margin: 8px 0; }
         #thermal-receipt .kv { margin: 1px 0; }
         #thermal-receipt .kv .label::after { content: ': '; margin-left: 0; }
 
