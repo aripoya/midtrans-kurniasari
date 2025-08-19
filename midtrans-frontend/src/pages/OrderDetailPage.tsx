@@ -459,7 +459,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       }
       // Preserve original inline styles, then force visible for capture
       const originalStyle = el.getAttribute('style') || '';
-      el.setAttribute('style', originalStyle + ';display:block;position:static;width:56mm;background:#ffffff;padding:2mm 2mm;');
+      el.setAttribute('style', originalStyle + ';display:block;position:static;width:56mm;box-sizing:border-box;background:#ffffff;padding:2mm 2mm;font-family:Arial, sans-serif;font-size:10px;line-height:1.2;');
 
       const canvas = await html2canvas(el, {
         backgroundColor: '#ffffff',
@@ -479,6 +479,62 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     } catch (error) {
       console.error('Error exporting receipt image:', error);
       toast({ title: 'Gagal mengunduh gambar struk', status: 'error', duration: 3000, isClosable: true });
+    }
+  };
+
+  // Share thermal receipt PNG via Web Share API (e.g., to RawBT)
+  const handleShareReceiptToRawBT = async (): Promise<void> => {
+    try {
+      const el = document.getElementById('thermal-receipt') as HTMLElement | null;
+      if (!el) {
+        toast({ title: 'Elemen struk tidak ditemukan', status: 'error', duration: 2500, isClosable: true });
+        return;
+      }
+
+      const originalStyle = el.getAttribute('style') || '';
+      el.setAttribute('style', originalStyle + ';display:block;position:static;width:56mm;background:#ffffff;padding:2mm 2mm;');
+
+      const canvas = await html2canvas(el, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true
+      });
+
+      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('Gagal membuat blob gambar');
+
+      const file = new File([blob], `receipt-${order?.id || 'order'}.png`, { type: 'image/png' });
+      const nav: any = navigator;
+
+      if (nav?.share && nav?.canShare && nav.canShare({ files: [file] })) {
+        await nav.share({
+          files: [file],
+          title: `Receipt Order #${order?.id}`,
+          text: 'Thermal receipt 56mm'
+        });
+        toast({ title: 'Dibagikan ke aplikasi cetak', status: 'success', duration: 1500, isClosable: true });
+      } else if (nav?.share) {
+        // Fallback share without files (may not open RawBT, but attempt)
+        await nav.share({
+          title: `Receipt Order #${order?.id}`,
+          text: 'Unduh dan cetak struk',
+          url: canvas.toDataURL('image/png')
+        });
+      } else {
+        // Last fallback: download PNG
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `receipt-${order?.id || 'order'}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast({ title: 'Perangkat tidak mendukung Share. PNG diunduh.', status: 'info', duration: 3000, isClosable: true });
+      }
+
+      if (originalStyle) el.setAttribute('style', originalStyle); else el.removeAttribute('style');
+    } catch (error) {
+      console.error('Error sharing receipt image:', error);
+      toast({ title: 'Gagal membagikan struk', status: 'error', duration: 3000, isClosable: true });
     }
   };
 
@@ -535,7 +591,29 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     <>
       {/* Print-only stylesheet for 56mm thermal receipt */}
       <style>{`
-        #thermal-receipt { display: none; }
+        /* Base styles (apply on screen too so html2canvas captures nicely) */
+        #thermal-receipt {
+          display: none;
+          box-sizing: border-box;
+          width: 56mm;
+          padding: 2mm 2mm;
+          font-family: Arial, sans-serif;
+          font-size: 10px;
+          line-height: 1.2;
+          color: #000;
+        }
+        #thermal-receipt .title { text-align: center; font-weight: bold; font-size: 12px; margin-bottom: 4px; overflow-wrap: anywhere; }
+        #thermal-receipt hr { border: none; border-top: 1px dashed #000; margin: 4px 0; }
+        #thermal-receipt .section-title { font-weight: bold; margin: 2px 0; }
+        #thermal-receipt .line { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+        #thermal-receipt .label { flex: 1; min-width: 0; }
+        #thermal-receipt .label::after { content: ':'; margin-left: 4px; }
+        #thermal-receipt .value { text-align: right; word-break: break-word; -webkit-font-smoothing: antialiased; }
+        #thermal-receipt .items { margin-top: 2px; }
+        #thermal-receipt .item-name { word-break: break-word; }
+        #thermal-receipt .totals { margin-top: 6px; border-top: 1px dashed #000; padding-top: 4px; }
+
+        /* Print overrides */
         @media print {
           @page { size: 56mm auto; margin: 0; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -546,19 +624,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
             position: absolute;
             left: 0;
             top: 0;
-            width: 56mm;
-            padding: 2mm 2mm;
-            font-family: Arial, sans-serif;
-            font-size: 10px;
-            color: #000;
           }
-          #thermal-receipt .title { text-align: center; font-weight: bold; font-size: 12px; margin-bottom: 4px; }
-          #thermal-receipt hr { border: none; border-top: 1px dashed #000; margin: 4px 0; }
-          #thermal-receipt .section-title { font-weight: bold; margin: 2px 0; }
-          #thermal-receipt .line { display: flex; justify-content: space-between; gap: 6px; }
-          #thermal-receipt .items { margin-top: 2px; }
-          #thermal-receipt .item-name { word-break: break-word; }
-          #thermal-receipt .totals { margin-top: 6px; border-top: 1px dashed #000; padding-top: 4px; }
         }
       `}</style>
 
@@ -568,15 +634,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         <hr />
         <div className="section">
           <div className="section-title">Informasi Pelanggan</div>
-          <div className="line"><span>Nama</span><span>{order.customer_name || '-'}</span></div>
-          <div className="line"><span>Telepon</span><span>{order.customer_phone || '-'}</span></div>
-          <div className="line"><span>Alamat</span><span>{order.customer_address || '-'}</span></div>
+          <div className="line"><span className="label">Nama</span><span className="value">{order.customer_name || '-'}</span></div>
+          <div className="line"><span className="label">Telepon</span><span className="value">{order.customer_phone || '-'}</span></div>
+          <div className="line"><span className="label">Alamat</span><span className="value">{order.customer_address || '-'}</span></div>
         </div>
         <hr />
         <div className="section">
           <div className="section-title">Detail Pembayaran</div>
-          <div className="line"><span>Status</span><span>{paymentText}</span></div>
-          <div className="line"><span>Total</span><span>Rp {order.total_amount?.toLocaleString('id-ID')}</span></div>
+          <div className="line"><span className="label">Status</span><span className="value">{paymentText}</span></div>
+          <div className="line"><span className="label">Total</span><span className="value">Rp {order.total_amount?.toLocaleString('id-ID')}</span></div>
         </div>
         <hr />
         <div className="section">
@@ -587,14 +653,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                 <div className="item-name">{it.product_name}</div>
                 <div className="line">
                   <span>{it.quantity} x Rp {Number(it.product_price || 0).toLocaleString('id-ID')}</span>
-                  <span>Rp {(Number(it.product_price || 0) * Number(it.quantity || 0)).toLocaleString('id-ID')}</span>
+                  <span className="value">Rp {(Number(it.product_price || 0) * Number(it.quantity || 0)).toLocaleString('id-ID')}</span>
                 </div>
               </div>
             ))}
           </div>
           <div className="totals line">
-            <span>Total</span>
-            <span>Rp {order.total_amount?.toLocaleString('id-ID')}</span>
+            <span className="label">Total</span>
+            <span className="value">Rp {order.total_amount?.toLocaleString('id-ID')}</span>
           </div>
         </div>
       </Box>
@@ -620,6 +686,13 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                       size="sm"
                     >
                       Unduh PNG 56mm
+                    </Button>
+                    <Button
+                      onClick={handleShareReceiptToRawBT}
+                      colorScheme="teal"
+                      size="sm"
+                    >
+                      Bagikan ke RawBT
                     </Button>
                   </HStack>
                 )}
@@ -850,6 +923,9 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                   </Button>
                   <Button onClick={handleDownloadReceiptImage} variant="outline" size="lg">
                     Unduh PNG 56mm
+                  </Button>
+                  <Button onClick={handleShareReceiptToRawBT} colorScheme="teal" size="lg">
+                    Bagikan ke RawBT
                   </Button>
                 </HStack>
               )}
