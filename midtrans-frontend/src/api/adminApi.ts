@@ -153,6 +153,36 @@ export interface OutletsResponse {
   error?: string | null;
 }
 
+// Safe migration interfaces
+export interface SafeMigrationStatistics {
+  unifiedOutlets?: number;
+  ordersLinked?: number;
+  usersLinked?: number;
+  ordersUpdated?: number;
+  usersUpdated?: number;
+}
+
+export interface SafeMigrationStatus {
+  hasUnifiedStructure: boolean;
+  statistics?: SafeMigrationStatistics;
+  sampleOutlets?: any[];
+  migrationMethod?: string;
+}
+
+export interface MigrateSafeDbOptions {
+  dryRun?: boolean;
+  force?: boolean;
+}
+
+export interface SafeMigrationStartResult {
+  success: boolean;
+  statistics?: SafeMigrationStatistics;
+  tablesCreated?: string[];
+  skippedRecreate?: boolean;
+  options?: MigrateSafeDbOptions;
+  message?: string;
+}
+
 // Request payload interfaces
 export interface UpdateOrderStatusRequest {
   status: string;
@@ -1093,6 +1123,68 @@ export const adminApi = {
           error: error.response?.data?.error || error.message || "Error during logout",
         };
       });
+  },
+  // Safe migration endpoints
+  startSafeMigration: async (
+    options: MigrateSafeDbOptions = {}
+  ): Promise<ApiResponse<SafeMigrationStartResult>> => {
+    try {
+      console.log("[SAFE-MIGRATION] Triggering migration with options:", options);
+      const response: AxiosResponse = await axios.post(
+        `${API_BASE_URL}/api/admin/migrate-safe-db`,
+        options,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getAdminToken()}`,
+          },
+        }
+      );
+      const data: SafeMigrationStartResult = response.data;
+      return { success: true, data, error: null };
+    } catch (error: any) {
+      console.error("[SAFE-MIGRATION] Error starting migration:", error);
+      return {
+        success: false,
+        data: null,
+        error:
+          error.response?.data?.error ||
+          error.message ||
+          "Error saat memulai safe migration",
+      };
+    }
+  },
+ 
+  getSafeMigrationStatus: async (): Promise<ApiResponse<SafeMigrationStatus>> => {
+    try {
+      console.log("[SAFE-MIGRATION] Fetching migration status...");
+      const response: AxiosResponse = await axios.get(
+        `${API_BASE_URL}/api/admin/safe-migration-status`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getAdminToken()}`,
+          },
+        }
+      );
+      let data: SafeMigrationStatus | null = null;
+      if (response.data?.success && response.data?.data) {
+        data = response.data.data as SafeMigrationStatus;
+      } else if (response.data) {
+        data = response.data as SafeMigrationStatus;
+      }
+      return { success: true, data, error: null };
+    } catch (error: any) {
+      console.error("[SAFE-MIGRATION] Error fetching status:", error);
+      return {
+        success: false,
+        data: null,
+        error:
+          error.response?.data?.error ||
+          error.message ||
+          "Error saat mengambil status safe migration",
+      };
+    }
   },
 };
 
