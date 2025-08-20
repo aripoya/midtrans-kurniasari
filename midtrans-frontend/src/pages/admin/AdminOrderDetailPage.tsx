@@ -425,11 +425,28 @@ const AdminOrderDetailPage: React.FC = () => {
             updateData.assigned_deliveryman_id = selectedDeliveryman.id;
           }
         }
-        updateData.lokasi_pengiriman = shippingArea === 'luar-kota' ? undefined : 
-          // Ensure we send a valid outlet name, not area labels
-          (order?.lokasi_pengiriman && !['Dalam Kota', 'Luar Kota', 'dalam-kota', 'luar-kota'].includes(order.lokasi_pengiriman) 
-            ? order.lokasi_pengiriman 
-            : "Outlet Bonbin");
+        
+        // Auto-assign outlet based on lokasi_pengiriman for Kurir Toko
+        if (pickupMethod === 'deliveryman' && lokasi_pengiriman) {
+          // Map location to outlet for integration
+          const locationToOutletMap: { [key: string]: string } = {
+            'Outlet Bonbin': 'Outlet Bonbin',
+            'Outlet Glagahsari 108': 'Outlet Glagahsari 108',
+            'Outlet Glagahsari 91C': 'Outlet Glagahsari 91C',
+            'Outlet Monjali': 'Outlet Monjali',
+            'Outlet Pogung': 'Outlet Pogung',
+            'Outlet Jakal KM14': 'Outlet Jakal KM14',
+            'Outlet Jalan Wonosari': 'Outlet Jalan Wonosari',
+            'Outlet Jalan Wates': 'Outlet Jalan Wates',
+            'Outlet Godean': 'Outlet Godean',
+            'Outlet Ahmad Dahlan': 'Outlet Ahmad Dahlan'
+          };
+          
+          if (locationToOutletMap[lokasi_pengiriman] && !selectedOutletId) {
+            updateData.outlet_id = locationToOutletMap[lokasi_pengiriman];
+          }
+        }
+        updateData.lokasi_pengiriman = shippingArea === 'luar-kota' ? undefined : lokasi_pengiriman;
         updateData.lokasi_pengambilan = shippingArea === 'luar-kota' ? undefined : 
           // Ensure we send a valid outlet name, not area labels  
           (order?.lokasi_pengiriman && !['Dalam Kota', 'Luar Kota', 'dalam-kota', 'luar-kota'].includes(order.lokasi_pengiriman)
@@ -1358,34 +1375,20 @@ useEffect(() => {
                   <FormLabel>
                     {shippingStatus === 'Siap Kirim' ? 'Tujuan Pengiriman' : 'Lokasi Pengiriman'}
                   </FormLabel>
-                  {pickupMethod === 'deliveryman' ? (
-                    // For delivery orders: show customer address as shipping destination
-                    <Box 
-                      p={3} 
-                      border="1px solid" 
-                      borderColor="gray.200" 
-                      borderRadius="md" 
-                      bg="gray.50"
-                    >
-                      <Text fontSize="sm" color="gray.600" mb={1}>Alamat Pengiriman:</Text>
-                      <Text fontWeight="medium">
-                        {order?.customer_address || 'Alamat customer tidak tersedia'}
-                      </Text>
-                    </Box>
-                  ) : (
-                    // For pickup orders: show location dropdown
-                    <Select
-                      value={lokasi_pengiriman}
-                      onChange={(e) => setLokasiPengiriman(e.target.value)}
-                    >
-                      <option value="">Pilih Lokasi</option>
-                      {locations.map((location) => (
-                        <option key={location.id} value={location.nama_lokasi}>
-                          {location.nama_lokasi}
-                        </option>
-                      ))}
-                    </Select>
-                  )}
+                  <Select
+                    value={lokasi_pengiriman}
+                    onChange={(e) => {
+                      setLokasiPengiriman(e.target.value);
+                      setFormChanged(true);
+                    }}
+                  >
+                    <option value="">Pilih Lokasi Pengiriman</option>
+                    {locations.map((location) => (
+                      <option key={location.id} value={location.nama_lokasi}>
+                        {location.nama_lokasi}
+                      </option>
+                    ))}
+                  </Select>
                 </FormControl>
               )}
 
