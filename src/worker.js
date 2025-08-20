@@ -19,6 +19,7 @@ import { migrateSafeRelationalDB, getSafeMigrationStatus } from './handlers/migr
 import { migrateShippingInfoFields, getOrdersTableSchema } from './handlers/migrate-shipping-info.js';
 import { migrateAdminActivity } from './handlers/migrate-admin-activity.js';
 import { getAdminActivity, getActiveSessions, logoutUser, getAdminStats } from './handlers/admin-activity.js';
+import { listMigrationBackups, getMigrationBackup, restoreMigrationBackup } from './handlers/migration-backups.js';
 
 console.log('Initializing router');
 const router = Router();
@@ -420,6 +421,43 @@ router.get('/api/admin/safe-migration-status', verifyToken, (request, env) => {
         });
     }
     return getSafeMigrationStatus(request, env);
+});
+
+// Migration Backups (list, detail, restore)
+router.get('/api/admin/migration-backups', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+    return listMigrationBackups(request, env);
+});
+
+router.get('/api/admin/migration-backups/:id', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+    return getMigrationBackup(request, env);
+});
+
+router.post('/api/admin/migration-backups/:id/restore', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+    return restoreMigrationBackup(request, env);
 });
 
 // Shipping Info Fields Migration endpoints
