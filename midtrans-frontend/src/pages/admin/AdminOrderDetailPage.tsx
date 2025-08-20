@@ -1242,46 +1242,25 @@ useEffect(() => {
                 </Select>
               </FormControl>
 
-              {/* Outlet Assignment - Dynamic based on status */}
+              {/* Outlet Assignment - Dynamic label based on status */}
               <FormControl>
-                {shippingStatus === 'siap kirim' ? (
-                  <>
-                    <FormLabel>Outlet Yang Mengirimkan</FormLabel>
-                    <Text 
-                      p={3} 
-                      border="1px solid" 
-                      borderColor="gray.200" 
-                      borderRadius="md"
-                      bg="gray.50"
-                    >
-                      {selectedOutletId ? 
-                        (() => {
-                          const outlet = assignmentOptions.outlets.find(o => o.id === selectedOutletId);
-                          return outlet ? `${outlet.name} - ${outlet.location_alias}` : 'Outlet belum dipilih';
-                        })() : 
-                        'Outlet belum dipilih'
-                      }
-                    </Text>
-                  </>
-                ) : (
-                  <>
-                    <FormLabel>Assign ke Outlet</FormLabel>
-                    <Select
-                      value={selectedOutletId}
-                      onChange={(e) => {
-                        setSelectedOutletId(e.target.value);
-                        setFormChanged(true);
-                      }}
-                    >
-                      <option value="">Pilih Outlet</option>
-                      {assignmentOptions.outlets.map((outlet) => (
-                        <option key={outlet.id} value={outlet.id}>
-                          {outlet.name} - {outlet.location_alias}
-                        </option>
-                      ))}
-                    </Select>
-                  </>
-                )}
+                <FormLabel>
+                  {shippingStatus === 'siap kirim' ? 'Outlet Yang Mengirimkan' : 'Assign ke Outlet'}
+                </FormLabel>
+                <Select
+                  value={selectedOutletId}
+                  onChange={(e) => {
+                    setSelectedOutletId(e.target.value);
+                    setFormChanged(true);
+                  }}
+                >
+                  <option value="">Pilih Outlet</option>
+                  {assignmentOptions.outlets.map((outlet) => (
+                    <option key={outlet.id} value={outlet.id}>
+                      {outlet.name} - {outlet.location_alias}
+                    </option>
+                  ))}
+                </Select>
               </FormControl>
 
 
