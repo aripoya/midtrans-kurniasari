@@ -214,8 +214,6 @@ const AdminOrderDetailPage: React.FC = () => {
   const [courierService, setCourierService] = useState<string>('');
   const [trackingNumber, setTrackingNumber] = useState<string>('');
   const [trackingNumberError] = useState<string>('');
-  const [locations, setLocations] = useState<any>([]);
-  const [lokasi_pengiriman, setLokasiPengiriman] = useState<string>('');
   
   // Pickup details state for "Siap Ambil" status
   const [pickupOutlet, setPickupOutlet] = useState<string>('');
@@ -426,32 +424,8 @@ const AdminOrderDetailPage: React.FC = () => {
           }
         }
         
-        // Auto-assign outlet based on lokasi_pengiriman for Kurir Toko
-        if (pickupMethod === 'deliveryman' && lokasi_pengiriman) {
-          // Map location to outlet for integration
-          const locationToOutletMap: { [key: string]: string } = {
-            'Outlet Bonbin': 'Outlet Bonbin',
-            'Outlet Glagahsari 108': 'Outlet Glagahsari 108',
-            'Outlet Glagahsari 91C': 'Outlet Glagahsari 91C',
-            'Outlet Monjali': 'Outlet Monjali',
-            'Outlet Pogung': 'Outlet Pogung',
-            'Outlet Jakal KM14': 'Outlet Jakal KM14',
-            'Outlet Jalan Wonosari': 'Outlet Jalan Wonosari',
-            'Outlet Jalan Wates': 'Outlet Jalan Wates',
-            'Outlet Godean': 'Outlet Godean',
-            'Outlet Ahmad Dahlan': 'Outlet Ahmad Dahlan'
-          };
-          
-          if (locationToOutletMap[lokasi_pengiriman] && !selectedOutletId) {
-            updateData.outlet_id = locationToOutletMap[lokasi_pengiriman];
-          }
-        }
-        updateData.lokasi_pengiriman = shippingArea === 'luar-kota' ? undefined : lokasi_pengiriman;
-        updateData.lokasi_pengambilan = shippingArea === 'luar-kota' ? undefined : 
-          // Ensure we send a valid outlet name, not area labels  
-          (order?.lokasi_pengiriman && !['Dalam Kota', 'Luar Kota', 'dalam-kota', 'luar-kota'].includes(order.lokasi_pengiriman)
-            ? order.lokasi_pengiriman 
-            : "Outlet Bonbin");
+        updateData.lokasi_pengiriman = selectedOutletId;
+        updateData.lokasi_pengambilan = selectedOutletId;
         updateData.lokasi_pengantaran = order?.customer_address; // Customer address for delivery destination
         updateData.tipe_pesanan = shippingArea === 'luar-kota' ? undefined : order?.tipe_pesanan || undefined;
       }
@@ -506,23 +480,6 @@ const AdminOrderDetailPage: React.FC = () => {
         packagedProduct: null
       });
       
-      // Get locations
-      try {
-        const locationsRes = await adminApi.getLocations();
-        console.log('🔍 Locations API response:', locationsRes);
-        if (locationsRes.success && locationsRes.data) {
-          // Handle the response structure correctly
-          const locationsList = Array.isArray(locationsRes.data) ? locationsRes.data : [];
-          console.log('🔍 Processed locations:', locationsList);
-          setLocations(locationsList);
-        } else {
-          console.warn('🔍 Locations API failed or returned no data:', locationsRes);
-          setLocations([]); // Set empty array as fallback
-        }
-      } catch (locError) {
-        console.error('Error loading locations:', locError);
-        setLocations([]); // Set empty array as fallback
-      }
       
       // Get order data - handle public orders differently
       let orderData: any;
@@ -565,7 +522,6 @@ const AdminOrderDetailPage: React.FC = () => {
       
       // Set order data and form state
       setOrder(orderData);
-      setLokasiPengiriman(orderData.lokasi_pengiriman || '');
       setShippingStatus(orderData.shipping_status || '');
       setAdminNote(orderData.admin_note || '');
       setSavedAdminNote(orderData.admin_note || '');
@@ -904,14 +860,13 @@ useEffect(() => {
         shippingStatus !== (order.shipping_status || '') ||
         shippingArea !== (order.shipping_area || 'dalam-kota') ||
         adminNote !== (order.admin_note || '') ||
-        lokasi_pengiriman !== (order.lokasi_pengiriman || '') ||
         pickupMethod !== (order.pickup_method || 'deliveryman') ||
         courierService !== (order.courier_service || '') ||
         trackingNumber !== (order.tracking_number || '') ||
         selectedOutletId !== (order.outlet_id || '');
       setFormChanged(hasChanges);
     }
-  }, [order, shippingStatus, shippingArea, adminNote, lokasi_pengiriman, pickupMethod, courierService, trackingNumber, selectedOutletId]);
+  }, [order, shippingStatus, shippingArea, adminNote, pickupMethod, courierService, trackingNumber, selectedOutletId]);
 
   // Loading state
   if (loading) {
@@ -1052,7 +1007,7 @@ useEffect(() => {
                         {/* For delivery orders: show customer address, for pickup: show outlet */}
                         {(order.pickup_method === 'deliveryman' || order.pickup_method === 'alamat_customer' || order.pickup_method === 'ojek_online')
                           ? (order.customer_address || 'Alamat customer tidak tersedia')
-                          : (order.lokasi_pengiriman || 'Outlet Bonbin')
+                          : (order.outlet_id || 'Outlet tidak ditentukan')
                         }
                       </Td>
                     </Tr>
@@ -1369,28 +1324,6 @@ useEffect(() => {
                 </FormControl>
               )}
 
-              {/* Lokasi Pengiriman - Hidden for Pickup Statuses */}
-              {!isPickupStatus(shippingStatus) && shippingArea === 'dalam-kota' && (
-                <FormControl>
-                  <FormLabel>
-                    {shippingStatus === 'Siap Kirim' ? 'Tujuan Pengiriman' : 'Lokasi Pengiriman'}
-                  </FormLabel>
-                  <Select
-                    value={lokasi_pengiriman}
-                    onChange={(e) => {
-                      setLokasiPengiriman(e.target.value);
-                      setFormChanged(true);
-                    }}
-                  >
-                    <option value="">Pilih Lokasi Pengiriman</option>
-                    {locations.map((location) => (
-                      <option key={location.id} value={location.nama_lokasi}>
-                        {location.nama_lokasi}
-                      </option>
-                    ))}
-                  </Select>
-                </FormControl>
-              )}
 
               {/* Pickup Method - Hidden for Pickup Statuses */}
               {!isPickupStatus(shippingStatus) && shippingArea === 'dalam-kota' && (
