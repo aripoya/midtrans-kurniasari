@@ -31,10 +31,10 @@ export async function getLocations(request, env) {
       );
     }
 
-    // Check if the table exists before querying
+    // Check if the compatibility view exists before querying
     const tableExists = await env.DB.prepare(
       `SELECT name FROM sqlite_master 
-       WHERE type='table' AND name='locations'`
+       WHERE type='view' AND name='locations_view'`
     ).first();
 
     // If table doesn't exist, return empty array with success
@@ -56,10 +56,10 @@ export async function getLocations(request, env) {
       );
     }
 
-    // Fetch only location names, ordered alphabetically
+    // Fetch only location names, ordered alphabetically (from compatibility view)
     const locations = await env.DB.prepare(
       `SELECT id, nama_lokasi 
-       FROM locations 
+       FROM locations_view 
        ORDER BY nama_lokasi ASC`
     ).all();
 

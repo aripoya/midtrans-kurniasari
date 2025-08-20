@@ -83,19 +83,19 @@ export async function getAdminStats(request, env) {
       'SELECT COUNT(*) as total FROM orders'
     ).first();
 
-    // Get pending payments count
+    // Get pending payments count (treat legacy 'paid' as paid)
     const pendingPaymentsResult = await env.DB.prepare(
-      "SELECT COUNT(*) as total FROM orders WHERE payment_status NOT IN ('settlement', 'capture')"
+      "SELECT COUNT(*) as total FROM orders WHERE payment_status NOT IN ('settlement', 'capture', 'paid')"
     ).first();
 
-    // Get paid orders count
+    // Get paid orders count (include legacy 'paid')
     const paidOrdersResult = await env.DB.prepare(
-      "SELECT COUNT(*) as total FROM orders WHERE payment_status IN ('settlement', 'capture')"
+      "SELECT COUNT(*) as total FROM orders WHERE payment_status IN ('settlement', 'capture', 'paid')"
     ).first();
 
-    // Get orders in shipping count
+    // Get orders in shipping count (include legacy 'paid')
     const shippingOrdersResult = await env.DB.prepare(
-      "SELECT COUNT(*) as total FROM orders WHERE payment_status IN ('settlement', 'capture') AND shipping_status NOT IN ('delivered', 'received')"
+      "SELECT COUNT(*) as total FROM orders WHERE payment_status IN ('settlement', 'capture', 'paid') AND shipping_status NOT IN ('delivered', 'received')"
     ).first();
 
     const stats = {

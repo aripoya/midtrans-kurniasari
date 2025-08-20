@@ -99,7 +99,7 @@ export async function getOutletInfo(env, outletId) {
   
   try {
     const outlet = await env.DB.prepare(
-      'SELECT id, name, location, address FROM outlets WHERE id = ?'
+      'SELECT id, name, location_alias AS location, address FROM outlets_unified WHERE id = ?'
     ).bind(outletId).first();
     
     return outlet;

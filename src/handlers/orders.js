@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import { createNotification } from './notifications.js';
 import { determineOutletFromLocation } from './outlet-assignment.js';
 import { AdminActivityLogger, getClientInfo } from '../utils/admin-activity-logger.js';
+import { derivePaymentStatusFromData } from '../utils/payment-status.js';
 
 // Simple order ID generator
 function generateOrderId() {
@@ -231,12 +232,15 @@ export async function createOrder(request, env) {
     // Statements for inserting into 'order_items' table
     const dbStatements = [];
     for (const item of processedItems) {
-      const subtotal = Number(item.price) * Number(item.quantity);
+      // Ensure we consistently use the correct unit price field
+      const unitPrice = Number(item.product_price ?? item.price);
+      const qty = Number(item.quantity);
+      const subtotal = unitPrice * qty;
       dbStatements.push(
         env.DB.prepare(
           `INSERT INTO order_items (order_id, product_name, product_price, quantity, subtotal)
            VALUES (?, ?, ?, ?, ?)`
-        ).bind(orderId, item.name, Number(item.price), Number(item.quantity), subtotal)
+        ).bind(orderId, item.name, unitPrice, qty, subtotal)
       );
     }
 
@@ -284,7 +288,12 @@ export async function getOrders(request, env) {
     
     const orders = await Promise.all(results.map(async (order) => {
         const { results: items } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(order.id).all();
-        return { ...order, items };
+        return { 
+          ...order, 
+          items,
+          // Ensure consistent payment status across endpoints
+          payment_status: derivePaymentStatusFromData(order)
+        };
     }));
 
     return new Response(JSON.stringify({ success: true, orders }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
@@ -352,31 +361,31 @@ export async function getOrderById(request, env) {
     failedQuery = 'fetching location names';
     let lokasiPengirimanNama = null;
     if (order.lokasi_pengiriman) {
-      const loc = await env.DB.prepare('SELECT nama_lokasi FROM locations WHERE nama_lokasi = ?').bind(order.lokasi_pengiriman).first();
+      const loc = await env.DB.prepare('SELECT nama_lokasi FROM locations_view WHERE nama_lokasi = ?').bind(order.lokasi_pengiriman).first();
       lokasiPengirimanNama = loc ? loc.nama_lokasi : order.lokasi_pengiriman; // Fallback to the stored value
     }
 
     let lokasiPengambilanNama = null;
     if (order.lokasi_pengambilan) {
-      const loc = await env.DB.prepare('SELECT nama_lokasi FROM locations WHERE nama_lokasi = ?').bind(order.lokasi_pengambilan).first();
+      const loc = await env.DB.prepare('SELECT nama_lokasi FROM locations_view WHERE nama_lokasi = ?').bind(order.lokasi_pengambilan).first();
       lokasiPengambilanNama = loc ? loc.nama_lokasi : order.lokasi_pengambilan; // Fallback to the stored value
     }
 
     // Log shipping_area untuk debugging
     console.log(`[getOrderById] Order ${orderId} shipping_area: ${order.shipping_area}`);
 
-    // Step 5: Process payment response if exists (for consistent payment status across admin and public)
-    let processedOrder = { ...order };
+    // Step 5: Derive consistent payment status (prefer payment_response.transaction_status)
+    const derivedPaymentStatus = derivePaymentStatusFromData(order);
+    let processedOrder = { ...order, payment_status: derivedPaymentStatus };
     if (order.payment_response) {
       try {
         const paymentDetails = JSON.parse(order.payment_response);
         processedOrder = {
           ...processedOrder,
           payment_method: paymentDetails.payment_type || processedOrder.payment_method,
-          payment_time: paymentDetails.settlement_time || processedOrder.payment_time,
-          payment_status: paymentDetails.transaction_status || processedOrder.payment_status,
+          payment_time: paymentDetails.settlement_time || processedOrder.payment_time
         };
-        console.log(`[getOrderById] Processed payment status for ${orderId}: ${paymentDetails.transaction_status || 'no-change'}`);
+        console.log(`[getOrderById] Derived payment status for ${orderId}: ${derivedPaymentStatus}`);
       } catch (e) {
         console.error(`[getOrderById] Error parsing payment_response for order ${orderId}:`, e);
       }
@@ -692,14 +701,22 @@ export async function getDeliveryOrders(request, env) {
         // Add processed order with shipping images
         processedOrders.push({
           ...order,
-          shipping_images
+          shipping_images,
+          // Ensure consistent defaults and derived fields
+          shipping_status: order.shipping_status || 'menunggu diproses',
+          order_status: order.order_status || 'pending',
+          // Include derived payment status for consistency
+          payment_status: derivePaymentStatusFromData(order)
         });
       } catch (imageError) {
         console.error(`Error fetching images for order ${order.id}:`, imageError);
         // Continue with order but without images
         processedOrders.push({
           ...order,
-          shipping_images: []
+          shipping_images: [],
+          shipping_status: order.shipping_status || 'menunggu diproses',
+          order_status: order.order_status || 'pending',
+          payment_status: derivePaymentStatusFromData(order)
         });
       }
     }
@@ -752,8 +769,8 @@ export async function getAdminOrders(request, env) {
         lp.nama_lokasi AS lokasi_pengiriman_nama,
         la.nama_lokasi AS lokasi_pengambilan_nama
       FROM orders o
-      LEFT JOIN locations lp ON o.lokasi_pengiriman = lp.nama_lokasi
-      LEFT JOIN locations la ON o.lokasi_pengambilan = la.nama_lokasi
+      LEFT JOIN locations_view lp ON o.lokasi_pengiriman = lp.nama_lokasi
+      LEFT JOIN locations_view la ON o.lokasi_pengambilan = la.nama_lokasi
       ORDER BY o.created_at DESC
       LIMIT ? OFFSET ?
     `;
@@ -770,10 +787,15 @@ export async function getAdminOrders(request, env) {
     const processedOrders = await Promise.all(orders.results.map(async order => {
       try {
         const orderItems = await env.DB.prepare(
-          `SELECT product_id, product_name, price, quantity FROM order_items WHERE order_id = ?`
+          `SELECT product_name, product_price, quantity, subtotal FROM order_items WHERE order_id = ?`
         ).bind(order.id).all();
         
-        const items = orderItems?.results || [];
+        const rawItems = orderItems?.results || [];
+        // Normalize to expose a consistent 'price' field for frontend compatibility
+        const items = rawItems.map(it => ({
+          ...it,
+          price: it.product_price
+        }));
         
         let paymentDetails = null;
         if (order.payment_response) {
@@ -796,7 +818,13 @@ export async function getAdminOrders(request, env) {
           lokasi_pengambilan: lokasi_pengambilan_nama, // Use the name from the JOIN
           items,
           payment_details: paymentDetails,
-          total_amount: items.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0)
+          payment_status: derivePaymentStatusFromData(order),
+          total_amount: items.reduce((sum, item) => {
+            const unit = Number(item.price) || 0;
+            const qty = Number(item.quantity) || 0;
+            const sub = item.subtotal != null ? Number(item.subtotal) : (unit * qty);
+            return sum + sub;
+          }, 0)
         };
       } catch (itemError) {
         console.error(`Error processing items for order ${order.id}:`, itemError);
@@ -884,7 +912,7 @@ export async function updateOrderStatus(request, env) {
       SELECT o.shipping_status, o.outlet_id, o.assigned_deliveryman_id, 
              ou.name as outlet_name
       FROM orders o
-      LEFT JOIN outlets ou ON o.outlet_id = ou.id
+      LEFT JOIN outlets_unified ou ON o.outlet_id = ou.id
       WHERE o.id = ?
     `).bind(orderId).first();
 
@@ -1138,6 +1166,14 @@ export async function updateOrderDetails(request, env) {
       return new Response(JSON.stringify({ success: false, error: 'Order not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // Fetch current order info for audit/notification and to compare status changes
+    const currentOrderInfo = await env.DB.prepare(`
+      SELECT shipping_status, outlet_id, assigned_deliveryman_id
+      FROM orders
+      WHERE id = ?
+    `).bind(orderId).first();
+    const oldStatus = currentOrderInfo?.shipping_status || null;
+
     const updateFields = [];
     const updateParams = [];
     let isPickupTransition = false;
@@ -1280,7 +1316,99 @@ export async function updateOrderDetails(request, env) {
       }
 
       console.log(`[updateOrderDetails] Successfully updated order: ${orderId}`);
-      return new Response(JSON.stringify({ success: true, message: 'Order details updated successfully' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+      // If shipping status changed in this update, create audit log and notifications
+      let logId = null;
+      if (typeof status !== 'undefined' && String(status || '').toLowerCase() !== String(oldStatus || '').toLowerCase()) {
+        // Prepare user info
+        let userId = null;
+        let userRole = 'anonymous';
+        if (request.user) {
+          userId = request.user.id;
+          userRole = request.user.role;
+        }
+
+        // Create audit log
+        logId = `log_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+        try {
+          await env.DB.prepare(
+            `INSERT INTO order_update_logs (
+              id, order_id, user_id, update_type, old_value, new_value, user_role, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          ).bind(
+            logId,
+            orderId,
+            userId,
+            'shipping_status',
+            oldStatus,
+            status,
+            userRole,
+            `Shipping status updated from ${oldStatus || 'not set'} to ${status}`
+          ).run();
+        } catch (logErr) {
+          console.error('[updateOrderDetails] Failed to create audit log:', logErr);
+        }
+
+        // Create notifications similar to updateOrderStatus
+        try {
+          const outletId = currentOrderInfo?.outlet_id || null;
+          const deliverymanId = currentOrderInfo?.assigned_deliveryman_id || null;
+
+          // Determine notification title and message based on status
+          let title = 'Order Status Updated';
+          let message = `Order #${orderId} status updated to "${status}"`;
+          if (String(status).toLowerCase() === 'dalam pengiriman' ||
+              String(status).toLowerCase() === 'sedang dikirim' ||
+              String(status).toLowerCase() === 'dikirim') {
+            title = 'Order In Transit';
+            message = `Order #${orderId} is now being delivered to the customer.`;
+          } else if (String(status).toLowerCase() === 'diterima' ||
+                     String(status).toLowerCase() === 'received' ||
+                     String(status).toLowerCase() === 'sudah di terima') {
+            title = 'Order Delivered';
+            message = `Order #${orderId} has been successfully delivered to the customer.`;
+          } else if (String(status).toLowerCase() === 'siap kirim' ||
+                     String(status).toLowerCase() === 'siap diambil' ||
+                     String(status).toLowerCase() === 'siap di ambil') {
+            title = 'Order Ready for Delivery';
+            message = `Order #${orderId} is ready to be picked up from the outlet for delivery.`;
+          }
+
+          let updatedByText = 'The system';
+          if (request.user) {
+            updatedByText = request.user.role === 'admin' ? 'An admin' :
+                            request.user.role === 'outlet_manager' ? 'The outlet manager' :
+                            'The delivery person';
+          }
+          message += ` ${updatedByText} updated the status from "${oldStatus || 'not set'}" to "${status}".`;
+
+          // Notify outlet (skip if the updater is an outlet manager themselves)
+          if (outletId && userRole !== 'outlet_manager') {
+            await createNotification(env, {
+              outletId,
+              orderId,
+              title,
+              message,
+              type: 'order_status_update'
+            });
+          }
+
+          // Notify assigned deliveryman if present (and they didn't make the change)
+          if (deliverymanId && userId !== deliverymanId) {
+            await createNotification(env, {
+              userId: deliverymanId,
+              orderId,
+              title,
+              message,
+              type: 'order_status_update'
+            });
+          }
+        } catch (notifErr) {
+          console.error('[updateOrderDetails] Failed to create notifications:', notifErr);
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, message: 'Order details updated successfully', logId }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     } catch (dbError) {
       console.error(`[updateOrderDetails] Database Error for order ${orderId}:`, dbError);
@@ -1339,9 +1467,13 @@ export async function getOutletOrders(request, env) {
     // Build query based on actual production database schema (simplified)
     let orderQuery = `
       SELECT o.*,
-             ou.name AS outlet_name
+             ou.name AS outlet_name,
+             lp.nama_lokasi AS lokasi_pengiriman_nama,
+             la.nama_lokasi AS lokasi_pengambilan_nama
       FROM orders o
-      LEFT JOIN outlets ou ON o.outlet_id = ou.id
+      LEFT JOIN outlets_unified ou ON o.outlet_id = ou.id
+      LEFT JOIN locations_view lp ON o.lokasi_pengiriman = lp.nama_lokasi
+      LEFT JOIN locations_view la ON o.lokasi_pengambilan = la.nama_lokasi
       WHERE 1=1
     `;
     
@@ -1349,7 +1481,7 @@ export async function getOutletOrders(request, env) {
     
     // Filter by status if provided
     if (status) {
-      const statusCondition = ` AND o.status = '${status}'`;
+      const statusCondition = ` AND LOWER(o.shipping_status) = LOWER('${status}')`;
       orderQuery += statusCondition;
       countQuery += statusCondition;
     }
@@ -1365,11 +1497,11 @@ export async function getOutletOrders(request, env) {
           // Get outlet info to check location match - use defensive coding
           const outletId = request.user.outlet_id || '';
           const outletInfo = outletId ? 
-            await env.DB.prepare(`SELECT name, location FROM outlets WHERE id = ?`).bind(outletId).first() : 
+            await env.DB.prepare(`SELECT name, location_alias FROM outlets_unified WHERE id = ?`).bind(outletId).first() : 
             null;
             
           // Default values if no outlet info found
-          const outletLocation = outletInfo?.location || '';
+          const outletLocation = outletInfo?.location_alias || '';
           const outletName = outletInfo?.name || '';
           
           console.log(`📍 Outlet ${outletName} (ID: ${outletId}) with location: ${outletLocation}`);
@@ -1529,12 +1661,14 @@ export async function getOutletOrders(request, env) {
     
     // Process orders to format data consistently
     const processedOrders = result?.results?.map(order => {
-      // Add derived fields or normalize data here
+      const { lokasi_pengiriman_nama, lokasi_pengambilan_nama, ...rest } = order;
       return {
-        ...order,
-        // Ensure these fields exist with default values if null
-        shipping_status: order.shipping_status || 'menunggu-diproses',
-        payment_status: order.payment_status || 'pending',
+        ...rest,
+        lokasi_pengiriman: lokasi_pengiriman_nama || order.lokasi_pengiriman || null,
+        lokasi_pengambilan: lokasi_pengambilan_nama || order.lokasi_pengambilan || null,
+        // Ensure these fields exist with default values if null, using unified wording
+        shipping_status: order.shipping_status || 'menunggu diproses',
+        payment_status: derivePaymentStatusFromData(order),
         order_status: order.order_status || 'pending'
       };
     }) || [];
@@ -1603,10 +1737,10 @@ export async function markOrderAsReceived(request, env) {
       throw new Error("Database binding not found.");
     }
 
-    // Verify customer info matches order
+    // Verify customer info matches order and get outlet/delivery info
     const order = await env.DB.prepare(`
-      SELECT id, customer_name, customer_phone, shipping_status 
-      FROM orders 
+      SELECT id, customer_name, customer_phone, shipping_status, outlet_id, assigned_deliveryman_id
+      FROM orders
       WHERE id = ?
     `).bind(orderId).first();
 
@@ -1678,6 +1812,38 @@ export async function markOrderAsReceived(request, env) {
       'customer',
       `Order marked as received by customer: ${customer_name}`
     ).run();
+
+    // Create notifications for outlet and assigned deliveryman
+    try {
+      const outletId = order.outlet_id;
+      const deliverymanId = order.assigned_deliveryman_id;
+      const title = 'Order Delivered';
+      const message = `Order #${orderId} has been marked as received by the customer (${customer_name}).`;
+
+      // Notify all users in the outlet (manager and delivery team)
+      if (outletId) {
+        await createNotification(env, {
+          outletId,
+          orderId,
+          title,
+          message,
+          type: 'order_status_update'
+        });
+      }
+
+      // Notify the assigned deliveryman directly if present
+      if (deliverymanId) {
+        await createNotification(env, {
+          userId: deliverymanId,
+          orderId,
+          title,
+          message,
+          type: 'order_status_update'
+        });
+      }
+    } catch (notifError) {
+      console.error('Failed to create notifications for received status:', notifError);
+    }
 
     console.log(`✅ Order ${orderId} marked as received by customer: ${customer_name}`);
 

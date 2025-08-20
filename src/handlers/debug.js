@@ -828,7 +828,7 @@ export async function modifyUpdateOrderStatus(request, env) {
       SELECT o.shipping_status, o.outlet_id, o.assigned_deliveryman_id, 
              ou.name as outlet_name
       FROM orders o
-      LEFT JOIN outlets ou ON o.outlet_id = ou.id
+      LEFT JOIN outlets_unified ou ON o.outlet_id = ou.id
       WHERE o.id = ?
     `).bind(orderId).first();
 
@@ -1016,7 +1016,7 @@ export async function debugOutletSync(request, env) {
     let testQuery = `
       SELECT o.*, ou.name AS outlet_name
       FROM orders o
-      LEFT JOIN outlets ou ON o.outlet_id = ou.id
+      LEFT JOIN outlets_unified ou ON o.outlet_id = ou.id
       WHERE 1=1
     `;
     

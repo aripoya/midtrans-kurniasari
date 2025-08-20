@@ -43,9 +43,9 @@ export async function registerUser(request, env) {
             });
         }
 
-        // Check if outlet exists for non-admin roles
+        // Check if outlet exists for non-admin roles (use unified table)
         if (outlet_id) {
-            const outlet = await env.DB.prepare('SELECT id FROM outlets WHERE id = ?')
+            const outlet = await env.DB.prepare('SELECT id FROM outlets_unified WHERE id = ?')
                 .bind(outlet_id)
                 .first();
 
@@ -212,10 +212,10 @@ export async function loginUser(request, env) {
             });
         }
 
-        // Get outlet data if applicable
+        // Get outlet data if applicable (from unified table)
         let outlet = null;
         if (user.outlet_id) {
-            outlet = await env.DB.prepare('SELECT id, name FROM outlets WHERE id = ?')
+            outlet = await env.DB.prepare('SELECT id, name FROM outlets_unified WHERE id = ?')
                 .bind(user.outlet_id)
                 .first();
         }
@@ -298,10 +298,10 @@ export async function getUserProfile(request, env) {
             });
         }
 
-        // Fetch outlet details if an outlet_id exists
+        // Fetch outlet details if an outlet_id exists (from unified table)
         let outlet = null;
         if (user.outlet_id) {
-            outlet = await env.DB.prepare('SELECT id, name FROM outlets WHERE id = ?')
+            outlet = await env.DB.prepare('SELECT id, name FROM outlets_unified WHERE id = ?')
                 .bind(user.outlet_id)
                 .first();
         }
@@ -423,8 +423,8 @@ export async function createOutlet(request, env) {
         // Generate ID based on name (slug-like)
         const id = 'outlet-' + name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-        // Check if outlet ID already exists
-        const existingOutlet = await env.DB.prepare('SELECT id FROM outlets WHERE id = ?')
+        // Check if outlet ID already exists (in unified table)
+        const existingOutlet = await env.DB.prepare('SELECT id FROM outlets_unified WHERE id = ?')
             .bind(id)
             .first();
 
@@ -438,8 +438,8 @@ export async function createOutlet(request, env) {
             });
         }
 
-        // Create outlet
-        await env.DB.prepare('INSERT INTO outlets (id, name, location) VALUES (?, ?, ?)')
+        // Create outlet in unified table (store location as location_alias)
+        await env.DB.prepare('INSERT INTO outlets_unified (id, name, location_alias, created_at, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)')
             .bind(id, name, location)
             .run();
 
@@ -449,6 +449,7 @@ export async function createOutlet(request, env) {
             outlet: {
                 id,
                 name,
+                // keep response compatibility; stored as location_alias
                 location
             }
         }), {

@@ -2,6 +2,7 @@
  * RELATIONAL VERSION of getOutletOrders
  * Using proper JOIN instead of string matching for better performance and accuracy
  */
+import { derivePaymentStatusFromData } from '../utils/payment-status.js';
 
 /**
  * Get orders specific to an outlet using PROPER RELATIONAL APPROACH
@@ -266,7 +267,7 @@ export async function getOutletOrdersRelational(request, env) {
         outlet_name: order.outlet_name,  // Keep for backward compatibility
         // Ensure status fields have defaults
         shipping_status: order.shipping_status || 'menunggu-diproses',
-        payment_status: order.payment_status || 'pending',
+        payment_status: derivePaymentStatusFromData(order),
         order_status: order.order_status || 'pending'
       };
     }) || [];

@@ -20,7 +20,7 @@ export async function debugOutletOrderFiltering(request, env) {
     console.log(`🔍 Debugging outlet order filtering for: ${outletName}`);
     
     // 1. Check outlet setup in database
-    const outletQuery = `SELECT id, name, location FROM outlets WHERE LOWER(name) LIKE LOWER('%${outletName}%')`;
+    const outletQuery = `SELECT id, name, location_alias as location FROM outlets_unified WHERE LOWER(name) LIKE LOWER('%${outletName}%')`;
     const outlets = await env.DB.prepare(outletQuery).all();
     
     // 2. Check users associated with this outlet
@@ -74,9 +74,9 @@ export async function debugOutletOrderFiltering(request, env) {
     
     // 6. Check all outlet managers and their outlet assignments
     const outletManagerCheck = `
-      SELECT u.id, u.username, u.role, u.outlet_id, o.name as outlet_name, o.location
+      SELECT u.id, u.username, u.role, u.outlet_id, o.name as outlet_name, o.location_alias as location
       FROM users u
-      LEFT JOIN outlets o ON u.outlet_id = o.id
+      LEFT JOIN outlets_unified o ON u.outlet_id = o.id
       WHERE u.role = 'outlet_manager'
     `;
     const managerOutletMapping = await env.DB.prepare(outletManagerCheck).all();
