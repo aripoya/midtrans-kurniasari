@@ -117,6 +117,8 @@ interface Order {
   payment_time?: string;
   created_at: string;
   updated_at?: string;
+  outlet_id?: string;
+  assigned_deliveryman_id?: string;
   items: OrderItem[];
 }
 
@@ -214,6 +216,17 @@ const AdminOrderDetailPage: React.FC = () => {
   const [pickedUpBy, setPickedUpBy] = useState<string>('');
   const [pickupDate, setPickupDate] = useState<string>('');
   const [pickupTime, setPickupTime] = useState<string>('');
+  
+  // Assignment state for outlet and deliveryman
+  const [selectedOutletId, setSelectedOutletId] = useState<string>('');
+  const [selectedDeliverymanId, setSelectedDeliverymanId] = useState<string>('');
+  const [assignmentOptions, setAssignmentOptions] = useState<{
+    outlets: Array<{ id: string; name: string; location_alias: string; address: string }>;
+    delivery_users: Array<{ id: string; username: string; name: string; outlet_id: string; outlet_name: string }>;
+  }>({
+    outlets: [],
+    delivery_users: []
+  });
   
    const location = useLocation();
   const [fullUrl, setFullUrl] = useState('');
@@ -389,6 +402,8 @@ const AdminOrderDetailPage: React.FC = () => {
       const updateData: any = {
         status: shippingStatus,  // Fixed: backend expects 'status' not 'shipping_status'
         admin_note: adminNote,
+        outlet_id: selectedOutletId || null,
+        assigned_deliveryman_id: selectedDeliverymanId || null,
       };
 
       // For pickup statuses: always send pickup fields to allow editing, exclude all delivery fields
@@ -857,6 +872,42 @@ useEffect(() => {
     loadAllData();
   }, [loadAllData]);
 
+  // Load assignment options (outlets and delivery users)
+  useEffect(() => {
+    const loadAssignmentOptions = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        const response = await fetch('/api/assignment-options', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setAssignmentOptions(data.data);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading assignment options:', error);
+      }
+    };
+    
+    loadAssignmentOptions();
+  }, []);
+
+  // Initialize assignment values when order loads
+  useEffect(() => {
+    if (order) {
+      setSelectedOutletId(order.outlet_id || '');
+      setSelectedDeliverymanId(order.assigned_deliveryman_id || '');
+    }
+  }, [order]);
+
   // Track form changes
   useEffect(() => {
     if (order) {
@@ -867,10 +918,12 @@ useEffect(() => {
         lokasi_pengiriman !== (order.lokasi_pengiriman || '') ||
         pickupMethod !== (order.pickup_method || 'deliveryman') ||
         courierService !== (order.courier_service || '') ||
-        trackingNumber !== (order.tracking_number || '');
+        trackingNumber !== (order.tracking_number || '') ||
+        selectedOutletId !== (order.outlet_id || '') ||
+        selectedDeliverymanId !== (order.assigned_deliveryman_id || '');
       setFormChanged(hasChanges);
     }
-  }, [order, shippingStatus, shippingArea, adminNote, lokasi_pengiriman, pickupMethod, courierService, trackingNumber]);
+  }, [order, shippingStatus, shippingArea, adminNote, lokasi_pengiriman, pickupMethod, courierService, trackingNumber, selectedOutletId, selectedDeliverymanId]);
 
   // Loading state
   if (loading) {
@@ -1188,6 +1241,44 @@ useEffect(() => {
                   {getShippingStatusOptionsByArea(shippingArea).map((option: ShippingStatusOption) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {/* Outlet Assignment */}
+              <FormControl>
+                <FormLabel>Assign ke Outlet</FormLabel>
+                <Select
+                  value={selectedOutletId}
+                  onChange={(e) => {
+                    setSelectedOutletId(e.target.value);
+                    setFormChanged(true);
+                  }}
+                >
+                  <option value="">Pilih Outlet</option>
+                  {assignmentOptions.outlets.map((outlet) => (
+                    <option key={outlet.id} value={outlet.id}>
+                      {outlet.name} - {outlet.location_alias}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {/* Deliveryman Assignment */}
+              <FormControl>
+                <FormLabel>Assign ke Deliveryman</FormLabel>
+                <Select
+                  value={selectedDeliverymanId}
+                  onChange={(e) => {
+                    setSelectedDeliverymanId(e.target.value);
+                    setFormChanged(true);
+                  }}
+                >
+                  <option value="">Pilih Deliveryman</option>
+                  {assignmentOptions.delivery_users.map((deliveryman) => (
+                    <option key={deliveryman.id} value={deliveryman.id}>
+                      {deliveryman.name || deliveryman.username} - {deliveryman.outlet_name}
                     </option>
                   ))}
                 </Select>
