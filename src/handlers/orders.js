@@ -900,7 +900,7 @@ export async function updateOrderStatus(request, env) {
   try {
     const url = new URL(request.url);
     const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id/status
-    const { status, pickupOutlet, pickedUpBy, pickupDate, pickupTime } = await request.json();
+    const { status, pickupOutlet, pickedUpBy, pickupDate, pickupTime, outlet_id, assigned_deliveryman_id } = await request.json();
 
     if (!orderId || !status) {
       return new Response(JSON.stringify({ success: false, error: 'Order ID and status are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -956,6 +956,20 @@ export async function updateOrderStatus(request, env) {
     // Update the order status and handle pickup status transition
     let updateQuery = 'UPDATE orders SET shipping_status = ?, updated_at = CURRENT_TIMESTAMP';
     let updateParams = [status];
+    
+    // Add outlet assignment if provided
+    if (outlet_id !== undefined) {
+      updateQuery += ', outlet_id = ?';
+      updateParams.push(outlet_id);
+      console.log(`[DEBUG] Assigning order ${orderId} to outlet: ${outlet_id}`);
+    }
+    
+    // Add delivery person assignment if provided
+    if (assigned_deliveryman_id !== undefined) {
+      updateQuery += ', assigned_deliveryman_id = ?';
+      updateParams.push(assigned_deliveryman_id);
+      console.log(`[DEBUG] Assigning order ${orderId} to deliveryman: ${assigned_deliveryman_id}`);
+    }
     
     // When status becomes pickup-related, clear delivery fields and set pickup fields
     if (status.toLowerCase() === 'siap di ambil' || 

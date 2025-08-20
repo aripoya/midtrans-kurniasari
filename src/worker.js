@@ -3,6 +3,7 @@ import { Router } from 'itty-router';
 import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDetails, refreshOrderStatus, getAdminOrders, deleteOrder, getOutletOrders, getDeliveryOrders, markOrderAsReceived } from './handlers/orders.js';
 import { debugOutletOrderFiltering, fixOutletOrderAssignment } from './src/handlers/debug-outlet.js';
 import { debugDeliverySync, fixDeliveryAssignment } from './handlers/debug-delivery.js';
+import { getAssignmentOptions } from './handlers/assignment-options.js';
 import { getOutletOrdersRelational, migrateOrdersToRelational } from './handlers/orders-relational.js';
 import { updateOutletOrderStatus } from './handlers/outletOrderUpdate.js';
 import { getUserNotifications, markNotificationRead, markAllNotificationsRead } from './handlers/notifications.js';
@@ -1969,6 +1970,12 @@ router.get('/api/debug/delivery-sync', (request, env) => {
 router.post('/api/debug/fix-delivery-assignment', (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return fixDeliveryAssignment(request, env);
+});
+
+// Get assignment options for outlets and delivery users
+router.get('/api/assignment-options', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getAssignmentOptions(request, env);
 });
 
 // Debug endpoint untuk memeriksa order yang tidak muncul
