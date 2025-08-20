@@ -163,7 +163,7 @@ export async function createRelationalDBStructure(request, env) {
     // Step 5: Create users-outlets relationship
     console.log('📋 Step 5: Creating users-outlets relationship...');
     
-    // Update users table to link with unified outlets
+    // Update outlet managers to link with unified outlets
     await env.DB.prepare(`
       UPDATE users 
       SET outlet_id = (
@@ -176,6 +176,23 @@ export async function createRelationalDBStructure(request, env) {
         LIMIT 1
       )
       WHERE role = 'outlet_manager' 
+        AND (outlet_id IS NULL OR outlet_id NOT IN (SELECT id FROM outlets_unified))
+    `).run();
+
+    // Update deliveryman accounts to link with unified outlets
+    console.log('📋 Step 5b: Linking deliveryman accounts to outlets...');
+    await env.DB.prepare(`
+      UPDATE users 
+      SET outlet_id = (
+        SELECT ou.id 
+        FROM outlets_unified ou 
+        WHERE 
+          LOWER(ou.name) LIKE LOWER('%' || users.username || '%')
+          OR LOWER(ou.location_alias) LIKE LOWER('%' || users.username || '%')
+          OR (users.username = 'delivery' AND ou.id = 'outlet_bonbin') -- Default mapping for generic delivery account
+        LIMIT 1
+      )
+      WHERE role = 'deliveryman' 
         AND (outlet_id IS NULL OR outlet_id NOT IN (SELECT id FROM outlets_unified))
     `).run();
 
@@ -196,17 +213,20 @@ export async function createRelationalDBStructure(request, env) {
     // Get migration statistics
     const unifiedOutlets = await env.DB.prepare('SELECT COUNT(*) as count FROM outlets_unified').first();
     const ordersWithOutlets = await env.DB.prepare('SELECT COUNT(*) as count FROM orders WHERE outlet_id IS NOT NULL').first();
-    const usersWithOutlets = await env.DB.prepare('SELECT COUNT(*) as count FROM users WHERE outlet_id IS NOT NULL AND role = "outlet_manager"').first();
+    const outletManagersLinked = await env.DB.prepare('SELECT COUNT(*) as count FROM users WHERE outlet_id IS NOT NULL AND role = "outlet_manager"').first();
+    const deliverymenLinked = await env.DB.prepare('SELECT COUNT(*) as count FROM users WHERE outlet_id IS NOT NULL AND role = "deliveryman"').first();
 
     const migrationResult = {
       success: true,
       statistics: {
         unifiedOutlets: unifiedOutlets?.count || 0,
         ordersLinked: ordersWithOutlets?.count || 0,
-        usersLinked: usersWithOutlets?.count || 0
+        outletManagersLinked: outletManagersLinked?.count || 0,
+        deliverymenLinked: deliverymenLinked?.count || 0,
+        totalUsersLinked: (outletManagersLinked?.count || 0) + (deliverymenLinked?.count || 0)
       },
       tablesCreated: ['outlets_unified', 'locations_view'],
-      message: 'Relational database structure created successfully'
+      message: 'Relational database structure created successfully with deliveryman synchronization'
     };
 
     console.log('✅ Relational database migration completed:', migrationResult);
