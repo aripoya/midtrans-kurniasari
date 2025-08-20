@@ -217,15 +217,12 @@ const AdminOrderDetailPage: React.FC = () => {
   const [pickupDate, setPickupDate] = useState<string>('');
   const [pickupTime, setPickupTime] = useState<string>('');
   
-  // Assignment state for outlet and deliveryman
+  // Assignment state for outlet only
   const [selectedOutletId, setSelectedOutletId] = useState<string>('');
-  const [selectedDeliverymanId, setSelectedDeliverymanId] = useState<string>('');
   const [assignmentOptions, setAssignmentOptions] = useState<{
     outlets: Array<{ id: string; name: string; location_alias: string; address: string }>;
-    delivery_users: Array<{ id: string; username: string; name: string; outlet_id: string; outlet_name: string }>;
   }>({
-    outlets: [],
-    delivery_users: []
+    outlets: []
   });
   
    const location = useLocation();
@@ -403,7 +400,6 @@ const AdminOrderDetailPage: React.FC = () => {
         status: shippingStatus,  // Fixed: backend expects 'status' not 'shipping_status'
         admin_note: adminNote,
         outlet_id: selectedOutletId || null,
-        assigned_deliveryman_id: selectedDeliverymanId || null,
       };
 
       // For pickup statuses: always send pickup fields to allow editing, exclude all delivery fields
@@ -889,7 +885,9 @@ useEffect(() => {
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
-            setAssignmentOptions(data.data);
+            setAssignmentOptions({
+              outlets: data.data.outlets || []
+            });
           }
         }
       } catch (error) {
@@ -904,7 +902,6 @@ useEffect(() => {
   useEffect(() => {
     if (order) {
       setSelectedOutletId(order.outlet_id || '');
-      setSelectedDeliverymanId(order.assigned_deliveryman_id || '');
     }
   }, [order]);
 
@@ -919,11 +916,10 @@ useEffect(() => {
         pickupMethod !== (order.pickup_method || 'deliveryman') ||
         courierService !== (order.courier_service || '') ||
         trackingNumber !== (order.tracking_number || '') ||
-        selectedOutletId !== (order.outlet_id || '') ||
-        selectedDeliverymanId !== (order.assigned_deliveryman_id || '');
+        selectedOutletId !== (order.outlet_id || '');
       setFormChanged(hasChanges);
     }
-  }, [order, shippingStatus, shippingArea, adminNote, lokasi_pengiriman, pickupMethod, courierService, trackingNumber, selectedOutletId, selectedDeliverymanId]);
+  }, [order, shippingStatus, shippingArea, adminNote, lokasi_pengiriman, pickupMethod, courierService, trackingNumber, selectedOutletId]);
 
   // Loading state
   if (loading) {
@@ -1265,24 +1261,6 @@ useEffect(() => {
                 </Select>
               </FormControl>
 
-              {/* Deliveryman Assignment */}
-              <FormControl>
-                <FormLabel>Assign ke Deliveryman</FormLabel>
-                <Select
-                  value={selectedDeliverymanId}
-                  onChange={(e) => {
-                    setSelectedDeliverymanId(e.target.value);
-                    setFormChanged(true);
-                  }}
-                >
-                  <option value="">Pilih Deliveryman</option>
-                  {assignmentOptions.delivery_users.map((deliveryman) => (
-                    <option key={deliveryman.id} value={deliveryman.id}>
-                      {deliveryman.name || deliveryman.username} - {deliveryman.outlet_name}
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
 
               {/* Pickup Details for Both Pickup Statuses */}
               {isPickupStatus(shippingStatus) && (
