@@ -35,6 +35,12 @@ const OUTLET_LOCATIONS = [
   { value: 'Outlet Ahmad Dahlan', label: 'Outlet Ahmad Dahlan' }
 ];
 
+// Deliveryman options for Kurir Toko
+const DELIVERYMAN_OPTIONS = [
+  { value: 'rudi', label: 'Rudi', id: 'deliveryman_rudi' },
+  { value: 'fendi', label: 'Fendi', id: 'deliveryman_fendi' }
+];
+
 // Helper function to format date with Indonesian day names
 const formatDateWithDay = (dateString: string): string => {
   if (!dateString) return '';
@@ -415,6 +421,14 @@ const AdminOrderDetailPage: React.FC = () => {
         updateData.pickup_method = shippingArea === 'luar-kota' ? undefined : mapDisplayLabelToBackendValue(pickupMethod, 'pickup_method') || undefined;
         updateData.courier_service = courierService;
         updateData.tracking_number = trackingNumber;
+        
+        // Map courier selection to deliveryman ID for Kurir Toko
+        if (pickupMethod === 'deliveryman' && courierService) {
+          const selectedDeliveryman = DELIVERYMAN_OPTIONS.find(d => d.value === courierService);
+          if (selectedDeliveryman) {
+            updateData.assigned_deliveryman_id = selectedDeliveryman.id;
+          }
+        }
         updateData.lokasi_pengiriman = shippingArea === 'luar-kota' ? undefined : 
           // Ensure we send a valid outlet name, not area labels
           (order?.lokasi_pengiriman && !['Dalam Kota', 'Luar Kota', 'dalam-kota', 'luar-kota'].includes(order.lokasi_pengiriman) 
@@ -1432,11 +1446,17 @@ useEffect(() => {
               {!isPickupStatus(shippingStatus) && pickupMethod === 'deliveryman' && shippingArea === 'dalam-kota' && (
                 <FormControl>
                   <FormLabel>Nama Kurir</FormLabel>
-                  <Input
+                  <Select
                     value={courierService}
                     onChange={(e) => setCourierService(e.target.value)}
-                    placeholder="Masukkan nama kurir toko"
-                  />
+                    placeholder="Pilih kurir toko"
+                  >
+                    {DELIVERYMAN_OPTIONS.map((deliveryman) => (
+                      <option key={deliveryman.value} value={deliveryman.value}>
+                        {deliveryman.label}
+                      </option>
+                    ))}
+                  </Select>
                 </FormControl>
               )}
 
