@@ -1253,11 +1253,11 @@ useEffect(() => {
                     setSelectedOutletId(e.target.value);
                     setFormChanged(true);
                   }}
+                  placeholder="Pilih outlet"
                 >
-                  <option value="">Pilih Outlet</option>
-                  {assignmentOptions.outlets.map((outlet) => (
-                    <option key={outlet.id} value={outlet.id}>
-                      {outlet.name} - {outlet.location_alias}
+                  {OUTLET_LOCATIONS.map((outlet) => (
+                    <option key={outlet.value} value={outlet.value}>
+                      {outlet.label}
                     </option>
                   ))}
                 </Select>
