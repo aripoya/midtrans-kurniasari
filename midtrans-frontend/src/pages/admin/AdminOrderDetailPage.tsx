@@ -223,13 +223,6 @@ const AdminOrderDetailPage: React.FC = () => {
   const [pickupDate, setPickupDate] = useState<string>('');
   const [pickupTime, setPickupTime] = useState<string>('');
   
-  // Assignment state for outlet only
-  const [selectedOutletId, setSelectedOutletId] = useState<string>('');
-  const [assignmentOptions, setAssignmentOptions] = useState<{
-    outlets: Array<{ id: string; name: string; location_alias: string; address: string }>;
-  }>({
-    outlets: []
-  });
   
    const location = useLocation();
   const [fullUrl, setFullUrl] = useState('');
@@ -405,7 +398,6 @@ const AdminOrderDetailPage: React.FC = () => {
       const updateData: any = {
         status: shippingStatus,  // Fixed: backend expects 'status' not 'shipping_status'
         admin_note: adminNote,
-        outlet_id: selectedOutletId || null,
       };
 
       // For pickup statuses: always send pickup fields to allow editing, exclude all delivery fields
@@ -882,42 +874,7 @@ useEffect(() => {
     loadAllData();
   }, [loadAllData]);
 
-  // Load assignment options (outlets and delivery users)
-  useEffect(() => {
-    const loadAssignmentOptions = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        
-        const response = await fetch('/api/assignment-options', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setAssignmentOptions({
-              outlets: data.data.outlets || []
-            });
-          }
-        }
-      } catch (error) {
-        console.error('Error loading assignment options:', error);
-      }
-    };
-    
-    loadAssignmentOptions();
-  }, []);
 
-  // Initialize assignment values when order loads
-  useEffect(() => {
-    if (order) {
-      setSelectedOutletId(order.outlet_id || '');
-    }
-  }, [order]);
 
   // Track form changes
   useEffect(() => {
@@ -929,11 +886,10 @@ useEffect(() => {
         lokasi_pengiriman !== (order.lokasi_pengiriman || '') ||
         pickupMethod !== (order.pickup_method || 'deliveryman') ||
         courierService !== (order.courier_service || '') ||
-        trackingNumber !== (order.tracking_number || '') ||
-        selectedOutletId !== (order.outlet_id || '');
+        trackingNumber !== (order.tracking_number || '');
       setFormChanged(hasChanges);
     }
-  }, [order, shippingStatus, shippingArea, adminNote, lokasi_pengiriman, pickupMethod, courierService, trackingNumber, selectedOutletId]);
+  }, [order, shippingStatus, shippingArea, adminNote, lokasi_pengiriman, pickupMethod, courierService, trackingNumber]);
 
   // Loading state
   if (loading) {
@@ -1256,26 +1212,6 @@ useEffect(() => {
                 </Select>
               </FormControl>
 
-              {/* Outlet Assignment - Dynamic label based on status */}
-              <FormControl>
-                <FormLabel>
-                  {shippingStatus === 'siap kirim' ? 'Outlet Yang Mengirimkan' : 'Assign ke Outlet'}
-                </FormLabel>
-                <Select
-                  value={selectedOutletId}
-                  onChange={(e) => {
-                    setSelectedOutletId(e.target.value);
-                    setFormChanged(true);
-                  }}
-                  placeholder="Pilih outlet"
-                >
-                  {OUTLET_LOCATIONS.map((outlet) => (
-                    <option key={outlet.value} value={outlet.value}>
-                      {outlet.label}
-                    </option>
-                  ))}
-                </Select>
-              </FormControl>
 
 
               {/* Pickup Details for Both Pickup Statuses */}
