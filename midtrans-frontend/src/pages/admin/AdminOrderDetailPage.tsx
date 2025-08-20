@@ -223,6 +223,9 @@ const AdminOrderDetailPage: React.FC = () => {
   const [pickupDate, setPickupDate] = useState<string>('');
   const [pickupTime, setPickupTime] = useState<string>('');
   
+  // Outlet assignment for "Siap Kirim" status
+  const [selectedOutletId, setSelectedOutletId] = useState<string>('');
+  
   
    const location = useLocation();
   const [fullUrl, setFullUrl] = useState('');
@@ -398,6 +401,7 @@ const AdminOrderDetailPage: React.FC = () => {
       const updateData: any = {
         status: shippingStatus,  // Fixed: backend expects 'status' not 'shipping_status'
         admin_note: adminNote,
+        outlet_id: selectedOutletId || null,
       };
 
       // For pickup statuses: always send pickup fields to allow editing, exclude all delivery fields
@@ -886,10 +890,11 @@ useEffect(() => {
         lokasi_pengiriman !== (order.lokasi_pengiriman || '') ||
         pickupMethod !== (order.pickup_method || 'deliveryman') ||
         courierService !== (order.courier_service || '') ||
-        trackingNumber !== (order.tracking_number || '');
+        trackingNumber !== (order.tracking_number || '') ||
+        selectedOutletId !== (order.outlet_id || '');
       setFormChanged(hasChanges);
     }
-  }, [order, shippingStatus, shippingArea, adminNote, lokasi_pengiriman, pickupMethod, courierService, trackingNumber]);
+  }, [order, shippingStatus, shippingArea, adminNote, lokasi_pengiriman, pickupMethod, courierService, trackingNumber, selectedOutletId]);
 
   // Loading state
   if (loading) {
@@ -1212,7 +1217,26 @@ useEffect(() => {
                 </Select>
               </FormControl>
 
-
+              {/* Outlet Yang Mengirimkan - Only for "Siap Kirim" status */}
+              {shippingStatus === 'siap kirim' && (
+                <FormControl>
+                  <FormLabel>Outlet Yang Mengirimkan</FormLabel>
+                  <Select
+                    value={selectedOutletId}
+                    onChange={(e) => {
+                      setSelectedOutletId(e.target.value);
+                      setFormChanged(true);
+                    }}
+                    placeholder="Pilih outlet yang mengirimkan"
+                  >
+                    {OUTLET_LOCATIONS.map((outlet) => (
+                      <option key={outlet.value} value={outlet.value}>
+                        {outlet.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
 
               {/* Pickup Details for Both Pickup Statuses */}
               {isPickupStatus(shippingStatus) && (
