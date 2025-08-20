@@ -672,14 +672,34 @@ export async function getDeliveryOrders(request, env) {
       });
     }
 
-    // Query orders for deliveryman - includes both assigned and pickup_method = 'deliveryman'
-    // This ensures deliveryman sees all orders they can potentially handle
-    const ordersResult = await env.DB.prepare(`
+    // Get deliveryman's outlet assignment
+    const deliveryUser = await env.DB.prepare(`
+      SELECT outlet_id FROM users WHERE id = ? AND role = 'deliveryman'
+    `).bind(deliverymanId).first();
+
+    // Build comprehensive query for deliveryman orders
+    let deliveryQuery = `
       SELECT *
       FROM orders
-      WHERE assigned_deliveryman_id = ? OR pickup_method = 'deliveryman'
-      ORDER BY created_at DESC
-    `).bind(deliverymanId).all();
+      WHERE assigned_deliveryman_id = ? 
+         OR pickup_method = 'deliveryman'
+    `;
+    
+    let queryParams = [deliverymanId];
+    
+    // Include outlet orders that are ready for delivery if user has outlet assignment
+    if (deliveryUser?.outlet_id) {
+      deliveryQuery += ` 
+         OR (outlet_id = ? AND shipping_status IN ('siap kirim', 'siap ambil', 'shipping'))
+      `;
+      queryParams.push(deliveryUser.outlet_id);
+    }
+    
+    deliveryQuery += ` ORDER BY created_at DESC`;
+    
+    console.log(`🚚 Delivery query for user ${deliverymanId} (outlet: ${deliveryUser?.outlet_id || 'none'}):`, deliveryQuery);
+    
+    const ordersResult = await env.DB.prepare(deliveryQuery).bind(...queryParams).all();
 
     if (!ordersResult.success) {
       throw new Error('Failed to fetch delivery orders from database');
