@@ -1,7 +1,8 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
 import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDetails, refreshOrderStatus, getAdminOrders, deleteOrder, getOutletOrders, getDeliveryOrders, markOrderAsReceived } from './handlers/orders.js';
-import { debugOutletOrderFiltering, fixOutletOrderAssignment } from './handlers/debug-outlet.js';
+import { debugOutletOrderFiltering, fixOutletOrderAssignment } from './src/handlers/debug-outlet.js';
+import { debugDeliverySync, fixDeliveryAssignment } from './handlers/debug-delivery.js';
 import { getOutletOrdersRelational, migrateOrdersToRelational } from './handlers/orders-relational.js';
 import { updateOutletOrderStatus } from './handlers/outletOrderUpdate.js';
 import { getUserNotifications, markNotificationRead, markAllNotificationsRead } from './handlers/notifications.js';
@@ -1956,6 +1957,18 @@ router.get('/api/debug/outlet-sync', async (request, env) => {
       headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
     });
   }
+});
+
+// Debug delivery synchronization issues
+router.get('/api/debug/delivery-sync', (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return debugDeliverySync(request, env);
+});
+
+// Fix delivery user assignment
+router.post('/api/debug/fix-delivery-assignment', (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return fixDeliveryAssignment(request, env);
 });
 
 // Debug endpoint untuk memeriksa order yang tidak muncul
