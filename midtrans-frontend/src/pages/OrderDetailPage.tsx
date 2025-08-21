@@ -400,8 +400,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const transformURL = (url: string): string => {
     if (!url) return url;
     
+    console.log('🔗 [transformURL] Input URL:', url);
+    
     // Jika sudah berupa URL Cloudflare Images yang valid, return langsung
     if (url.includes('imagedelivery.net') || url.includes('cloudflareimages.com')) {
+      console.log('🔗 [transformURL] Already Cloudflare URL, returning as-is');
       return url;
     }
     
@@ -411,11 +414,37 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       if (filename) {
         // Transform ke format Cloudflare Images
         const baseUrl = 'https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA';
-        return `${baseUrl}/${filename}/public`;
+        const transformedUrl = `${baseUrl}/${filename}/public`;
+        console.log('🔗 [transformURL] Transformed to Cloudflare URL:', transformedUrl);
+        return transformedUrl;
       }
     }
     
-    // Jika berupa base64 atau format lain, return as-is
+    // Handle R2 URLs or other formats - try to extract image ID
+    if (url.includes('r2.cloudflarestorage.com') || url.includes('wahwooh.workers.dev')) {
+      try {
+        // Extract image ID from various URL formats
+        let imageId = null;
+        
+        // Try to extract from path segments
+        const urlParts = url.split('/');
+        const lastPart = urlParts[urlParts.length - 1];
+        
+        // Remove query parameters if any
+        imageId = lastPart.split('?')[0];
+        
+        if (imageId && imageId.length > 10) { // Basic validation for image ID
+          const baseUrl = 'https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA';
+          const transformedUrl = `${baseUrl}/${imageId}/public`;
+          console.log('🔗 [transformURL] Extracted image ID and transformed:', transformedUrl);
+          return transformedUrl;
+        }
+      } catch (e) {
+        console.warn('🔗 [transformURL] Failed to transform R2 URL:', e);
+      }
+    }
+    
+    console.log('🔗 [transformURL] No transformation needed, returning original URL');
     return url;
   };
 
