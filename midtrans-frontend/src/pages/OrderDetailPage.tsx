@@ -253,6 +253,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           
           if (imageResponse.ok) {
             const imageData = await imageResponse.json();
+            console.log('📸 [OrderDetailPage] Raw API response:', imageData);
+            
             // Process images from public API response
             const processedImages: ShippingImages = {
               ready_for_pickup: null,
@@ -260,11 +262,16 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
               delivered: null
             };
 
+            // Backend returns { success: true, data: formattedImages }
+            const imagesFromAPI = imageData.success ? imageData.data : imageData;
+            console.log('📸 [OrderDetailPage] Images from API:', imagesFromAPI);
+            
             // Public API returns object with image types as keys
             Object.keys(processedImages).forEach((key) => {
               const imageKey = key as keyof ShippingImages;
-              if (imageData[imageKey] && imageData[imageKey].url) {
-                processedImages[imageKey] = transformURL(imageData[imageKey].url);
+              if (imagesFromAPI[imageKey] && imagesFromAPI[imageKey].url) {
+                processedImages[imageKey] = transformURL(imagesFromAPI[imageKey].url);
+                console.log('📸 [OrderDetailPage] Processed image for', imageKey, ':', processedImages[imageKey]);
               }
             });
             
