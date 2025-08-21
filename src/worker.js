@@ -1,5 +1,6 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
+import jwt from 'jsonwebtoken';
 import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDetails, refreshOrderStatus, getAdminOrders, deleteOrder, getOutletOrders, getDeliveryOrders, markOrderAsReceived } from './handlers/orders.js';
 import { debugOutletOrderFiltering, fixOutletOrderAssignment } from './handlers/debug-outlet.js';
 import { debugDeliverySync, fixDeliveryAssignment } from './handlers/debug-delivery.js';
@@ -641,7 +642,7 @@ router.options('/api/shipping/images/:orderId', async (request, env) => {
     });
 });
 
-// Get shipping images from database - public endpoint for order images
+// Get shipping images from database - public endpoint that also handles authenticated requests
 router.get('/api/shipping/images/:orderId', async (request, env) => {
     // Add CORS headers for public access
     request.corsHeaders = corsHeaders(request);
@@ -650,6 +651,25 @@ router.get('/api/shipping/images/:orderId', async (request, env) => {
     console.log('🔍 [SHIPPING IMAGES] Request received for orderId:', request.params?.orderId);
     console.log('🔍 [SHIPPING IMAGES] Request URL:', request.url);
     console.log('🔍 [SHIPPING IMAGES] Request method:', request.method);
+    console.log('🔍 [SHIPPING IMAGES] Has Authorization header:', !!request.headers.get('Authorization'));
+    
+    // Handle both authenticated and non-authenticated requests
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        // If auth header is present, verify it but don't fail if it's invalid
+        // Just log for debugging
+        try {
+            const token = authHeader.split(' ')[1];
+            console.log('🔍 [SHIPPING IMAGES] Attempting to verify token for authenticated request');
+            const decoded = jwt.verify(token, env.JWT_SECRET);
+            request.user = decoded;
+            console.log('🔍 [SHIPPING IMAGES] Token verified, user:', decoded.email || decoded.id);
+        } catch (tokenError) {
+            console.log('🔍 [SHIPPING IMAGES] Token verification failed, proceeding as public request:', tokenError.message);
+        }
+    } else {
+        console.log('🔍 [SHIPPING IMAGES] No auth header, processing as public request');
+    }
     
     try {
         const { orderId } = request.params;
