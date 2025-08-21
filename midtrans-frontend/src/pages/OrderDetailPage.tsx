@@ -459,11 +459,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         delivered: null
       };
 
-      // Process setiap tipe gambar
+      // Process setiap tipe gambar - backend returns object with imageType as keys
       Object.keys(processedImages).forEach((key) => {
         const imageKey = key as keyof ShippingImages;
-        if (shippingImagesData[imageKey]) {
-          processedImages[imageKey] = transformURL(shippingImagesData[imageKey]);
+        if (shippingImagesData[imageKey] && shippingImagesData[imageKey].url) {
+          processedImages[imageKey] = transformURL(shippingImagesData[imageKey].url);
         }
       });
 

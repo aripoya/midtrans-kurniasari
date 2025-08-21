@@ -136,7 +136,7 @@ export interface UsersResponse {
 
 export interface ShippingImagesResponse {
   success: boolean;
-  data: ShippingImage[] | null;
+  data: { [imageType: string]: { url: string; imageId: string | null; variants: any } } | null;
   error: string | null;
 }
 
@@ -554,23 +554,17 @@ export const adminApi = {
 
       console.log(`📥 [adminApi.getShippingImages] Backend response:`, response.data);
 
-      // Handle the backend response structure: { success: true, data: { images: [...], orderId: "..." } }
-      let images: ShippingImage[] = [];
-      
-      if (response.data?.success && response.data?.data?.images) {
-        // Modern backend response format
-        images = response.data.data.images;
-        console.log(`✅ [adminApi.getShippingImages] Found ${images.length} images in modern format`);
-      } else if (response.data?.images) {
-        // Legacy format: direct images array
-        images = response.data.images;
-        console.log(`✅ [adminApi.getShippingImages] Found ${images.length} images in legacy format`);
-      } else if (Array.isArray(response.data?.data)) {
-        // Alternative format: data is direct array
+      // Handle the backend response structure: { success: true, data: formattedImages }
+      // Backend returns an object with image types as keys
+      let images = {};
+      if (response.data?.data && typeof response.data.data === 'object') {
         images = response.data.data;
-        console.log(`✅ [adminApi.getShippingImages] Found ${images.length} images in array format`);
+        const imageCount = Object.keys(images).length;
+        console.log(`✅ [adminApi.getShippingImages] Found ${imageCount} images from backend`);
+        console.log(`Image types:`, Object.keys(images));
       } else {
         console.log(`⚠️ [adminApi.getShippingImages] No images found or unrecognized format`);
+        console.log(`Backend response:`, response.data);
       }
 
       return { success: true, data: images, error: null };
