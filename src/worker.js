@@ -642,50 +642,26 @@ router.options('/api/shipping/images/:orderId', async (request, env) => {
     });
 });
 
-// COMPLETELY DIFFERENT PATH TEST - bypass any potential conflicts
+// WORKING SHIPPING IMAGES ENDPOINT - bypasses route conflicts
 router.get('/api/test-shipping-photos/:orderId', async (request, env) => {
-    console.log('🔍 [SHIPPING IMAGES TEST] Route matched! OrderId:', request.params?.orderId);
-    
-    return new Response(JSON.stringify({
-        success: true,
-        message: 'Route working!',
-        orderId: request.params?.orderId,
-        url: request.url
-    }), {
-        status: 200,
-        headers: { 
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-        }
-    });
+    console.log('🔍 [SHIPPING PHOTOS] Request for orderId:', request.params?.orderId);
     
     try {
         const { orderId } = request.params;
         
-        // Get all images for this order with better error handling
-        console.log('🔍 [SHIPPING IMAGES] Querying database for orderId:', orderId);
-        
+        // Get all images for this order
+        console.log('🔍 [SHIPPING PHOTOS] Querying database for orderId:', orderId);
         const images = await env.DB.prepare(
             'SELECT image_type, image_url, cloudflare_image_id, created_at FROM shipping_images WHERE order_id = ?'
         ).bind(orderId).all();
         
-        console.log('🔍 [SHIPPING IMAGES] Raw database results:', images.results?.length || 0, 'records found');
-        console.log('🔍 [SHIPPING IMAGES] Raw results:', JSON.stringify(images.results, null, 2));
+        console.log('🔍 [SHIPPING PHOTOS] Found', images.results?.length || 0, 'images');
         
         // Format response with variants
         const formattedImages = {};
         
-        console.log('🔍 [SHIPPING IMAGES] Processing', images.results?.length || 0, 'images');
-        
         for (const img of images.results || []) {
-            console.log('🔍 [SHIPPING IMAGES] Processing image:', {
-                image_type: img.image_type,
-                has_cloudflare_id: !!img.cloudflare_image_id,
-                url: img.image_url,
-                created_at: img.created_at
-            });
+            console.log('🔍 [SHIPPING PHOTOS] Processing image:', img.image_type);
             
             if (img.cloudflare_image_id && env.CLOUDFLARE_IMAGES_HASH) {
                 formattedImages[img.image_type] = {
@@ -693,19 +669,16 @@ router.get('/api/test-shipping-photos/:orderId', async (request, env) => {
                     imageId: img.cloudflare_image_id,
                     variants: getImageVariants(img.cloudflare_image_id, env.CLOUDFLARE_IMAGES_HASH)
                 };
-                console.log('🔍 [SHIPPING IMAGES] Added Cloudflare image:', img.image_type);
             } else {
-                // Fallback for legacy images without cloudflare_image_id or missing hash
                 formattedImages[img.image_type] = {
                     url: img.image_url,
                     imageId: img.cloudflare_image_id || null,
                     variants: null
                 };
-                console.log('🔍 [SHIPPING IMAGES] Added legacy image:', img.image_type, 'reason:', !img.cloudflare_image_id ? 'no_cloudflare_id' : 'no_hash');
             }
         }
         
-        console.log('🔍 [SHIPPING IMAGES] Final formatted images:', Object.keys(formattedImages));
+        console.log('🔍 [SHIPPING PHOTOS] Returning', Object.keys(formattedImages).length, 'formatted images');
         
         return new Response(JSON.stringify({
             success: true,
@@ -716,20 +689,22 @@ router.get('/api/test-shipping-photos/:orderId', async (request, env) => {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-                'Cache-Control': 'no-cache'
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
             }
         });
         
     } catch (error) {
-        console.error('Error getting shipping images:', error);
+        console.error('🔍 [SHIPPING PHOTOS] Error:', error);
         return new Response(JSON.stringify({
             success: false,
-            error: 'Failed to get images',
+            error: 'Failed to get shipping photos',
             details: error.message
         }), {
             status: 500,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+            headers: { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            }
         });
     }
 });
