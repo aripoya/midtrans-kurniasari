@@ -144,7 +144,7 @@ const AdminOrdersPage: React.FC = () => {
     setLoading(true);
     try {
       console.log('[DEBUG] 📡 Calling adminApi.getAdminOrders()...');
-      const response = await adminApi.getAdminOrders();
+      const response = await adminApi.getAdminOrders() as any;
       console.log('[DEBUG] 📦 Admin API response received:', response);
       console.log('[DEBUG] 🔍 Response structure check:');
       console.log('[DEBUG]   - response.success:', response.success);
@@ -157,8 +157,8 @@ const AdminOrdersPage: React.FC = () => {
         throw new Error(response.error);
       }
       
-      if (response.success && response.data?.orders) {
-        const orders = response.data.orders;
+      if (response.success && (response.data?.orders || response.orders)) {
+        const orders = response.data?.orders || response.orders || [];
         console.log('[DEBUG] ✅ Successfully parsed orders:', orders.length, 'orders');
         console.log('[DEBUG] 📋 Orders data:', orders);
         
