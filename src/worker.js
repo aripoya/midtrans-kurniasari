@@ -1749,12 +1749,18 @@ router.get('/api/debug/check-shipping-images/:orderId', async (request, env) => 
             'SELECT COUNT(*) as total FROM shipping_images'
         ).first();
         
+        // Get sample of all image types in database for debugging
+        const allImageTypes = await env.DB.prepare(
+            'SELECT DISTINCT image_type, COUNT(*) as count FROM shipping_images GROUP BY image_type'
+        ).all();
+        
         return new Response(JSON.stringify({
             success: true,
             data: {
                 orderId: orderId,
                 images: images.results || [],
                 totalImagesInDatabase: totalCount?.total || 0,
+                allImageTypesInDb: allImageTypes.results || [],
                 debug: {
                     foundImages: images.results?.length || 0,
                     imageTypes: images.results?.map(img => img.image_type) || []
