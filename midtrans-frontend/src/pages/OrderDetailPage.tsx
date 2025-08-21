@@ -245,52 +245,36 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         const mappedOrder: LocalOrder = mapToLocalOrder(apiOrder);
         setOrder(mappedOrder);
         
-        // For delivery view, fetch shipping images separately using admin API
-        if (isDeliveryView) {
-          try {
-            console.log('🚚 [DeliveryView] Fetching shipping images for order:', id);
-            const shippingImagesResponse = await adminApi.getShippingImages(id);
-            console.log('🚚 [DeliveryView] Shipping images response:', shippingImagesResponse);
+        // Always try to fetch shipping images for all order types using public API
+        try {
+          console.log('📸 [OrderDetailPage] Fetching shipping images for order:', id);
+          const apiUrl = import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev';
+          const imageResponse = await fetch(`${apiUrl}/api/shipping/images/${id}`);
+          
+          if (imageResponse.ok) {
+            const imageData = await imageResponse.json();
+            // Process images from public API response
+            const processedImages: ShippingImages = {
+              ready_for_pickup: null,
+              picked_up: null,
+              delivered: null
+            };
+
+            // Public API returns object with image types as keys
+            Object.keys(processedImages).forEach((key) => {
+              const imageKey = key as keyof ShippingImages;
+              if (imageData[imageKey] && imageData[imageKey].url) {
+                processedImages[imageKey] = transformURL(imageData[imageKey].url);
+              }
+            });
             
-            if (shippingImagesResponse.success && shippingImagesResponse.data) {
-              const images = shippingImagesResponse.data;
-              const processedImages: ShippingImages = {
-                ready_for_pickup: null,
-                picked_up: null,
-                delivered: null
-              };
-              
-              // Process each image from the API response
-              images.forEach((image: any) => {
-                if (image.image_type && image.image_url) {
-                  const transformedUrl = transformURL(image.image_url);
-                  
-                  // Map backend image types to frontend keys
-                  switch (image.image_type) {
-                    case 'ready_for_pickup':
-                    case 'siap_kirim':
-                      processedImages.ready_for_pickup = transformedUrl;
-                      break;
-                    case 'picked_up':
-                    case 'pengiriman':
-                      processedImages.picked_up = transformedUrl;
-                      break;
-                    case 'delivered':
-                    case 'diterima':
-                      processedImages.delivered = transformedUrl;
-                      break;
-                  }
-                }
-              });
-              
-              setShippingImages(processedImages);
-              console.log('🚚 [DeliveryView] Processed shipping images:', processedImages);
-            }
-          } catch (imageError) {
-            console.error('🚚 [DeliveryView] Error fetching shipping images:', imageError);
+            setShippingImages(processedImages);
+            console.log('📸 [OrderDetailPage] Processed shipping images:', processedImages);
           }
-        } else {
-          // For non-delivery views, process shipping images from order data if available
+        } catch (imageError) {
+          console.error('📸 [OrderDetailPage] Error fetching shipping images:', imageError);
+          
+          // Fallback: try to process shipping images from order data if available
           if (mappedOrder.shipping_images) {
             processShippingImages(mappedOrder.shipping_images);
           }

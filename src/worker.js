@@ -633,8 +633,8 @@ router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (requ
     }
 });
 
-// Get shipping images from database
-router.get('/api/shipping/images/:orderId', verifyToken, async (request, env) => {
+// Get shipping images from database - public endpoint for order images
+router.get('/api/shipping/images/:orderId', async (request, env) => {
     try {
         const { orderId } = request.params;
         
