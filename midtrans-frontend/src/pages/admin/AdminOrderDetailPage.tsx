@@ -282,7 +282,12 @@ const AdminOrderDetailPage: React.FC = () => {
       'siap_kirim': 'readyForPickup',
       'pengiriman': 'pickedUp',
       'diterima': 'received',
-      'produk_dikemas': 'packagedProduct'
+      'produk_dikemas': 'packagedProduct',
+      // Additional possible delivery success types
+      'delivery_success': 'received',
+      'sukses_kirim': 'received',
+      'berhasil_kirim': 'received',
+      'selesai': 'received'
     };
     console.log(`🔗 [MAPPING DEBUG] Input type: "${backendType}" → Output: "${typeMapping[backendType] || 'NULL'}"`);
     return typeMapping[backendType] || null;
@@ -583,17 +588,35 @@ const AdminOrderDetailPage: React.FC = () => {
             
             if (imageItem.image_url && imageItem.image_type) {
               const frontendKey = mapBackendToFrontendFormat(imageItem.image_type);
-              console.log(`🔗 [DEBUG] Mapping ${imageItem.image_type} → ${frontendKey}`);
+              console.log(`🔗 [MAPPING] Backend type: "${imageItem.image_type}" → Frontend key: "${frontendKey}"`);
+              console.log(`🔗 [URL] Original: ${imageItem.image_url}`);
               
               if (frontendKey && frontendKey in imagesData) {
                 const transformedUrl = transformURL(imageItem.image_url);
                 (imagesData as any)[frontendKey] = transformedUrl;
-                console.log(`✅ [DEBUG] Mapped successfully: ${frontendKey} = ${transformedUrl}`);
+                console.log(`✅ [SUCCESS] Mapped: ${frontendKey} = ${transformedUrl}`);
               } else {
-                console.log(`❌ [DEBUG] Mapping failed for type: ${imageItem.image_type}`);
+                console.log(`❌ [FAILED] No mapping found for backend type: "${imageItem.image_type}"`);
+                console.log(`❌ [FAILED] Available frontend keys:`, Object.keys(imagesData));
+                
+                // Try to force map common delivery success types to 'received'
+                if (imageItem.image_type.toLowerCase().includes('deliver') || 
+                    imageItem.image_type.toLowerCase().includes('sukses') ||
+                    imageItem.image_type.toLowerCase().includes('berhasil') ||
+                    imageItem.image_type.toLowerCase().includes('selesai') ||
+                    imageItem.image_type.toLowerCase().includes('terima')) {
+                  const transformedUrl = transformURL(imageItem.image_url);
+                  (imagesData as any)['received'] = transformedUrl;
+                  console.log(`🔧 [FORCE MAPPED] "${imageItem.image_type}" → received = ${transformedUrl}`);
+                }
               }
             } else {
-              console.log(`⚠️ [DEBUG] Missing image_url or type for image ${index + 1}`);
+              console.log(`⚠️ [MISSING DATA] Image ${index + 1} missing url or type:`, {
+                hasUrl: !!imageItem.image_url,
+                hasType: !!imageItem.image_type,
+                type: imageItem.image_type,
+                url: imageItem.image_url?.substring(0, 50) + '...'
+              });
             }
           });
           
