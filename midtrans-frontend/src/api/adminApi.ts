@@ -551,6 +551,8 @@ export const adminApi = {
     orderId: string
   ): Promise<ShippingImagesResponse> => {
     try {
+      console.log(`🔍 [adminApi.getShippingImages] Fetching images for order: ${orderId}`);
+      
       const response: AxiosResponse = await axios.get(
         `${API_BASE_URL}/api/orders/${orderId}/shipping-images`,
         {
@@ -560,16 +562,30 @@ export const adminApi = {
         }
       );
 
-      // Support both { images: [...] } and { data: { images: [...] } } shapes
-      const images =
-        (response.data as any)?.images ||
-        (response.data as any)?.data?.images ||
-        (response.data as any)?.data ||
-        [];
+      console.log(`📥 [adminApi.getShippingImages] Backend response:`, response.data);
+
+      // Handle the backend response structure: { success: true, data: { images: [...], orderId: "..." } }
+      let images: ShippingImage[] = [];
+      
+      if (response.data?.success && response.data?.data?.images) {
+        // Modern backend response format
+        images = response.data.data.images;
+        console.log(`✅ [adminApi.getShippingImages] Found ${images.length} images in modern format`);
+      } else if (response.data?.images) {
+        // Legacy format: direct images array
+        images = response.data.images;
+        console.log(`✅ [adminApi.getShippingImages] Found ${images.length} images in legacy format`);
+      } else if (Array.isArray(response.data?.data)) {
+        // Alternative format: data is direct array
+        images = response.data.data;
+        console.log(`✅ [adminApi.getShippingImages] Found ${images.length} images in array format`);
+      } else {
+        console.log(`⚠️ [adminApi.getShippingImages] No images found or unrecognized format`);
+      }
 
       return { success: true, data: images, error: null };
     } catch (error: any) {
-      console.error("Error getting shipping images:", error);
+      console.error("❌ [adminApi.getShippingImages] Error getting shipping images:", error);
       return {
         success: false,
         data: null,

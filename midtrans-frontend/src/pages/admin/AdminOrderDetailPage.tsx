@@ -21,6 +21,11 @@ import ShippingImageDisplay from '../../components/ShippingImageDisplay';
 import { IoQrCodeOutline } from "react-icons/io5";
 import QRCodeGenerator from '../../components/QRCodeGenerator';
 import CustomModal from '../../components/CustomModal';
+import { 
+  UploadedImages, 
+  mapBackendToFrontendFormat, 
+  mapFrontendToBackendFormat
+} from '../../utils/imageTypeMapping';
 // Outlet locations for pickup
 const OUTLET_LOCATIONS = [
   { value: 'Outlet Glagahsari 108', label: 'Outlet Glagahsari 108' },
@@ -137,13 +142,6 @@ interface OrderItem {
   notes?: string;
 }
 
-interface UploadedImages {
-  readyForPickup: string | null;
-  pickedUp: string | null;
-  received: string | null;
-  shipmentProof: string | null;
-  packagedProduct: string | null; // Foto produk sudah dikemas (untuk luar kota)
-}
 
 interface Location {
   id: string;
@@ -269,41 +267,7 @@ const AdminOrderDetailPage: React.FC = () => {
     return url;
   };
 
-  // Helper function to map backend keys to frontend keys
-  const mapBackendToFrontendFormat = (backendType: string): keyof UploadedImages | null => {
-    const typeMapping: Record<string, keyof UploadedImages> = {
-      // English types (found in production database)
-      'ready_for_pickup': 'readyForPickup',
-      'picked_up': 'pickedUp', 
-      'delivered': 'received',
-      'shipment_proof': 'shipmentProof',
-      'packaged_product': 'packagedProduct',
-      // Indonesian types (from delivery dashboard)
-      'siap_kirim': 'readyForPickup',
-      'pengiriman': 'pickedUp',
-      'diterima': 'received',
-      'produk_dikemas': 'packagedProduct',
-      // Additional possible delivery success types
-      'delivery_success': 'received',
-      'sukses_kirim': 'received',
-      'berhasil_kirim': 'received',
-      'selesai': 'received'
-    };
-    console.log(`🔗 [MAPPING DEBUG] Input type: "${backendType}" → Output: "${typeMapping[backendType] || 'NULL'}"`);
-    return typeMapping[backendType] || null;
-  };
 
-  // Helper function to map frontend type keys to backend type keys
-  const mapTypeToBackendFormat = (type: string): string => {
-    const typeMapping: Record<string, string> = {
-      'readyForPickup': 'ready_for_pickup',
-      'pickedUp': 'picked_up',
-      'received': 'delivered',
-      'shipmentProof': 'shipment_proof',
-      'packagedProduct': 'packaged_product'
-    };
-    return typeMapping[type] || type;
-  };
 
   // Handle order deletion/cancellation
   const handleDeleteOrder = async (): Promise<void> => {
@@ -541,30 +505,13 @@ const AdminOrderDetailPage: React.FC = () => {
       setPickupDate(orderData.pickup_date || '');
       setPickupTime(orderData.pickup_time || '');
 
-      // Get shipping images - using public API as fallback since admin API returns empty
+      // Get shipping images using adminApi
       try {
         console.log(`🔍 [DEBUG] Fetching shipping images for order: ${id}`);
-        console.log(`🔄 [DEBUG] Using public API as fallback for shipping images`);
+        console.log(`🔄 [DEBUG] Using adminApi.getShippingImages`);
         
-        // Import publicApi
-        const { publicApi } = await import('../../api/publicApi');
-        const publicOrderRes = await publicApi.getOrderById(id!);
-        console.log(`📸 [DEBUG] Public API order response:`, publicOrderRes);
-        
-        // Extract shipping images from public order response and normalize format
-        const rawShippingImages = publicOrderRes.data?.shipping_images || [];
-        const normalizedImages = rawShippingImages.map(img => ({
-          ...img,
-          created_at: img.uploaded_at, // Normalize field name
-          image_type: img.image_type   // Ensure field exists
-        }));
-        
-        const imagesRes = {
-          success: true,
-          data: normalizedImages,
-          error: null
-        };
-        console.log(`📸 [DEBUG] Extracted shipping images:`, imagesRes);
+        const imagesRes = await adminApi.getShippingImages(id!);
+        console.log(`📸 [DEBUG] AdminApi shipping images response:`, imagesRes);
         
         if (imagesRes.success && imagesRes.data) {
           const imagesData: UploadedImages = {
@@ -598,17 +545,6 @@ const AdminOrderDetailPage: React.FC = () => {
               } else {
                 console.log(`❌ [FAILED] No mapping found for backend type: "${imageItem.image_type}"`);
                 console.log(`❌ [FAILED] Available frontend keys:`, Object.keys(imagesData));
-                
-                // Try to force map common delivery success types to 'received'
-                if (imageItem.image_type.toLowerCase().includes('deliver') || 
-                    imageItem.image_type.toLowerCase().includes('sukses') ||
-                    imageItem.image_type.toLowerCase().includes('berhasil') ||
-                    imageItem.image_type.toLowerCase().includes('selesai') ||
-                    imageItem.image_type.toLowerCase().includes('terima')) {
-                  const transformedUrl = transformURL(imageItem.image_url);
-                  (imagesData as any)['received'] = transformedUrl;
-                  console.log(`🔧 [FORCE MAPPED] "${imageItem.image_type}" → received = ${transformedUrl}`);
-                }
               }
             } else {
               console.log(`⚠️ [MISSING DATA] Image ${index + 1} missing url or type:`, {
@@ -721,12 +657,12 @@ const AdminOrderDetailPage: React.FC = () => {
     console.log('🔍 [handleImageUpload] Starting upload process:');
     console.log('  - file:', file.name, 'size:', file.size);
     console.log('  - type:', type);
-    console.log('  - mapped type:', mapTypeToBackendFormat(type));
+    console.log('  - mapped type:', mapFrontendToBackendFormat(type as keyof UploadedImages));
     console.log('  - order_id:', id);
     
     setIsUploading(true);
     try {
-      const backendType = mapTypeToBackendFormat(type);
+      const backendType = mapFrontendToBackendFormat(type as keyof UploadedImages);
       
       console.log('📤 [handleImageUpload] Sending request to backend...');
       const result = await adminApi.uploadShippingImage(
