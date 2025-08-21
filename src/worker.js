@@ -642,34 +642,13 @@ router.options('/api/shipping/images/:orderId', async (request, env) => {
     });
 });
 
-// Get shipping images from database - public endpoint that also handles authenticated requests
+// Get shipping images from database - COMPLETELY PUBLIC endpoint (no auth checks)
 router.get('/api/shipping/images/:orderId', async (request, env) => {
-    // Add CORS headers for public access
-    request.corsHeaders = corsHeaders(request);
-    
-    // Debug logging
-    console.log('🔍 [SHIPPING IMAGES] Request received for orderId:', request.params?.orderId);
+    console.log('🔍 [SHIPPING IMAGES] PUBLIC ENDPOINT - Request received for orderId:', request.params?.orderId);
     console.log('🔍 [SHIPPING IMAGES] Request URL:', request.url);
     console.log('🔍 [SHIPPING IMAGES] Request method:', request.method);
-    console.log('🔍 [SHIPPING IMAGES] Has Authorization header:', !!request.headers.get('Authorization'));
     
-    // Handle both authenticated and non-authenticated requests
-    const authHeader = request.headers.get('Authorization');
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        // If auth header is present, verify it but don't fail if it's invalid
-        // Just log for debugging
-        try {
-            const token = authHeader.split(' ')[1];
-            console.log('🔍 [SHIPPING IMAGES] Attempting to verify token for authenticated request');
-            const decoded = jwt.verify(token, env.JWT_SECRET);
-            request.user = decoded;
-            console.log('🔍 [SHIPPING IMAGES] Token verified, user:', decoded.email || decoded.id);
-        } catch (tokenError) {
-            console.log('🔍 [SHIPPING IMAGES] Token verification failed, proceeding as public request:', tokenError.message);
-        }
-    } else {
-        console.log('🔍 [SHIPPING IMAGES] No auth header, processing as public request');
-    }
+    // NO AUTHENTICATION CHECKS - completely public endpoint
     
     try {
         const { orderId } = request.params;
@@ -722,7 +701,13 @@ router.get('/api/shipping/images/:orderId', async (request, env) => {
             data: formattedImages
         }), {
             status: 200,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+            headers: { 
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                'Cache-Control': 'no-cache'
+            }
         });
         
     } catch (error) {
