@@ -204,8 +204,8 @@ router.post('/api/orders/:id/shipping-images', verifyToken, (request, env) => {
     return uploadShippingImageModern(request, env);
 });
 
-// Get shipping images for order
-router.get('/api/orders/:id/shipping-images', verifyToken, (request, env) => {
+// Get shipping images for order - public endpoint
+router.get('/api/orders/:id/shipping-images', (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return getShippingImagesModern(request, env);
 });
