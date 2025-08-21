@@ -118,10 +118,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       
       // Upload foto menggunakan adminApi dengan tipe yang dipilih oleh kurir
       const result = await adminApi.uploadShippingImage(id, selectedPhotoType, photoFile);
-      console.log('Upload result:', result);
+      console.log('🚚 [PhotoUpload] Upload result:', result);
+      console.log('🚚 [PhotoUpload] Result success:', result?.success);
+      console.log('🚚 [PhotoUpload] Result data:', result?.data);
       
       // Update status pesanan jika upload berhasil
-      if (result && result.data && result.data.imageUrl) {
+      if (result && result.success && result.data?.imageUrl) {
         // Perbarui status pesanan berdasarkan jenis foto yang diupload
         let newStatus = 'dalam pengiriman';
         
@@ -159,7 +161,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           fileInput.value = '';
         }
       } else {
-        throw new Error('Gagal mendapatkan URL gambar dari response');
+        console.log('🚚 [PhotoUpload] Upload failed or no success flag');
+        throw new Error(result?.error || 'Upload gagal - tidak ada response success');
       }
     } catch (error) {
       console.error('Upload error:', error);
