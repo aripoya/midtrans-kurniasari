@@ -241,9 +241,56 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       if (apiOrder) {
         const mappedOrder: LocalOrder = mapToLocalOrder(apiOrder);
         setOrder(mappedOrder);
-        // Proses shipping images jika ada
-        if (mappedOrder.shipping_images) {
-          processShippingImages(mappedOrder.shipping_images);
+        
+        // For delivery view, fetch shipping images separately using admin API
+        if (isDeliveryView) {
+          try {
+            console.log('🚚 [DeliveryView] Fetching shipping images for order:', id);
+            const shippingImagesResponse = await adminApi.getShippingImages(id);
+            console.log('🚚 [DeliveryView] Shipping images response:', shippingImagesResponse);
+            
+            if (shippingImagesResponse.success && shippingImagesResponse.data) {
+              const images = shippingImagesResponse.data;
+              const processedImages: ShippingImages = {
+                ready_for_pickup: null,
+                picked_up: null,
+                delivered: null
+              };
+              
+              // Process each image from the API response
+              images.forEach((image: any) => {
+                if (image.image_type && image.image_url) {
+                  const transformedUrl = transformURL(image.image_url);
+                  
+                  // Map backend image types to frontend keys
+                  switch (image.image_type) {
+                    case 'ready_for_pickup':
+                    case 'siap_kirim':
+                      processedImages.ready_for_pickup = transformedUrl;
+                      break;
+                    case 'picked_up':
+                    case 'pengiriman':
+                      processedImages.picked_up = transformedUrl;
+                      break;
+                    case 'delivered':
+                    case 'diterima':
+                      processedImages.delivered = transformedUrl;
+                      break;
+                  }
+                }
+              });
+              
+              setShippingImages(processedImages);
+              console.log('🚚 [DeliveryView] Processed shipping images:', processedImages);
+            }
+          } catch (imageError) {
+            console.error('🚚 [DeliveryView] Error fetching shipping images:', imageError);
+          }
+        } else {
+          // For non-delivery views, process shipping images from order data if available
+          if (mappedOrder.shipping_images) {
+            processShippingImages(mappedOrder.shipping_images);
+          }
         }
       } else {
         setError('Pesanan tidak ditemukan');
@@ -254,7 +301,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, isDeliveryView]);
 
   const handleRefreshStatus = async (): Promise<void> => {
     if (!id) return;
