@@ -645,6 +645,12 @@ router.options('/api/shipping/images/:orderId', async (request, env) => {
 router.get('/api/shipping/images/:orderId', async (request, env) => {
     // Add CORS headers for public access
     request.corsHeaders = corsHeaders(request);
+    
+    // Debug logging
+    console.log('🔍 [SHIPPING IMAGES] Request received for orderId:', request.params?.orderId);
+    console.log('🔍 [SHIPPING IMAGES] Request URL:', request.url);
+    console.log('🔍 [SHIPPING IMAGES] Request method:', request.method);
+    
     try {
         const { orderId } = request.params;
         
