@@ -642,13 +642,24 @@ router.options('/api/shipping/images/:orderId', async (request, env) => {
     });
 });
 
-// Get shipping images from database - COMPLETELY PUBLIC endpoint (no auth checks)
+// SIMPLE TEST - Just return success to verify routing works
 router.get('/api/shipping/images/:orderId', async (request, env) => {
-    console.log('🔍 [SHIPPING IMAGES] PUBLIC ENDPOINT - Request received for orderId:', request.params?.orderId);
-    console.log('🔍 [SHIPPING IMAGES] Request URL:', request.url);
-    console.log('🔍 [SHIPPING IMAGES] Request method:', request.method);
+    console.log('🔍 [SHIPPING IMAGES TEST] Route matched! OrderId:', request.params?.orderId);
     
-    // NO AUTHENTICATION CHECKS - completely public endpoint
+    return new Response(JSON.stringify({
+        success: true,
+        message: 'Route working!',
+        orderId: request.params?.orderId,
+        url: request.url
+    }), {
+        status: 200,
+        headers: { 
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        }
+    });
     
     try {
         const { orderId } = request.params;
