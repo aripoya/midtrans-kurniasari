@@ -249,7 +249,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         try {
           console.log('📸 [OrderDetailPage] Fetching shipping images for order:', id);
           const apiUrl = import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev';
-          const imageResponse = await fetch(`${apiUrl}/api/shipping/images/${id}`);
+          const imageResponse = await fetch(`${apiUrl}/api/test-shipping-photos/${id}`);
           
           if (imageResponse.ok) {
             const imageData = await imageResponse.json();
