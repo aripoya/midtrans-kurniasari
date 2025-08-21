@@ -485,10 +485,21 @@ export const adminApi = {
       console.log("📸 Image Type:", imageType);
       console.log("📁 File:", imageFile.name);
 
+      // Map frontend image types to backend types
+      const typeMap: Record<string, string> = {
+        ready_for_pickup: "siap_kirim",
+        picked_up: "pengiriman",
+        delivered: "diterima",
+        shipment_proof: "shipment_proof",
+        packaged_product: "siap_kirim",
+      };
+      const mappedType = typeMap[imageType] || imageType;
+
       const formData = new FormData();
       formData.append("image", imageFile);
+      formData.append("imageType", mappedType);
       const response: AxiosResponse<any> = await axios.post(
-        `${API_BASE_URL}/api/shipping/images/${orderId}/${imageType}`,
+        `${API_BASE_URL}/api/orders/${orderId}/shipping-images`,
         formData,
         {
           headers: {
@@ -549,7 +560,14 @@ export const adminApi = {
         }
       );
 
-      return { success: true, data: response.data.images || [], error: null };
+      // Support both { images: [...] } and { data: { images: [...] } } shapes
+      const images =
+        (response.data as any)?.images ||
+        (response.data as any)?.data?.images ||
+        (response.data as any)?.data ||
+        [];
+
+      return { success: true, data: images, error: null };
     } catch (error: any) {
       console.error("Error getting shipping images:", error);
       return {

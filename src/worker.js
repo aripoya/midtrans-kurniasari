@@ -210,6 +210,12 @@ router.get('/api/orders/:id/shipping-images', verifyToken, (request, env) => {
     return getShippingImagesModern(request, env);
 });
 
+// Delete a specific shipping image for an order
+router.delete('/api/orders/:id/shipping-images/:imageType', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return deleteShippingImageModern(request, env);
+});
+
 // Notification endpoints
 router.get('/api/notifications', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
@@ -2603,6 +2609,89 @@ async function uploadShippingImageModern(request, env) {
         return new Response(JSON.stringify({
             success: false,
             error: 'Failed to upload image: ' + error.message
+        }), {
+            status: 500,
+            headers: {
+                'Content-Type': 'application/json',
+                ...request.corsHeaders
+            }
+        });
+    }
+}
+
+// Delete a shipping image for an order (compatible with adminApi.deleteShippingImage)
+async function deleteShippingImageModern(request, env) {
+    try {
+        console.log('MODERN DELETE: Deleting shipping image');
+
+        // Extract order ID and imageType from URL path
+        const url = new URL(request.url);
+        const pathSegments = url.pathname.split('/');
+        // Pattern: /api/orders/:id/shipping-images/:imageType
+        const orderId = pathSegments[3];
+        const imageType = decodeURIComponent(pathSegments[5] || '');
+
+        if (!orderId || !imageType) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Order ID and imageType are required'
+            }), {
+                status: 400,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...request.corsHeaders
+                }
+            });
+        }
+
+        // Validate image type
+        const validTypes = ['siap_kirim', 'pengiriman', 'diterima', 'shipment_proof'];
+        if (!validTypes.includes(imageType)) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Invalid imageType. Must be one of: ' + validTypes.join(', ')
+            }), {
+                status: 400,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...request.corsHeaders
+                }
+            });
+        }
+
+        // Optional: fetch the image URL for potential storage cleanup/logging
+        const existing = await env.DB.prepare(
+            'SELECT image_url FROM shipping_images WHERE order_id = ? AND image_type = ?'
+        ).bind(orderId, imageType).first();
+        console.log('MODERN DELETE: Existing image record:', existing);
+
+        // Delete the record from database
+        await env.DB.prepare(
+            'DELETE FROM shipping_images WHERE order_id = ? AND image_type = ?'
+        ).bind(orderId, imageType).run();
+
+        // Note: Storage cleanup (R2/Cloudflare Images) is not performed here
+        // due to lack of stored asset ID. This can be added if needed.
+
+        return new Response(JSON.stringify({
+            success: true,
+            data: {
+                orderId,
+                imageType,
+                deleted: true
+            }
+        }), {
+            status: 200,
+            headers: {
+                'Content-Type': 'application/json',
+                ...request.corsHeaders
+            }
+        });
+    } catch (error) {
+        console.error('MODERN DELETE: Error:', error);
+        return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to delete shipping image: ' + error.message
         }), {
             status: 500,
             headers: {
