@@ -642,8 +642,8 @@ router.options('/api/shipping/images/:orderId', async (request, env) => {
     });
 });
 
-// SIMPLE TEST - Just return success to verify routing works
-router.get('/api/shipping/images/:orderId', async (request, env) => {
+// COMPLETELY DIFFERENT PATH TEST - bypass any potential conflicts
+router.get('/api/test-shipping-photos/:orderId', async (request, env) => {
     console.log('🔍 [SHIPPING IMAGES TEST] Route matched! OrderId:', request.params?.orderId);
     
     return new Response(JSON.stringify({
