@@ -642,20 +642,6 @@ router.options('/api/shipping/images/:orderId', async (request, env) => {
     });
 });
 
-// SIMPLE TEST ENDPOINT
-router.get('/api/simple-test', async (request, env) => {
-    return new Response(JSON.stringify({
-        success: true,
-        message: 'Simple test works!'
-    }), {
-        status: 200,
-        headers: { 
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        }
-    });
-});
-
 // WORKING SHIPPING IMAGES ENDPOINT - bypasses route conflicts  
 router.get('/api/test-shipping-photos/:orderId', async (request, env) => {
     console.log('🔍 [SHIPPING PHOTOS] Request for orderId:', request.params?.orderId);
