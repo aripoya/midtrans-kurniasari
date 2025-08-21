@@ -1711,12 +1711,12 @@ router.get('/api/debug/delivery-assignments', (request, env) => {
     return debugDeliveryAssignments(request, env);
 });
 
-// Debug endpoint to migrate shipping_images table for Cloudflare Images
-router.post('/api/debug/migrate-shipping-images-table', async (request, env) => {
+// Debug endpoint to check shipping images for specific order (NO AUTH REQUIRED)
+router.get('/api/debug/check-shipping-images/:orderId', async (request, env) => {
     const corsHeaders = {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
     };
 
     if (request.method === 'OPTIONS') {
@@ -1724,7 +1724,8 @@ router.post('/api/debug/migrate-shipping-images-table', async (request, env) => 
     }
 
     try {
-        console.log('MIGRATE SHIPPING IMAGES TABLE: Starting migration');
+        const { orderId } = request.params;
+        console.log('DEBUG SHIPPING IMAGES: Checking for order:', orderId);
         
         if (!env.DB) {
             return new Response(JSON.stringify({
@@ -1736,58 +1737,39 @@ router.post('/api/debug/migrate-shipping-images-table', async (request, env) => 
             });
         }
         
-        // Check current table schema
-        const tableInfo = await env.DB.prepare(
-            "PRAGMA table_info(shipping_images)"
-        ).all();
+        // Get images for this specific order
+        const images = await env.DB.prepare(
+            'SELECT order_id, image_type, image_url, cloudflare_image_id, created_at FROM shipping_images WHERE order_id = ?'
+        ).bind(orderId).all();
         
-        console.log('Current shipping_images table schema:', JSON.stringify(tableInfo, null, 2));
+        console.log('DEBUG SHIPPING IMAGES: Found images:', images.results?.length || 0);
         
-        // Check if cloudflare_image_id column already exists
-        const hasCloudflareImageId = tableInfo.results.some(col => col.name === 'cloudflare_image_id');
-        
-        if (hasCloudflareImageId) {
-            return new Response(JSON.stringify({
-                success: true,
-                message: 'Table already has cloudflare_image_id column',
-                schema: tableInfo.results
-            }), {
-                status: 200,
-                headers: { 'Content-Type': 'application/json', ...corsHeaders }
-            });
-        }
-        
-        // Add cloudflare_image_id column
-        await env.DB.prepare(
-            'ALTER TABLE shipping_images ADD COLUMN cloudflare_image_id TEXT'
-        ).run();
-        
-        console.log('Added cloudflare_image_id column to shipping_images table');
-        
-        // Verify the column was added
-        const updatedTableInfo = await env.DB.prepare(
-            "PRAGMA table_info(shipping_images)"
-        ).all();
-        
-        console.log('Updated shipping_images table schema:', JSON.stringify(updatedTableInfo, null, 2));
+        // Get total count of images in table
+        const totalCount = await env.DB.prepare(
+            'SELECT COUNT(*) as total FROM shipping_images'
+        ).first();
         
         return new Response(JSON.stringify({
             success: true,
-            message: 'Successfully added cloudflare_image_id column to shipping_images table',
-            oldSchema: tableInfo.results,
-            newSchema: updatedTableInfo.results
+            data: {
+                orderId: orderId,
+                images: images.results || [],
+                totalImagesInDatabase: totalCount?.total || 0,
+                debug: {
+                    foundImages: images.results?.length || 0,
+                    imageTypes: images.results?.map(img => img.image_type) || []
+                }
+            }
         }), {
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
         
     } catch (error) {
-        console.error('Error migrating shipping_images table:', error);
+        console.error('DEBUG SHIPPING IMAGES: Error:', error);
         return new Response(JSON.stringify({
             success: false,
-            error: 'Failed to migrate table',
-            details: error.message,
-            stack: error.stack
+            error: error.message || 'Unknown error'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
