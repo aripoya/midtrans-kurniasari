@@ -103,6 +103,16 @@ const isAdminContext = (): boolean => {
   return window.location.pathname.includes('/admin');
 };
 
+// Helper to check if we're in a delivery context
+const isDeliveryContext = (): boolean => {
+  return window.location.pathname.includes('/delivery');
+};
+
+// Helper to check if we need authentication
+const needsAuthentication = (): boolean => {
+  return isAdminContext() || isDeliveryContext();
+};
+
 // Type guard to validate order item
 const isValidOrderItem = (item: OrderItem): boolean => {
   console.log('🔍 [DEBUG] Validating order item:', JSON.stringify(item, null, 2));
@@ -205,14 +215,15 @@ export const orderService = {
         throw new Error('Order ID is required and must be a string');
       }
 
-      // Check if we're in admin context to add admin token
+      // Check if we need authentication (admin or delivery context)
       const config: { headers?: Record<string, string> } = {};
       
-      if (isAdminContext() && getAdminToken()) {
+      if (needsAuthentication() && getAdminToken()) {
         config.headers = {
           Authorization: `Bearer ${getAdminToken()}`
         };
-        console.log('[orderService] Adding admin token to request');
+        console.log('[orderService] Adding authentication token to request for context:', 
+          isAdminContext() ? 'admin' : isDeliveryContext() ? 'delivery' : 'unknown');
       }
       
       const response: AxiosResponse<OrderResponse> = await apiClient.get(
