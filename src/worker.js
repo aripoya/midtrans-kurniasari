@@ -674,30 +674,48 @@ router.get('/api/shipping/images/:orderId', async (request, env) => {
     try {
         const { orderId } = request.params;
         
-        // Get all images for this order
+        // Get all images for this order with better error handling
+        console.log('🔍 [SHIPPING IMAGES] Querying database for orderId:', orderId);
+        
         const images = await env.DB.prepare(
-            'SELECT image_type, image_url, cloudflare_image_id FROM shipping_images WHERE order_id = ?'
+            'SELECT image_type, image_url, cloudflare_image_id, created_at FROM shipping_images WHERE order_id = ?'
         ).bind(orderId).all();
+        
+        console.log('🔍 [SHIPPING IMAGES] Raw database results:', images.results?.length || 0, 'records found');
+        console.log('🔍 [SHIPPING IMAGES] Raw results:', JSON.stringify(images.results, null, 2));
         
         // Format response with variants
         const formattedImages = {};
         
+        console.log('🔍 [SHIPPING IMAGES] Processing', images.results?.length || 0, 'images');
+        
         for (const img of images.results || []) {
-            if (img.cloudflare_image_id) {
+            console.log('🔍 [SHIPPING IMAGES] Processing image:', {
+                image_type: img.image_type,
+                has_cloudflare_id: !!img.cloudflare_image_id,
+                url: img.image_url,
+                created_at: img.created_at
+            });
+            
+            if (img.cloudflare_image_id && env.CLOUDFLARE_IMAGES_HASH) {
                 formattedImages[img.image_type] = {
                     url: img.image_url,
                     imageId: img.cloudflare_image_id,
                     variants: getImageVariants(img.cloudflare_image_id, env.CLOUDFLARE_IMAGES_HASH)
                 };
+                console.log('🔍 [SHIPPING IMAGES] Added Cloudflare image:', img.image_type);
             } else {
-                // Fallback for legacy images without cloudflare_image_id
+                // Fallback for legacy images without cloudflare_image_id or missing hash
                 formattedImages[img.image_type] = {
                     url: img.image_url,
-                    imageId: null,
+                    imageId: img.cloudflare_image_id || null,
                     variants: null
                 };
+                console.log('🔍 [SHIPPING IMAGES] Added legacy image:', img.image_type, 'reason:', !img.cloudflare_image_id ? 'no_cloudflare_id' : 'no_hash');
             }
         }
+        
+        console.log('🔍 [SHIPPING IMAGES] Final formatted images:', Object.keys(formattedImages));
         
         return new Response(JSON.stringify({
             success: true,
