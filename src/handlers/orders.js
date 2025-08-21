@@ -357,18 +357,28 @@ export async function getOrderById(request, env) {
       // Continue with empty shipping_images array
     }
 
-    // Step 4: Fetch location names if they exist
+    // Step 4: Fetch location names if they exist (with error handling)
     failedQuery = 'fetching location names';
     let lokasiPengirimanNama = null;
     if (order.lokasi_pengiriman) {
-      const loc = await env.DB.prepare('SELECT nama_lokasi FROM locations_view WHERE nama_lokasi = ?').bind(order.lokasi_pengiriman).first();
-      lokasiPengirimanNama = loc ? loc.nama_lokasi : order.lokasi_pengiriman; // Fallback to the stored value
+      try {
+        const loc = await env.DB.prepare('SELECT nama_lokasi FROM locations_view WHERE nama_lokasi = ?').bind(order.lokasi_pengiriman).first();
+        lokasiPengirimanNama = loc ? loc.nama_lokasi : order.lokasi_pengiriman;
+      } catch (locError) {
+        console.log(`[getOrderById] Warning: Could not fetch location name for lokasi_pengiriman. Using stored value: ${order.lokasi_pengiriman}`);
+        lokasiPengirimanNama = order.lokasi_pengiriman; // Fallback to stored value
+      }
     }
 
     let lokasiPengambilanNama = null;
     if (order.lokasi_pengambilan) {
-      const loc = await env.DB.prepare('SELECT nama_lokasi FROM locations_view WHERE nama_lokasi = ?').bind(order.lokasi_pengambilan).first();
-      lokasiPengambilanNama = loc ? loc.nama_lokasi : order.lokasi_pengambilan; // Fallback to the stored value
+      try {
+        const loc = await env.DB.prepare('SELECT nama_lokasi FROM locations_view WHERE nama_lokasi = ?').bind(order.lokasi_pengambilan).first();
+        lokasiPengambilanNama = loc ? loc.nama_lokasi : order.lokasi_pengambilan;
+      } catch (locError) {
+        console.log(`[getOrderById] Warning: Could not fetch location name for lokasi_pengambilan. Using stored value: ${order.lokasi_pengambilan}`);
+        lokasiPengambilanNama = order.lokasi_pengambilan; // Fallback to stored value
+      }
     }
 
     // Log shipping_area untuk debugging
