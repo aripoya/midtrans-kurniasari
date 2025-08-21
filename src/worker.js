@@ -633,8 +633,18 @@ router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (requ
     }
 });
 
+// OPTIONS handler for shipping images CORS preflight
+router.options('/api/shipping/images/:orderId', async (request, env) => {
+    return new Response(null, {
+        status: 204,
+        headers: corsHeaders(request)
+    });
+});
+
 // Get shipping images from database - public endpoint for order images
 router.get('/api/shipping/images/:orderId', async (request, env) => {
+    // Add CORS headers for public access
+    request.corsHeaders = corsHeaders(request);
     try {
         const { orderId } = request.params;
         
