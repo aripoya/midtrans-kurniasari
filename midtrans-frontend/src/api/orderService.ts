@@ -196,20 +196,16 @@ export const orderService = {
         throw new Error('Order ID is required and must be a string');
       }
 
-      // For getOrderById, don't add auth headers as it's a public endpoint
-      // Auth will be handled by the API interceptor if needed for other endpoints
-      const config: { headers?: Record<string, string> } = {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      };
-      
       const response: AxiosResponse<OrderResponse> = await apiClient.get(
-        `/api/orders/${orderId}`, 
-        config
+        `/api/orders/${orderId}`
       );
-      return response.data;
+      
+      // Ensure consistent response structure
+      return {
+        success: response.data.success,
+        data: response.data.order || response.data.data,
+        error: response.data.error
+      };
     } catch (error: any) {
       console.error(`Error fetching order ${orderId}:`, error);
       throw createOrderServiceError(`Failed to fetch order ${orderId}`, error);
