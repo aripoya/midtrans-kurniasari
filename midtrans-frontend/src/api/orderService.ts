@@ -93,25 +93,6 @@ export interface OrderServiceError extends Error {
   responseData?: any;
 }
 
-// Helper function to get admin token from localStorage
-const getAdminToken = (): string | null => {
-  return sessionStorage.getItem('token');
-};
-
-// Helper to check if we're in an admin context
-const isAdminContext = (): boolean => {
-  return window.location.pathname.includes('/admin');
-};
-
-// Helper to check if we're in a delivery context
-const isDeliveryContext = (): boolean => {
-  return window.location.pathname.includes('/delivery');
-};
-
-// Helper to check if we need authentication
-const needsAuthentication = (): boolean => {
-  return isAdminContext() || isDeliveryContext();
-};
 
 // Type guard to validate order item
 const isValidOrderItem = (item: OrderItem): boolean => {
@@ -215,16 +196,14 @@ export const orderService = {
         throw new Error('Order ID is required and must be a string');
       }
 
-      // Check if we need authentication (admin or delivery context)
-      const config: { headers?: Record<string, string> } = {};
-      
-      if (needsAuthentication() && getAdminToken()) {
-        config.headers = {
-          Authorization: `Bearer ${getAdminToken()}`
-        };
-        console.log('[orderService] Adding authentication token to request for context:', 
-          isAdminContext() ? 'admin' : isDeliveryContext() ? 'delivery' : 'unknown');
-      }
+      // For getOrderById, don't add auth headers as it's a public endpoint
+      // Auth will be handled by the API interceptor if needed for other endpoints
+      const config: { headers?: Record<string, string> } = {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      };
       
       const response: AxiosResponse<OrderResponse> = await apiClient.get(
         `/api/orders/${orderId}`, 

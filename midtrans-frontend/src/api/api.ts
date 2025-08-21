@@ -57,23 +57,29 @@ const apiClient: AxiosInstance = axios.create({
 // Debug: Log URL yang digunakan saat aplikasi start
 console.log('🔌 API Client diinisialisasi dengan base URL:', API_BASE_URL);
 
-// Add request interceptor to log all API requests and add auth token
+// Add request interceptor to log all API requests and add auth token for protected endpoints
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // Log API request
     console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
     
-    // Get token from localStorage
-    const token = sessionStorage.getItem('token');
+    // Only add auth token for protected endpoints (not for public order details)
+    const isPublicOrderEndpoint = config.url?.includes('/api/orders/') && config.method?.toLowerCase() === 'get';
+    const isPublicEndpoint = config.url?.includes('/orders/') || config.url?.includes('/api/orders/') && config.method?.toLowerCase() === 'get';
     
-    // If token exists, add it to the Authorization header
-    if (token) {
-      console.log('Adding Authorization token to request');
-      if (config.headers) {
-        config.headers['Authorization'] = `Bearer ${token}`;
+    if (!isPublicOrderEndpoint && !isPublicEndpoint) {
+      // Get token from sessionStorage for protected endpoints
+      const token = sessionStorage.getItem('token');
+      
+      // If token exists, add it to the Authorization header
+      if (token) {
+        console.log('Adding Authorization token to protected endpoint request');
+        if (config.headers) {
+          config.headers['Authorization'] = `Bearer ${token}`;
+        }
       }
     } else {
-      console.log('No token available for request');
+      console.log('Skipping auth for public endpoint:', config.url);
     }
     
     return config;
