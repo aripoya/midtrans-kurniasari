@@ -1189,8 +1189,8 @@ useEffect(() => {
                 </Select>
               </FormControl>
 
-              {/* Outlet Yang Mengirimkan - Only for "Siap Kirim" status */}
-              {shippingStatus === 'siap kirim' && (
+              {/* Outlet Yang Mengirimkan - Only for "Siap Kirim" status and "Dalam Kota" */}
+              {shippingStatus === 'siap kirim' && shippingArea !== 'luar-kota' && (
                 <FormControl>
                   <FormLabel>Outlet Yang Mengirimkan</FormLabel>
                   <Select
