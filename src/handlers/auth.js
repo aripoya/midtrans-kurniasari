@@ -147,6 +147,7 @@ export async function loginUser(request, env) {
 
         console.log(`LOGIN DB_FETCH: Searching for user '${username}' in the database.`);
         // Use password column directly since password_hash doesn't exist in production DB
+        // Reverted: Use the 'password' column as the production DB does not have 'password_hash'
         const user = await env.DB.prepare('SELECT id, username, password, role, outlet_id, name FROM users WHERE username = ?')
             .bind(username)
             .first();
@@ -164,43 +165,20 @@ export async function loginUser(request, env) {
 
         console.log(`LOGIN DB_SUCCESS: Found user '${username}'. Role: ${user.role}.`);
         console.log(`LOGIN HASH_COMPARE: Comparing provided password with stored hash for user '${username}'.`);
-        console.log(`Stored Hash: ${user.password}`);
-
-        let isMatch;
-        try {
-            console.log('BCRYPT DEBUG: About to compare password');
-            console.log('BCRYPT DEBUG: Password type:', typeof password);
-            console.log('BCRYPT DEBUG: Stored hash type:', typeof user.password);
-            console.log('BCRYPT DEBUG: Stored hash value:', user.password);
-            console.log('BCRYPT DEBUG: Stored hash length:', user.password ? user.password.length : 'NULL');
-            
-            if (!user.password) {
-                console.error('BCRYPT ERROR: Stored password hash is null or empty');
-                return new Response(JSON.stringify({ 
-                    success: false, 
-                    message: 'Server error during login', 
-                    error: 'Password hash not found in database'
-                }), { 
-                    status: 500, 
-                    headers: { 'Content-Type': 'application/json', ...request.corsHeaders } 
-                });
-            }
-            
-            isMatch = await bcrypt.compare(password, user.password);
-            console.log('BCRYPT RESULT: Password comparison result:', isMatch);
-        } catch (bcryptError) {
-            console.error('BCRYPT ERROR: Comparison failed:', bcryptError);
-            console.error('BCRYPT ERROR: Full error stack:', bcryptError.stack);
-            return new Response(JSON.stringify({ 
-                success: false, 
-                message: 'Server error during password verification.', 
-                error: bcryptError.message,
-                stack: bcryptError.stack 
-            }), { 
-                status: 500, 
-                headers: { 'Content-Type': 'application/json', ...request.corsHeaders } 
+        console.log(`LOGIN PW_COMPARE: Comparing provided password with stored password for user '${username}'.`);
+        
+        // The production database stores passwords in plaintext, so we do a direct comparison.
+        // This is not secure and should be addressed by migrating to hashed passwords.
+        if (!user.password) {
+            console.error(`LOGIN FAIL: No password found for user '${username}'`);
+            return new Response(JSON.stringify({ success: false, message: 'Invalid credentials' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
             });
         }
+
+        const isMatch = password === user.password;
+        console.log('LOGIN RESULT: Password comparison result:', isMatch);
 
         if (!isMatch) {
             return new Response(JSON.stringify({
