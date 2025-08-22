@@ -18,32 +18,23 @@ export interface User {
 export interface Order {
   id: string;
   customer_name: string;
-  customer_address: string;
-  customer_phone?: string;
-  customer_email?: string; // optional, UI-only display
+  customer_phone: string;
+  customer_email?: string;
   total_amount: number;
-  payment_status:
-    | "pending"
-    | "settlement"
-    | "capture"
-    | "paid"
-    | "deny"
-    | "cancel"
-    | "expire"
-    | "failure";
+  payment_status: string;
   shipping_status: string;
-  shipping_area: "dalam-kota" | "luar-kota";
-  pickup_method?: string;
-  payment_method?: string; // optional, for UI display
-  pickup_location?: string; // optional, for UI display
-  courier_service?: string; // optional, for UI display
-  order_type?: string; // optional, for UI display
-  items?: any[]; // optional, for UI item listing
+  admin_note?: string;
   created_at: string;
-  updated_at?: string;
-  admin_note?: string; // editable via updateOrderDetails
-  outlet_id?: string;
+  payment_method?: string;
+  shipping_area?: 'dalam-kota' | 'luar-kota';
+  pickup_method?: 'deliveryman' | 'pickup';
   lokasi_pengiriman?: string;
+  pickup_location?: string;
+  order_type?: string;
+  courier_service?: string;
+  tracking_number?: string;
+  updated_at?: string;
+  items?: any[];
   assigned_deliveryman_id?: string;
   created_by_admin_id?: string;
   created_by_admin_name?: string;
@@ -202,7 +193,6 @@ export interface UpdateOrderDetailsRequest {
   pickup_method?: string;
   courier_service?: string;
   tracking_number?: string;
-  lokasi_pengiriman?: string;
   lokasi_pengambilan?: string;
   lokasi_pengantaran?: string; // Customer address for delivery destination
   tipe_pesanan?: string;

@@ -10,7 +10,6 @@ import {
   useDisclosure, Divider
 } from '@chakra-ui/react';
 import { adminApi, Order } from '../../api/adminApi';
-import EditableLokasiPengiriman from '../../components/EditableLokasiPengiriman';
 
 const AdminOrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -21,11 +20,10 @@ const AdminOrderDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   
   // Edit states
-  const [editedOrder, setEditedOrder] = useState<Order | null>(null);
+  const [formData, setFormData] = useState<Partial<Order>>({});
   const [updateLoading, setUpdateLoading] = useState(false);
   
   // Modal states
-  const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   const { isOpen: isStatusOpen, onOpen: onStatusOpen, onClose: onStatusClose } = useDisclosure();
   const { isOpen: isPaymentOpen, onOpen: onPaymentOpen, onClose: onPaymentClose } = useDisclosure();
   
@@ -49,6 +47,7 @@ const AdminOrderDetailPage: React.FC = () => {
         if (response.success && response.data) {
           console.log('Order data loaded:', response.data);
           setOrder(response.data);
+          setFormData(response.data); // Initialize form data
         } else {
           throw new Error(response.error || 'Failed to load order');
         }
@@ -97,25 +96,30 @@ const AdminOrderDetailPage: React.FC = () => {
     );
   }
 
-  // Handle update order (admin note only)
-  const handleUpdateOrder = async () => {
-    if (!editedOrder || !id) return;
+  // Handle form input changes
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Handle form submission
+  const handleFormSubmit = async () => {
+    if (!id) return;
     try {
       setUpdateLoading(true);
-      const response = await adminApi.updateOrderDetails(id, {
-        admin_note: editedOrder.admin_note || '',
-      });
-      if (!response.success) throw new Error(response.error || 'Gagal update catatan');
+      const response = await adminApi.updateOrderDetails(id, formData);
+      if (!response.success) throw new Error(response.error || 'Gagal menyimpan perubahan');
 
       // Reload order from backend to ensure fresh data
       const orderResponse = await adminApi.getOrderDetails(id);
       if (orderResponse.success && orderResponse.data) {
         setOrder(orderResponse.data);
+        setFormData(orderResponse.data);
       }
-      onEditClose();
+      
       toast({
         title: 'Berhasil',
-        description: 'Catatan pesanan berhasil disimpan',
+        description: 'Detail pesanan berhasil diperbarui',
         status: 'success',
         duration: 3000,
         isClosable: true,
@@ -123,7 +127,7 @@ const AdminOrderDetailPage: React.FC = () => {
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Gagal menyimpan catatan',
+        description: error.message || 'Gagal menyimpan perubahan',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -189,11 +193,6 @@ const AdminOrderDetailPage: React.FC = () => {
     }
   };
 
-  // Start editing
-  const startEdit = () => {
-    setEditedOrder({ ...order });
-    onEditOpen();
-  };
 
   return (
     <Box p={6}>
@@ -204,11 +203,6 @@ const AdminOrderDetailPage: React.FC = () => {
             <Button as={RouterLink} to="/admin/orders" variant="ghost">
               ← Kembali ke Daftar Pesanan
             </Button>
-            <HStack>
-              <Button colorScheme="blue" onClick={startEdit}>
-                Edit Catatan
-              </Button>
-            </HStack>
           </HStack>
           <HStack spacing={4} align="center" flexWrap="wrap">
             <Heading size="lg">Detail Pesanan #{order.id}</Heading>
@@ -295,17 +289,6 @@ const AdminOrderDetailPage: React.FC = () => {
                       </Tr>
                       
                       {/* Editable fields */}
-                      {order.shipping_area === 'dalam-kota' && (
-                        <Tr>
-                          <Td fontWeight="semibold">Lokasi Pengiriman</Td>
-                          <Td>
-                            <EditableLokasiPengiriman 
-                              order={order} 
-                              onOrderUpdate={setOrder}
-                            />
-                          </Td>
-                        </Tr>
-                      )}
                       
                       <Tr>
                         <Td fontWeight="semibold">Lokasi Pengambilan</Td>
@@ -413,6 +396,68 @@ const AdminOrderDetailPage: React.FC = () => {
           </GridItem>
         </Grid>
 
+        {/* Edit Form */}
+        <Card>
+          <CardHeader>
+            <Heading size="md">Edit Detail Pesanan</Heading>
+          </CardHeader>
+          <CardBody>
+            <VStack as="form" spacing={4} align="stretch" onSubmit={(e) => { e.preventDefault(); handleFormSubmit(); }}>
+              <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4}>
+                <GridItem>
+                  <Text fontWeight="semibold">Nama Pelanggan</Text>
+                  <Input name="customer_name" value={formData.customer_name || ''} onChange={handleFormChange} />
+                </GridItem>
+                <GridItem>
+                  <Text fontWeight="semibold">No. Telepon</Text>
+                  <Input name="customer_phone" value={formData.customer_phone || ''} onChange={handleFormChange} />
+                </GridItem>
+                <GridItem>
+                  <Text fontWeight="semibold">Email</Text>
+                  <Input name="customer_email" value={formData.customer_email || ''} onChange={handleFormChange} />
+                </GridItem>
+                <GridItem>
+                  <Text fontWeight="semibold">Area Pengiriman</Text>
+                  <Select name="shipping_area" value={formData.shipping_area || ''} onChange={handleFormChange}>
+                    <option value="dalam-kota">Dalam Kota</option>
+                    <option value="luar-kota">Luar Kota</option>
+                  </Select>
+                </GridItem>
+                <GridItem>
+                  <Text fontWeight="semibold">Metode Pengiriman</Text>
+                  <Select name="pickup_method" value={formData.pickup_method || ''} onChange={handleFormChange}>
+                    <option value="deliveryman">Deliveryman</option>
+                    <option value="pickup">Pickup</option>
+                  </Select>
+                </GridItem>
+                <GridItem>
+                  <Text fontWeight="semibold">Layanan Kurir</Text>
+                  <Input name="courier_service" value={formData.courier_service || ''} onChange={handleFormChange} />
+                </GridItem>
+                <GridItem>
+                  <Text fontWeight="semibold">Nomor Resi</Text>
+                  <Input name="tracking_number" value={formData.tracking_number || ''} onChange={handleFormChange} />
+                </GridItem>
+                <GridItem>
+                  <Text fontWeight="semibold">Lokasi Pengiriman</Text>
+                  <Input name="lokasi_pengiriman" value={formData.lokasi_pengiriman || ''} onChange={handleFormChange} />
+                </GridItem>
+                 <GridItem>
+                  <Text fontWeight="semibold">Lokasi Pengambilan</Text>
+                  <Input name="pickup_location" value={formData.pickup_location || ''} onChange={handleFormChange} />
+                </GridItem>
+              </Grid>
+              <Box>
+                <Text fontWeight="semibold">Catatan Admin</Text>
+                <Textarea name="admin_note" value={formData.admin_note || ''} onChange={handleFormChange} placeholder="Tambahkan catatan pesanan..." />
+              </Box>
+              <Button type="submit" colorScheme="blue" isLoading={updateLoading} size="lg">
+                Simpan Perubahan
+              </Button>
+            </VStack>
+          </CardBody>
+        </Card>
+
         {/* Status Foto Pesanan */}
         <Card>
           <CardHeader>
@@ -443,40 +488,6 @@ const AdminOrderDetailPage: React.FC = () => {
         </Card>
       </VStack>
 
-      {/* Edit Order Modal */}
-      <Modal isOpen={isEditOpen} onClose={onEditClose} size="xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Edit Catatan Pesanan</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            {editedOrder && (
-              <VStack spacing={4}>
-                <Box w="full">
-                  <Text fontWeight="semibold" mb={2}>Catatan</Text>
-                  <Textarea
-                    value={editedOrder.admin_note || ''}
-                    onChange={(e) => setEditedOrder({ ...editedOrder, admin_note: e.target.value })}
-                    placeholder="Tambahkan catatan pesanan..."
-                  />
-                </Box>
-              </VStack>
-            )}
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onEditClose}>
-              Batal
-            </Button>
-            <Button 
-              colorScheme="blue" 
-              onClick={handleUpdateOrder}
-              isLoading={updateLoading}
-            >
-              Simpan Perubahan
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
 
       {/* Update Shipping Status Modal */}
       <Modal isOpen={isStatusOpen} onClose={onStatusClose}>
