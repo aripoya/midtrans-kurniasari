@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Container,
@@ -34,11 +34,9 @@ import {
   StepStatus,
   StepTitle,
   Stepper,
-  useSteps,
   useToast
 } from '@chakra-ui/react';
 import { publicApi, PublicOrder } from '../api/publicApi';
-import { formatDate } from '../utils/date';
 import { API_URL } from '../api/config';
 import { formatCurrency } from '../utils/formatters';
 import { normalizeShippingStatus } from '../utils/orderStatusUtils';
@@ -46,13 +44,60 @@ import ShippingImageDisplay from '../components/ShippingImageDisplay';
 
 
 
+interface ShippingImage {
+  image_type: string;
+  image_url: string;
+  id?: string;
+  order_id?: string;
+  uploaded_at?: string;
+}
+
 const PublicOrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const [order, setOrder] = useState<PublicOrder | null>(null);
+  const [shippingImages, setShippingImages] = useState<ShippingImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markingReceived, setMarkingReceived] = useState(false);
   const toast = useToast();
+
+  // Fetch shipping images separately
+  const fetchShippingImages = async (orderId: string) => {
+    try {
+      console.log('📸 [PublicOrderDetailPage] Fetching shipping images for order:', orderId);
+      const apiUrl = API_URL || 'https://order-management-app-production.wahwooh.workers.dev';
+      const imageResponse = await fetch(`${apiUrl}/api/test-shipping-photos/${orderId}`);
+      
+      if (imageResponse.ok) {
+        const imageData = await imageResponse.json();
+        console.log('📸 [PublicOrderDetailPage] Raw API response:', imageData);
+        
+        if (imageData.success && imageData.data) {
+          // Convert the response format to array of shipping images
+          const images: ShippingImage[] = [];
+          
+          Object.entries(imageData.data).forEach(([type, imageInfo]: [string, any]) => {
+            if (imageInfo && imageInfo.url) {
+              images.push({
+                image_type: type,
+                image_url: imageInfo.url,
+                id: imageInfo.imageId || '',
+                order_id: orderId,
+                uploaded_at: new Date().toISOString()
+              });
+            }
+          });
+          
+          console.log('📸 [PublicOrderDetailPage] Processed images:', images);
+          setShippingImages(images);
+        }
+      } else {
+        console.log('📸 [PublicOrderDetailPage] Failed to fetch shipping images:', imageResponse.status);
+      }
+    } catch (error) {
+      console.error('📸 [PublicOrderDetailPage] Error fetching shipping images:', error);
+    }
+  };
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -67,6 +112,11 @@ const PublicOrderDetailPage = () => {
         const response = await publicApi.getOrderById(id);
         setOrder(response.data || null);
         setError(null);
+        
+        // Fetch shipping images separately
+        if (response.data) {
+          await fetchShippingImages(id);
+        }
       } catch (err: any) {
         console.error('Error fetching order:', err);
         setError(err.message || 'Gagal mengambil data pesanan');
@@ -443,12 +493,12 @@ const PublicOrderDetailPage = () => {
                           packaged_product: 'Foto Produk Sudah Dikemas'
                         };
                         
-                        const imageUrl = order.shipping_images?.find(img => 
+                        const imageUrl = shippingImages?.find(img => 
                           img.image_type === type || 
-                          (type === 'ready_for_pickup' && img.image_type === 'siap_kirim') ||
-                          (type === 'picked_up' && img.image_type === 'pengiriman') ||
-                          (type === 'delivered' && img.image_type === 'diterima') ||
-                          (type === 'packaged_product' && (img.image_type === 'packaged_product' || img.image_type === 'produk_dikemas'))
+                          (type === 'ready_for_pickup' && img.image_type === 'ready_for_pickup') ||
+                          (type === 'picked_up' && img.image_type === 'picked_up') ||
+                          (type === 'delivered' && img.image_type === 'delivered') ||
+                          (type === 'packaged_product' && img.image_type === 'packaged_product')
                         )?.image_url;
                         
                         return (
