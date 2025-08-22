@@ -1,9 +1,6 @@
 import axios, { AxiosResponse } from "axios";
 import { API_URL } from "./config";
 
-// Use the same API URL as the main config to ensure consistency between login and API calls
-// This prevents token/session mismatch issues
-const API_BASE_URL = API_URL;
 
 // TypeScript interfaces for API responses and data structures
 export interface User {
@@ -249,11 +246,11 @@ export const adminApi = {
   getOrderDetails: async (orderId: string): Promise<OrderResponse> => {
     try {
       console.log(
-        `🔍 Getting order details for ID: ${orderId} from ${API_BASE_URL}`
+        `🔍 Getting order details for ID: ${orderId} from ${API_URL}`
       );
 
       const response: AxiosResponse = await axios.get(
-        `${API_BASE_URL}/api/orders/${orderId}`,
+        `${API_URL}/api/orders/${orderId}`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -301,7 +298,7 @@ export const adminApi = {
       };
 
       const response: AxiosResponse = await axios.put(
-        `${API_BASE_URL}/api/orders/${orderId}/status`,
+        `${API_URL}/api/orders/${orderId}/status`,
         payload,
         {
           headers: {
@@ -333,12 +330,12 @@ export const adminApi = {
       // Debug logs untuk membantu troubleshooting
       console.group("updateOrderDetails - Request Details");
       console.log("Order ID:", orderId);
-      console.log("API URL:", `${API_BASE_URL}/api/orders/${orderId}`);
+      console.log("API URL:", `${API_URL}/api/orders/${orderId}`);
       console.log("Request Payload:", JSON.stringify(shippingData, null, 2));
       console.groupEnd();
 
       const response: AxiosResponse = await axios.patch(
-        `${API_BASE_URL}/api/orders/${orderId}`,
+        `${API_URL}/api/orders/${orderId}`,
         shippingData,
         {
           headers: {
@@ -377,11 +374,11 @@ export const adminApi = {
   ): Promise<OrdersResponse> => {
     try {
       console.log("[DEBUG] Fetching admin orders...");
-      console.log("[DEBUG] Using endpoint:", `${API_BASE_URL}/api/orders/admin`);
+      console.log("[DEBUG] Using endpoint:", `${API_URL}/api/orders/admin`);
       console.log("[DEBUG] Token:", getAdminToken() ? "Present" : "Missing");
 
       const response: AxiosResponse = await axios.get(
-        `${API_BASE_URL}/api/orders/admin`,
+        `${API_URL}/api/orders/admin`,
         {
           params: {
             offset,
@@ -452,7 +449,7 @@ export const adminApi = {
   deleteOrder: async (orderId: string): Promise<ApiResponse> => {
     try {
       const response: AxiosResponse = await axios.delete(
-        `${API_BASE_URL}/api/orders/${orderId}`,
+        `${API_URL}/api/orders/${orderId}`,
         {
           headers: {
             Authorization: `Bearer ${getAdminToken()}`,
@@ -489,7 +486,7 @@ export const adminApi = {
       formData.append("image", imageFile);
       formData.append("imageType", imageType);
       const response: AxiosResponse<any> = await axios.post(
-        `${API_BASE_URL}/api/shipping/images/${orderId}/${imageType}`,
+        `${API_URL}/api/shipping/images/${orderId}/${imageType}`,
         formData,
         {
           headers: {
@@ -544,7 +541,7 @@ export const adminApi = {
       console.log(`🔍 [adminApi.getShippingImages] Fetching images for order: ${orderId}`);
       
       const response: AxiosResponse = await axios.get(
-        `${API_BASE_URL}/api/shipping/images/${orderId}`,
+        `${API_URL}/api/shipping/images/${orderId}`,
         {
           headers: {
             Authorization: `Bearer ${getAdminToken()}`,
@@ -588,7 +585,7 @@ export const adminApi = {
   ): Promise<ApiResponse> => {
     try {
       const response: AxiosResponse = await axios.delete(
-        `${API_BASE_URL}/api/orders/${orderId}/shipping-images/${imageType}`,
+        `${API_URL}/api/orders/${orderId}/shipping-images/${imageType}`,
         {
           headers: {
             Authorization: `Bearer ${getAdminToken()}`,
@@ -624,7 +621,7 @@ export const adminApi = {
         status,
       };
       const response: AxiosResponse = await axios.put(
-        `${API_BASE_URL}/api/orders/${orderId}`,
+        `${API_URL}/api/orders/${orderId}`,
         payload,
         {
           headers: {
@@ -662,7 +659,7 @@ export const adminApi = {
       const payload: LoginRequest = { username, password };
 
       const response: AxiosResponse = await axios.post(
-        `${API_BASE_URL}/auth/login`,
+        `${API_URL}/auth/login`,
         payload,
         {
           headers: {
@@ -713,7 +710,7 @@ export const adminApi = {
   getLocations: async (): Promise<LocationsResponse> => {
     try {
       const response: AxiosResponse = await axios.get(
-        `${API_BASE_URL}/api/locations`,
+        `${API_URL}/api/locations`,
         {
           headers: {
             Authorization: `Bearer ${getAdminToken()}`,
@@ -742,7 +739,7 @@ export const adminApi = {
   getLocationsOutlet: async (): Promise<LocationsResponse> => {
     try {
       const response: AxiosResponse = await axios.get(
-        `${API_BASE_URL}/api/outlets`,
+        `${API_URL}/api/outlets`,
         {
           headers: {
             Authorization: `Bearer ${getAdminToken()}`,
@@ -772,7 +769,7 @@ export const adminApi = {
   getDeliveryOrders: async (): Promise<OrdersResponse> => {
     try {
       const response: AxiosResponse = await axios.get(
-        `${API_BASE_URL}/api/orders/delivery`,
+        `${API_URL}/api/orders/delivery`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -801,7 +798,7 @@ export const adminApi = {
   getUsers: async (): Promise<UsersResponse> => {
     try {
       const response: AxiosResponse = await axios.get(
-        `${API_BASE_URL}/api/admin/users`,
+        `${API_URL}/api/admin/users`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -834,7 +831,7 @@ export const adminApi = {
   ): Promise<ApiResponse<User>> => {
     try {
       const response: AxiosResponse = await axios.post(
-        `${API_BASE_URL}/api/admin/users`,
+        `${API_URL}/api/admin/users`,
         userData,
         {
           headers: {
@@ -869,7 +866,7 @@ export const adminApi = {
   ): Promise<ApiResponse<User>> => {
     try {
       const response: AxiosResponse = await axios.put(
-        `${API_BASE_URL}/api/admin/users/${userId}`,
+        `${API_URL}/api/admin/users/${userId}`,
         userData,
         {
           headers: {
@@ -905,7 +902,7 @@ export const adminApi = {
       const encodedUserId = encodeURIComponent(userId);
       console.log(`[DEBUG] Encoded userId: ${encodedUserId}`);
 
-      const url = `${API_BASE_URL}/api/admin/users/${encodedUserId}`;
+      const url = `${API_URL}/api/admin/users/${encodedUserId}`;
       console.log(`[DEBUG] DELETE URL: ${url}`);
 
       const response: AxiosResponse = await axios.delete(url, {
@@ -952,7 +949,7 @@ export const adminApi = {
 
     return axios
       .post(
-        `${API_BASE_URL}/api/admin/users/${userId}/reset-password`,
+        `${API_URL}/api/admin/users/${userId}/reset-password`,
         { password: newPassword },
         {
           headers: {
@@ -989,7 +986,7 @@ export const adminApi = {
     }
 
     return axios
-      .get(`${API_BASE_URL}/api/outlets`, {
+      .get(`${API_URL}/api/outlets`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -1031,7 +1028,7 @@ export const adminApi = {
     });
 
     return axios
-      .get(`${API_BASE_URL}/api/admin/activity?${queryParams.toString()}`, {
+      .get(`${API_URL}/api/admin/activity?${queryParams.toString()}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -1061,7 +1058,7 @@ export const adminApi = {
     }
 
     return axios
-      .get(`${API_BASE_URL}/api/admin/sessions`, {
+      .get(`${API_URL}/api/admin/sessions`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -1091,7 +1088,7 @@ export const adminApi = {
     }
 
     return axios
-      .get(`${API_BASE_URL}/api/admin/stats`, {
+      .get(`${API_URL}/api/admin/stats`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -1121,7 +1118,7 @@ export const adminApi = {
     }
 
     return axios
-      .post(`${API_BASE_URL}/api/admin/logout`, 
+      .post(`${API_URL}/api/admin/logout`, 
         { sessionId, adminId },
         {
           headers: {
@@ -1149,7 +1146,7 @@ export const adminApi = {
     try {
       console.log("[SAFE-MIGRATION] Triggering migration with options:", options);
       const response: AxiosResponse = await axios.post(
-        `${API_BASE_URL}/api/admin/migrate-safe-db`,
+        `${API_URL}/api/admin/migrate-safe-db`,
         options,
         {
           headers: {
@@ -1177,7 +1174,7 @@ export const adminApi = {
     try {
       console.log("[SAFE-MIGRATION] Fetching migration status...");
       const response: AxiosResponse = await axios.get(
-        `${API_BASE_URL}/api/admin/safe-migration-status`,
+        `${API_URL}/api/admin/safe-migration-status`,
         {
           headers: {
             "Content-Type": "application/json",
