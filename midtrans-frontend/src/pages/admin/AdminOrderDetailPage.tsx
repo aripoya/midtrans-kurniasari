@@ -193,7 +193,7 @@ const AdminOrderDetailPage: React.FC = () => {
       <VStack spacing={6} align="stretch">
         {/* Header */}
         <Box>
-          <HStack justify="space-between" align="center" mb={4}>
+          <HStack justify="space-between" align="center" mb={3}>
             <Button as={RouterLink} to="/admin/orders" variant="ghost">
               ← Kembali ke Daftar Pesanan
             </Button>
@@ -203,7 +203,16 @@ const AdminOrderDetailPage: React.FC = () => {
               </Button>
             </HStack>
           </HStack>
-          <Heading size="lg">Detail Pesanan - Updated UI</Heading>
+          <HStack spacing={4} align="center" flexWrap="wrap">
+            <Heading size="lg">Detail Pesanan #{order.id}</Heading>
+            <Badge colorScheme={order.payment_status === 'paid' ? 'green' : order.payment_status === 'pending' ? 'yellow' : 'red'}>
+              Pembayaran: {order.payment_status?.toUpperCase()}
+            </Badge>
+            <Badge colorScheme="blue">Pengiriman: {order.shipping_status?.toUpperCase()}</Badge>
+            <Badge colorScheme={order.shipping_area === 'luar-kota' ? 'orange' : 'blue'}>
+              {order.shipping_area === 'luar-kota' ? 'LUAR KOTA' : 'DALAM KOTA'}
+            </Badge>
+          </HStack>
         </Box>
 
         {/* Main Content Grid */}
@@ -563,4 +572,4 @@ const AdminOrderDetailPage: React.FC = () => {
 };
 
 export default AdminOrderDetailPage;
-// Force deployment Fri Aug 22 21:03:41 WIB 2025
+// Force deployment Fri Aug 22 21:29:19 WIB 2025

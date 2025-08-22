@@ -43,4 +43,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy midtrans-frontend/dist --project-name=kurniasari-midtrans-frontend
+          workingDirectory: midtrans-frontend
+          command: pages deploy ./dist --project-name=kurniasari-midtrans-frontend
