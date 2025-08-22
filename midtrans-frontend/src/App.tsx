@@ -21,7 +21,7 @@ import DebugPage from './pages/DebugPage';
 import LoginPage from './pages/LoginPage';
 import AdminLoginPage from './pages/admin/AdminLoginPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
-import AdminOrderDetailPage from './pages/admin/AdminOrderDetailPage';
+import AdminOrderDetailPageWorking from './pages/admin/AdminOrderDetailPageWorking';
 import UserManagementPage from './pages/admin/UserManagementPage';
 import AdminActivityPage from './pages/admin/AdminActivityPage';
 import SafeMigrationPage from './pages/admin/SafeMigrationPage';
@@ -65,7 +65,7 @@ const App: React.FC = () => {
                   <Route index element={<Navigate to="orders" replace />} />
                   <Route path="orders" element={<AdminOrdersPage />} />
                   <Route path="orders/new" element={<NewOrderPage />} />
-                  <Route path="orders/:id" element={<AdminOrderDetailPage />} />
+                  <Route path="orders/:id" element={<AdminOrderDetailPageWorking />} />
                   <Route path="users" element={<UserManagementPage />} />
                   <Route path="activity" element={<AdminActivityPage />} />
                   <Route path="safe-migration" element={<SafeMigrationPage />} />

@@ -9,7 +9,7 @@ import {
 import { adminApi, Order } from '../../api/adminApi';
 import EditableLokasiPengiriman from '../../components/EditableLokasiPengiriman';
 
-const AdminOrderDetailPage: React.FC = () => {
+const AdminOrderDetailPageWorking: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const toast = useToast();
   const [order, setOrder] = useState<Order | null>(null);
@@ -170,4 +170,4 @@ const AdminOrderDetailPage: React.FC = () => {
   );
 };
 
-export default AdminOrderDetailPage;
+export default AdminOrderDetailPageWorking;

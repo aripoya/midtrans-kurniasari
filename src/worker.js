@@ -507,8 +507,44 @@ router.post('/api/admin/migrate-admin-activity', verifyToken, (request, env) => 
     return migrateAdminActivity(request, env);
 });
 
-// Admin Activity Logging endpoints
-router.get('/api/admin/activity', verifyToken, (request, env) => {
+// Admin outlets endpoint - Get all outlets from outlets_unified table
+router.get('/api/admin/outlets', verifyToken, async (request, env) => {
+  request.corsHeaders = corsHeaders(request);
+  
+  try {
+    const outlets = await env.DB.prepare(`
+      SELECT id, name, location_alias, address, status
+      FROM outlets_unified 
+      WHERE status = 'active'
+      ORDER BY name
+    `).all();
+
+    return new Response(JSON.stringify({
+      success: true,
+      data: outlets.results || []
+    }), {
+      headers: { 
+        'Content-Type': 'application/json',
+        ...request.corsHeaders 
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching outlets:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Failed to fetch outlets'
+    }), {
+      status: 500,
+      headers: { 
+        'Content-Type': 'application/json',
+        ...request.corsHeaders 
+      }
+    });
+  }
+});
+
+// Fallback admin outlets endpoint if above doesn't exist
+router.get('/api/admin/outlets-fallback', verifyToken, async (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return getAdminActivity(request, env);
 });
