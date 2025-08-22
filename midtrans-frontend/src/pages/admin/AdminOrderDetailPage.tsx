@@ -563,3 +563,4 @@ const AdminOrderDetailPage: React.FC = () => {
 };
 
 export default AdminOrderDetailPage;
+// Force deployment Fri Aug 22 21:03:41 WIB 2025
