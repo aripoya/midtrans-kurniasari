@@ -21,7 +21,6 @@ const AdminOrderDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   
   // Edit states
-  const [isEditing, setIsEditing] = useState(false);
   const [editedOrder, setEditedOrder] = useState<Order | null>(null);
   const [updateLoading, setUpdateLoading] = useState(false);
   
@@ -98,32 +97,33 @@ const AdminOrderDetailPage: React.FC = () => {
     );
   }
 
-  // Handle update order
+  // Handle update order (admin note only)
   const handleUpdateOrder = async () => {
     if (!editedOrder || !id) return;
-    
     try {
       setUpdateLoading(true);
-      const response = await adminApi.updateOrder(id, editedOrder);
-      
-      if (response.success) {
-        setOrder(editedOrder);
-        setIsEditing(false);
-        onEditClose();
-        toast({
-          title: 'Success',
-          description: 'Order updated successfully',
-          status: 'success',
-          duration: 3000,
-          isClosable: true,
-        });
-      } else {
-        throw new Error(response.error || 'Failed to update order');
+      const response = await adminApi.updateOrderDetails(id, {
+        admin_note: editedOrder.admin_note || '',
+      });
+      if (!response.success) throw new Error(response.error || 'Gagal update catatan');
+
+      // Reload order from backend to ensure fresh data
+      const orderResponse = await adminApi.getOrderDetails(id);
+      if (orderResponse.success && orderResponse.data) {
+        setOrder(orderResponse.data);
       }
+      onEditClose();
+      toast({
+        title: 'Berhasil',
+        description: 'Catatan pesanan berhasil disimpan',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to update order',
+        description: error.message || 'Gagal menyimpan catatan',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -140,8 +140,21 @@ const AdminOrderDetailPage: React.FC = () => {
     try {
       setUpdateLoading(true);
       const status = type === 'shipping' ? newShippingStatus : newPaymentStatus;
-      
-      const response = await adminApi.updateOrderStatus(id, type, status);
+      // Only shipping status can be updated manually here
+      if (type === 'payment') {
+        toast({
+          title: 'Tidak dapat diubah',
+          description: 'Status pembayaran disinkronkan dari Midtrans dan tidak bisa diubah manual.',
+          status: 'info',
+          duration: 4000,
+          isClosable: true,
+        });
+        onPaymentClose();
+        setUpdateLoading(false);
+        return;
+      }
+
+      const response = await adminApi.updateOrderStatus(id, status);
       
       if (response.success) {
         // Reload order data
@@ -150,17 +163,12 @@ const AdminOrderDetailPage: React.FC = () => {
           setOrder(orderResponse.data);
         }
         
-        if (type === 'shipping') {
-          onStatusClose();
-          setNewShippingStatus('');
-        } else {
-          onPaymentClose();
-          setNewPaymentStatus('');
-        }
+        onStatusClose();
+        setNewShippingStatus('');
         
         toast({
-          title: 'Success',
-          description: `${type === 'shipping' ? 'Shipping' : 'Payment'} status updated`,
+          title: 'Berhasil',
+          description: 'Status pengiriman berhasil diperbarui',
           status: 'success',
           duration: 3000,
           isClosable: true,
@@ -171,7 +179,7 @@ const AdminOrderDetailPage: React.FC = () => {
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to update status',
+        description: error.message || 'Gagal memperbarui status',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -184,7 +192,6 @@ const AdminOrderDetailPage: React.FC = () => {
   // Start editing
   const startEdit = () => {
     setEditedOrder({ ...order });
-    setIsEditing(true);
     onEditOpen();
   };
 
@@ -264,6 +271,12 @@ const AdminOrderDetailPage: React.FC = () => {
                           </Badge>
                         </Td>
                       </Tr>
+                      {order.admin_note && (
+                        <Tr>
+                          <Td fontWeight="semibold">Catatan Admin</Td>
+                          <Td>{order.admin_note}</Td>
+                        </Tr>
+                      )}
                       <Tr>
                         <Td fontWeight="semibold">Tanggal Dibuat</Td>
                         <Td>{new Date(order.created_at).toLocaleDateString('id-ID')}</Td>
@@ -440,31 +453,10 @@ const AdminOrderDetailPage: React.FC = () => {
             {editedOrder && (
               <VStack spacing={4}>
                 <Box w="full">
-                  <Text fontWeight="semibold" mb={2}>Nama Pelanggan</Text>
-                  <Input
-                    value={editedOrder.customer_name || ''}
-                    onChange={(e) => setEditedOrder({...editedOrder, customer_name: e.target.value})}
-                  />
-                </Box>
-                <Box w="full">
-                  <Text fontWeight="semibold" mb={2}>No. Telepon</Text>
-                  <Input
-                    value={editedOrder.customer_phone || ''}
-                    onChange={(e) => setEditedOrder({...editedOrder, customer_phone: e.target.value})}
-                  />
-                </Box>
-                <Box w="full">
-                  <Text fontWeight="semibold" mb={2}>Email</Text>
-                  <Input
-                    value={editedOrder.customer_email || ''}
-                    onChange={(e) => setEditedOrder({...editedOrder, customer_email: e.target.value})}
-                  />
-                </Box>
-                <Box w="full">
                   <Text fontWeight="semibold" mb={2}>Catatan</Text>
                   <Textarea
-                    value={editedOrder.notes || ''}
-                    onChange={(e) => setEditedOrder({...editedOrder, notes: e.target.value})}
+                    value={editedOrder.admin_note || ''}
+                    onChange={(e) => setEditedOrder({ ...editedOrder, admin_note: e.target.value })}
                     placeholder="Tambahkan catatan pesanan..."
                   />
                 </Box>

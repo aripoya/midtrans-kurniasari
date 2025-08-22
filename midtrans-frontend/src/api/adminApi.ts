@@ -20,6 +20,7 @@ export interface Order {
   customer_name: string;
   customer_address: string;
   customer_phone?: string;
+  customer_email?: string; // optional, UI-only display
   total_amount: number;
   payment_status:
     | "pending"
@@ -33,9 +34,14 @@ export interface Order {
   shipping_status: string;
   shipping_area: "dalam-kota" | "luar-kota";
   pickup_method?: string;
+  payment_method?: string; // optional, for UI display
+  pickup_location?: string; // optional, for UI display
+  courier_service?: string; // optional, for UI display
+  order_type?: string; // optional, for UI display
+  items?: any[]; // optional, for UI item listing
   created_at: string;
   updated_at?: string;
-  admin_note?: string;
+  admin_note?: string; // editable via updateOrderDetails
   outlet_id?: string;
   lokasi_pengiriman?: string;
   assigned_deliveryman_id?: string;
@@ -233,12 +239,16 @@ export interface ResetPasswordRequest {
   password: string;
 }
 
-// Helper function to get admin token from sessionStorage (consistent with AuthContext)
+// Helper function to get admin token
+// Prefer localStorage (used by login), fallback to sessionStorage for compatibility
 const getAdminToken = (): string | null => {
-  const token = sessionStorage.getItem("token");
+  const local = typeof localStorage !== 'undefined' ? localStorage.getItem("token") : null;
+  const session = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem("token") : null;
+  const token = local || session;
   console.log(
-    "[DEBUG] Retrieved token from sessionStorage:",
-    token ? "Token exists" : "No token found"
+    "[DEBUG] Retrieved token:",
+    token ? "Token exists" : "No token found",
+    `source=${local ? 'localStorage' : session ? 'sessionStorage' : 'none'}`
   );
   return token;
 };
