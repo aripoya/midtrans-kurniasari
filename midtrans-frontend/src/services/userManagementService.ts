@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { API_URL } from '../api/config';
 
 // TypeScript interfaces for user management service
 export interface UserData {
@@ -132,7 +132,7 @@ class UserManagementService {
     try {
       const token = this.validateAuth();
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
+      const response = await fetch(`${API_URL}/api/admin/users`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -163,7 +163,7 @@ class UserManagementService {
 
       const token = this.validateAuth();
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
+      const response = await fetch(`${API_URL}/api/admin/users`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -199,7 +199,7 @@ class UserManagementService {
 
       const token = this.validateAuth();
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/users/${encodeURIComponent(userId)}`, {
+      const response = await fetch(`${API_URL}/api/admin/users/${encodeURIComponent(userId)}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -230,7 +230,7 @@ class UserManagementService {
 
       const token = this.validateAuth();
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/users/${encodeURIComponent(userId)}`, {
+      const response = await fetch(`${API_URL}/api/admin/users/${encodeURIComponent(userId)}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -267,7 +267,7 @@ class UserManagementService {
 
       const resetData: ResetPasswordRequest = { password: newPassword };
 
-      const response = await fetch(`${API_BASE_URL}/api/admin/users/${encodeURIComponent(userId)}/reset-password`, {
+      const response = await fetch(`${API_URL}/api/admin/users/${encodeURIComponent(userId)}/reset-password`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
