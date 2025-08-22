@@ -127,15 +127,6 @@ const LoginPage: React.FC = () => {
               >
                 Login
               </Button>
-              <Button 
-                mt={4} 
-                colorScheme="teal" 
-                type="submit"
-                isLoading={isLoading}
-                width="full"
-              >
-               Admin Login
-              </Button>
             </VStack>
           </form>
           

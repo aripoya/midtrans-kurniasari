@@ -19,9 +19,8 @@ import PublicOrderDetailPage from './pages/PublicOrderDetailPage';
 import ProductsPage from './pages/ProductsPage';
 import DebugPage from './pages/DebugPage';
 import LoginPage from './pages/LoginPage';
-import AdminLoginPage from './pages/admin/AdminLoginPage';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
-import AdminOrderDetailPageWorking from './pages/admin/AdminOrderDetailPageWorking';
+import AdminOrderDetailPage from './pages/admin/AdminOrderDetailPage';
 import UserManagementPage from './pages/admin/UserManagementPage';
 import AdminActivityPage from './pages/admin/AdminActivityPage';
 import SafeMigrationPage from './pages/admin/SafeMigrationPage';
@@ -46,8 +45,7 @@ const App: React.FC = () => {
               <Routes>
                 {/* Login Routes */}
                 <Route path="/login" element={<LoginPage />} />
-                <Route path="/admin/login" element={<AdminLoginPage />} />
-
+                
                 {/* Root redirection */}
                 <Route path="/" element={<Navigate to="/login" replace />} />
 
@@ -65,7 +63,7 @@ const App: React.FC = () => {
                   <Route index element={<Navigate to="orders" replace />} />
                   <Route path="orders" element={<AdminOrdersPage />} />
                   <Route path="orders/new" element={<NewOrderPage />} />
-                  <Route path="orders/:id" element={<AdminOrderDetailPageWorking />} />
+                  <Route path="orders/:id" element={<AdminOrderDetailPage />} />
                   <Route path="users" element={<UserManagementPage />} />
                   <Route path="activity" element={<AdminActivityPage />} />
                   <Route path="safe-migration" element={<SafeMigrationPage />} />
