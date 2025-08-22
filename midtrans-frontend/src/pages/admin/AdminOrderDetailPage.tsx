@@ -203,7 +203,7 @@ const AdminOrderDetailPage: React.FC = () => {
               </Button>
             </HStack>
           </HStack>
-          <Heading size="lg">Detail Pesanan</Heading>
+          <Heading size="lg">Detail Pesanan - Updated UI</Heading>
         </Box>
 
         {/* Main Content Grid */}
