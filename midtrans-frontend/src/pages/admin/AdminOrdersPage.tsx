@@ -371,19 +371,19 @@ const AdminOrdersPage: React.FC = () => {
             </Accordion>
             ) : (
               // Desktop view - table
-              <Box overflowX="auto">
-                <Table variant="simple">
+              <Box overflowX="auto" minW="100%" border="1px solid" borderColor="gray.200" borderRadius="md">
+                <Table variant="simple" size="sm" minW="1200px">
                   <Thead>
                     <Tr>
-                      <Th>ID Pesanan</Th>
-                      <Th>Tanggal</Th>
-                      <Th>Pelanggan</Th>
-                      <Th>Total</Th>
-                      <Th>Area Pengiriman</Th>
-                      <Th>Dibuat Oleh</Th>
-                      <Th>Status Pembayaran</Th>
-                      <Th>Status Pesanan</Th>
-                      <Th>Aksi</Th>
+                      <Th minW="140px">ID Pesanan</Th>
+                      <Th minW="100px">Tanggal</Th>
+                      <Th minW="120px">Pelanggan</Th>
+                      <Th minW="90px">Total</Th>
+                      <Th minW="100px">Area Pengiriman</Th>
+                      <Th minW="100px">Dibuat Oleh</Th>
+                      <Th minW="140px">Status Pembayaran</Th>
+                      <Th minW="120px">Status Pesanan</Th>
+                      <Th minW="80px" position="sticky" right="0" bg="white" borderLeft="1px solid" borderColor="gray.200">Aksi</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
@@ -406,7 +406,7 @@ const AdminOrdersPage: React.FC = () => {
                           </Td>
                           <Td>{getPaymentStatusBadge(order.payment_status)}</Td>
                           <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
-                          <Td>
+                          <Td position="sticky" right="0" bg="white" borderLeft="1px solid" borderColor="gray.200">
                             <Button
                               as={RouterLink}
                               to={`/admin/orders/${order.id}`}
