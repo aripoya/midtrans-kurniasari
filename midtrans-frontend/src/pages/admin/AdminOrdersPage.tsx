@@ -420,7 +420,7 @@ const AdminOrdersPage: React.FC = () => {
                       ))
                     ) : (
                       <Tr>
-                        <Td colSpan={8} textAlign="center">Tidak ada pesanan ditemukan</Td>
+                        <Td colSpan={9} textAlign="center">Tidak ada pesanan ditemukan</Td>
                       </Tr>
                     )}
                   </Tbody>
