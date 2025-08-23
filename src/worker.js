@@ -10,7 +10,6 @@ import { updateOutletOrderStatus } from './handlers/outletOrderUpdate.js';
 import { getUserNotifications, markNotificationRead, markAllNotificationsRead } from './handlers/notifications.js';
 import { getProducts, createProduct, updateProduct, deleteProduct } from './handlers/products.js';
 // Legacy shipping handler removed - using direct Cloudflare Images endpoints instead
-import { getLocations } from './handlers/locations.js';
 import { registerUser, loginUser, getUserProfile, getOutlets, createOutlet } from './handlers/auth.js';
 import { verifyToken, handleMiddlewareError, requireAdmin } from './handlers/middleware.js';
 import { getUsers, createUser, updateUser, deleteUser, resetUserPassword } from './handlers/user-management.js'; // Import user management handlers
@@ -249,11 +248,7 @@ router.post('/api/received', (request, env) => {
     return markOrderAsReceived(request, env);
 });
 
-// Location endpoint
-router.get('/api/locations', (request, env) => {
-    request.corsHeaders = corsHeaders(request);
-    return getLocations(request, env);
-});
+// Location endpoint removed: legacy /api/locations is deprecated in favor of unified outlets
 
 // Product management endpoints
 router.get('/api/products', (request, env) => {

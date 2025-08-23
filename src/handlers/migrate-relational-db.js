@@ -196,19 +196,8 @@ export async function createRelationalDBStructure(request, env) {
         AND (outlet_id IS NULL OR outlet_id NOT IN (SELECT id FROM outlets_unified))
     `).run();
 
-    // Step 6: Create views for backward compatibility
-    console.log('📋 Step 6: Creating compatibility views...');
-    
-    // Create locations view for backward compatibility
-    await env.DB.prepare(`
-      CREATE VIEW IF NOT EXISTS locations_view AS
-      SELECT 
-        ROW_NUMBER() OVER (ORDER BY created_at) as id,
-        location_alias as nama_lokasi,
-        created_at
-      FROM outlets_unified 
-      WHERE location_alias IS NOT NULL
-    `).run();
+    // Step 6: Legacy compatibility views removed
+    console.log('📋 Step 6: Skipping legacy compatibility views (locations_view removed)');
 
     // Get migration statistics
     const unifiedOutlets = await env.DB.prepare('SELECT COUNT(*) as count FROM outlets_unified').first();
@@ -225,7 +214,7 @@ export async function createRelationalDBStructure(request, env) {
         deliverymenLinked: deliverymenLinked?.count || 0,
         totalUsersLinked: (outletManagersLinked?.count || 0) + (deliverymenLinked?.count || 0)
       },
-      tablesCreated: ['outlets_unified', 'locations_view'],
+      tablesCreated: ['outlets_unified'],
       message: 'Relational database structure created successfully with deliveryman synchronization'
     };
 

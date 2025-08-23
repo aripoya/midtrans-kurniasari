@@ -357,29 +357,10 @@ export async function getOrderById(request, env) {
       // Continue with empty shipping_images array
     }
 
-    // Step 4: Fetch location names if they exist (with error handling)
-    failedQuery = 'fetching location names';
-    let lokasiPengirimanNama = null;
-    if (order.lokasi_pengiriman) {
-      try {
-        const loc = await env.DB.prepare('SELECT nama_lokasi FROM locations_view WHERE nama_lokasi = ?').bind(order.lokasi_pengiriman).first();
-        lokasiPengirimanNama = loc ? loc.nama_lokasi : order.lokasi_pengiriman;
-      } catch (locError) {
-        console.log(`[getOrderById] Warning: Could not fetch location name for lokasi_pengiriman. Using stored value: ${order.lokasi_pengiriman}`);
-        lokasiPengirimanNama = order.lokasi_pengiriman; // Fallback to stored value
-      }
-    }
-
-    let lokasiPengambilanNama = null;
-    if (order.lokasi_pengambilan) {
-      try {
-        const loc = await env.DB.prepare('SELECT nama_lokasi FROM locations_view WHERE nama_lokasi = ?').bind(order.lokasi_pengambilan).first();
-        lokasiPengambilanNama = loc ? loc.nama_lokasi : order.lokasi_pengambilan;
-      } catch (locError) {
-        console.log(`[getOrderById] Warning: Could not fetch location name for lokasi_pengambilan. Using stored value: ${order.lokasi_pengambilan}`);
-        lokasiPengambilanNama = order.lokasi_pengambilan; // Fallback to stored value
-      }
-    }
+    // Step 4: Use stored location fields directly (legacy locations_view removed)
+    failedQuery = 'mapping stored location fields';
+    const lokasiPengirimanNama = order.lokasi_pengiriman || null;
+    const lokasiPengambilanNama = order.lokasi_pengambilan || null;
 
     // Log shipping_area untuk debugging
     console.log(`[getOrderById] Order ${orderId} shipping_area: ${order.shipping_area}`);
@@ -796,11 +777,9 @@ export async function getAdminOrders(request, env) {
     const ordersQuery = `
       SELECT
         o.*,
-        lp.nama_lokasi AS lokasi_pengiriman_nama,
-        la.nama_lokasi AS lokasi_pengambilan_nama
+        o.lokasi_pengiriman AS lokasi_pengiriman_nama,
+        o.lokasi_pengambilan AS lokasi_pengambilan_nama
       FROM orders o
-      LEFT JOIN locations_view lp ON o.lokasi_pengiriman = lp.nama_lokasi
-      LEFT JOIN locations_view la ON o.lokasi_pengambilan = la.nama_lokasi
       ORDER BY o.created_at DESC
       LIMIT ? OFFSET ?
     `;
@@ -1512,12 +1491,10 @@ export async function getOutletOrders(request, env) {
     let orderQuery = `
       SELECT o.*,
              ou.name AS outlet_name,
-             lp.nama_lokasi AS lokasi_pengiriman_nama,
-             la.nama_lokasi AS lokasi_pengambilan_nama
+             o.lokasi_pengiriman AS lokasi_pengiriman_nama,
+             o.lokasi_pengambilan AS lokasi_pengambilan_nama
       FROM orders o
       LEFT JOIN outlets_unified ou ON o.outlet_id = ou.id
-      LEFT JOIN locations_view lp ON o.lokasi_pengiriman = lp.nama_lokasi
-      LEFT JOIN locations_view la ON o.lokasi_pengambilan = la.nama_lokasi
       WHERE 1=1
     `;
     

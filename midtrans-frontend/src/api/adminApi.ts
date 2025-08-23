@@ -88,12 +88,6 @@ export interface Outlet {
   status?: string;
 }
 
-export interface Location {
-  code: string;
-  name: string;
-  area?: string;
-}
-
 // API Response interfaces
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -134,12 +128,6 @@ export interface UsersResponse {
 export interface ShippingImagesResponse {
   success: boolean;
   data: { [imageType: string]: { url: string; imageId: string | null; variants: any } } | null;
-  error: string | null;
-}
-
-export interface LocationsResponse {
-  success: boolean;
-  data: Location[] | null;
   error: string | null;
 }
 
@@ -709,64 +697,6 @@ export const adminApi = {
     return !!getAdminToken();
   },
 
-  // Mengambil daftar lokasi (kode area)
-  getLocations: async (): Promise<LocationsResponse> => {
-    try {
-      const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/locations`,
-        {
-          headers: {
-            Authorization: `Bearer ${getAdminToken()}`,
-          },
-        }
-      );
-
-      return {
-        success: true,
-        data: response.data.locations || [],
-        error: null,
-      };
-    } catch (error: any) {
-      console.error("Error getting locations:", error);
-      return {
-        success: false,
-        data: null,
-        error:
-          error.response?.data?.error ||
-          error.message ||
-          "Error saat mengambil daftar lokasi",
-      };
-    }
-  },
-  // get outlet locations
-  getLocationsOutlet: async (): Promise<LocationsResponse> => {
-    try {
-      const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/outlets`,
-        {
-          headers: {
-            Authorization: `Bearer ${getAdminToken()}`,
-          },
-        }
-      );
-
-      return {
-        success: true,
-        data: response.data.locations || [],
-        error: null,
-      };
-    } catch (error: any) {
-      console.error("Error getting locations:", error);
-      return {
-        success: false,
-        data: null,
-        error:
-          error.response?.data?.error ||
-          error.message ||
-          "Error saat mengambil daftar lokasi",
-      };
-    }
-  },
 
   // Get delivery orders for deliveryman
   getDeliveryOrders: async (): Promise<OrdersResponse> => {
