@@ -187,7 +187,7 @@ export async function createUser(request, env) {
     // Insert new user
     const result = await env.DB.prepare(`
       INSERT INTO users (
-        id, username, name, password, role, outlet_id, email, created_at, updated_at
+        id, username, name, password_hash, role, outlet_id, email, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       userId,

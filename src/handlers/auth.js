@@ -146,9 +146,8 @@ export async function loginUser(request, env) {
         }
 
         console.log(`LOGIN DB_FETCH: Searching for user '${username}' in the database.`);
-        // Use password column directly since password_hash doesn't exist in production DB
-        // Reverted: Use the 'password' column as the production DB does not have 'password_hash'
-        const user = await env.DB.prepare('SELECT id, username, password, role, outlet_id, name FROM users WHERE username = ?')
+        // Fetch both password and password_hash for migration compatibility
+        const user = await env.DB.prepare('SELECT id, username, password, password_hash, role, outlet_id, name FROM users WHERE username = ?')
             .bind(username)
             .first();
 
@@ -164,20 +163,24 @@ export async function loginUser(request, env) {
         }
 
         console.log(`LOGIN DB_SUCCESS: Found user '${username}'. Role: ${user.role}.`);
-        console.log(`LOGIN HASH_COMPARE: Comparing provided password with stored hash for user '${username}'.`);
-        console.log(`LOGIN PW_COMPARE: Comparing provided password with stored password for user '${username}'.`);
-        
-        // The production database stores passwords in plaintext, so we do a direct comparison.
-        // This is not secure and should be addressed by migrating to hashed passwords.
-        if (!user.password) {
-            console.error(`LOGIN FAIL: No password found for user '${username}'`);
+        let isMatch = false;
+        if (user.password_hash) {
+            // New system: Compare with hashed password
+            console.log(`LOGIN HASH_COMPARE: Comparing provided password with stored hash for user '${username}'.`);
+            isMatch = await bcrypt.compare(password, user.password_hash);
+        } else if (user.password) {
+            // Fallback for old system: Compare with plaintext password
+            console.log(`LOGIN PW_COMPARE: Comparing provided password with stored plaintext password for user '${username}'.`);
+            isMatch = password === user.password;
+        } else {
+            // No password found
+            console.error(`LOGIN FAIL: No password or password_hash found for user '${username}'`);
             return new Response(JSON.stringify({ success: false, message: 'Invalid credentials' }), {
                 status: 401,
                 headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
             });
         }
 
-        const isMatch = password === user.password;
         console.log('LOGIN RESULT: Password comparison result:', isMatch);
 
         if (!isMatch) {

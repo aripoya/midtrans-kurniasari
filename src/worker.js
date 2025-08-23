@@ -13,7 +13,6 @@ import { getProducts, createProduct, updateProduct, deleteProduct } from './hand
 import { getLocations } from './handlers/locations.js';
 import { registerUser, loginUser, getUserProfile, getOutlets, createOutlet } from './handlers/auth.js';
 import { verifyToken, handleMiddlewareError, requireAdmin } from './handlers/middleware.js';
-import { resetAdminPassword } from './handlers/admin.js'; // Import the new handler
 import { getUsers, createUser, updateUser, deleteUser, resetUserPassword } from './handlers/user-management.js'; // Import user management handlers
 import { resetOutletPassword, checkDatabaseSchema, createCustomersTable, testLogin, getTableSchema, analyzeOutletLocations, createRealOutlets, mapOrdersToOutlets, resetAdminPasswordForDebug, debugDeliveryAssignments, addEmailColumnToUsers, addUpdatedAtColumnToUsers, debugCreateOrderUpdateLogsTable, modifyUpdateOrderStatus, debugOrderDetails, debugOutletSync } from './handlers/debug.js';
 import { migrateExistingOrdersToOutlets, getMigrationStatus } from './handlers/migrate-outlets.js';
@@ -23,6 +22,8 @@ import { migrateShippingInfoFields, getOrdersTableSchema } from './handlers/migr
 import { migrateAdminActivity } from './handlers/migrate-admin-activity.js';
 import { getAdminActivity, getActiveSessions, logoutUser, getAdminStats } from './handlers/admin-activity.js';
 import { listMigrationBackups, getMigrationBackup, restoreMigrationBackup } from './handlers/migration-backups.js';
+import { hashExistingPasswords } from '../hash-existing-passwords.js';
+import { resetAdminPassword } from '../reset-admin-password.js';
 
 console.log('Initializing router');
 const router = Router();
@@ -342,6 +343,39 @@ router.options('/api/admin/users/:id/reset-password', (request, env) => {
 router.post('/api/admin/users/:id/reset-password', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return resetUserPassword(request, env);
+});
+
+// Admin password reset endpoint
+router.post('/api/admin/reset-password', async (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    try {
+        const { secret_key, new_password } = await request.json();
+
+        // Use the secret key from environment variables for security
+        const ADMIN_RESET_SECRET = env.ADMIN_RESET_SECRET_KEY;
+
+        if (!ADMIN_RESET_SECRET || secret_key !== ADMIN_RESET_SECRET) {
+            return new Response(JSON.stringify({ success: false, message: 'Invalid or missing secret key.' }), {
+                status: 403,
+                headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+            });
+        }
+
+        const result = await resetAdminPassword(env, new_password);
+        const status = result.success ? 200 : 400; // Use 400 for bad request (e.g., missing password)
+
+        return new Response(JSON.stringify(result), {
+            status: status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+
+    } catch (error) {
+        console.error('Error in /api/admin/reset-password handler:', error);
+        return new Response(JSON.stringify({ success: false, message: 'An unexpected error occurred.', error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
 });
 
 // Outlet Migration endpoints
@@ -1357,8 +1391,8 @@ router.get('/api/debug/test-shipping-upload-api', async (request, env) => {
         console.error('TEST SHIPPING UPLOAD API ERROR:', error);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message,
-            stack: error.stack
+            error: 'Failed to get shipping upload API test results',
+            details: error.message
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -2242,6 +2276,38 @@ router.get('/api/sync/status/:role', verifyToken, async (request, env) => {
       headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
     });
   }
+});
+
+// Temporary admin endpoint to trigger password hashing
+router.post('/api/admin/migrate-passwords', verifyToken, async (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+
+    // Ensure the user is an admin
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+
+    try {
+        const result = await hashExistingPasswords(env);
+        return new Response(JSON.stringify(result), {
+            status: result.success ? 200 : 500,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    } catch (error) {
+        console.error('Error during password migration:', error);
+        return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to migrate passwords',
+            details: error.message
+        }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
 });
 
 // Static assets and SPA routing handler
