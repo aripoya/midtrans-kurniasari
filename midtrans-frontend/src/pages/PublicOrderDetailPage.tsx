@@ -122,10 +122,19 @@ const PublicOrderDetailPage = () => {
           duration: 4000,
           isClosable: true,
         });
+        // Optimistically update payment_status from response if present
+        if (data.payment_status) {
+          setOrder(prev => prev ? { ...prev, payment_status: data.payment_status } : prev);
+        }
         // Refetch order to update UI
         try {
           const response = await publicApi.getOrderById(order.id);
-          setOrder(response.data || order);
+          if (response?.success && response?.data && (response.data as any).id) {
+            setOrder(response.data);
+          } else {
+            // keep optimistic state if API returned empty
+            setOrder(prev => prev);
+          }
         } catch {
           // fallback: reload page if refetch fails
           window.location.reload();
@@ -163,7 +172,11 @@ const PublicOrderDetailPage = () => {
       try {
         setLoading(true);
         const response = await publicApi.getOrderById(id);
-        setOrder(response.data || null);
+        if (response?.success && response?.data && (response.data as any).id) {
+          setOrder(response.data);
+        } else {
+          setOrder(null);
+        }
         setError(null);
         
         // Fetch shipping images separately
@@ -222,7 +235,7 @@ const PublicOrderDetailPage = () => {
   const getOrderProgressSteps = () => {
     if (!order) return [];
     
-    const isPaid = order.payment_status === 'paid' || order.payment_status === 'settlement';
+    const isPaid = ['paid', 'settlement', 'capture'].includes((order.payment_status || '').toLowerCase());
     const normalizedStatus = normalizeShippingStatus(order.shipping_status);
     const isProcessing = normalizedStatus === 'dikemas' || normalizedStatus === 'siap kirim';
     const isShipping = normalizedStatus === 'dalam pengiriman';
@@ -287,7 +300,7 @@ const PublicOrderDetailPage = () => {
     );
   }
 
-  const isPaid = order.payment_status === 'paid' || order.payment_status === 'settlement';
+  const isPaid = ['paid', 'settlement', 'capture'].includes((order.payment_status || '').toLowerCase());
   const isReceived = order.shipping_status === 'diterima';
   const steps = getOrderProgressSteps();
   
