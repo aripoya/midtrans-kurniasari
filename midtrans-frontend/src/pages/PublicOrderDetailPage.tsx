@@ -59,6 +59,7 @@ const PublicOrderDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markingReceived, setMarkingReceived] = useState(false);
+  const [refreshingPayment, setRefreshingPayment] = useState(false);
   const toast = useToast();
 
   // Fetch shipping images separately
@@ -96,6 +97,58 @@ const PublicOrderDetailPage = () => {
       }
     } catch (error) {
       console.error('📸 [PublicOrderDetailPage] Error fetching shipping images:', error);
+    }
+  };
+
+  // Handle refresh payment status via backend endpoint
+  const handleRefreshPayment = async () => {
+    if (!order) return;
+    try {
+      setRefreshingPayment(true);
+      const apiUrl = API_URL || 'https://order-management-app-production.wahwooh.workers.dev';
+      const resp = await fetch(`${apiUrl}/api/orders/${order.id}/refresh-status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await resp.json();
+      if (resp.ok && data?.success) {
+        toast({
+          title: 'Status Pembayaran Diperbarui',
+          description: 'Kami sudah mengambil status terbaru dari Midtrans.',
+          status: 'success',
+          duration: 4000,
+          isClosable: true,
+        });
+        // Refetch order to update UI
+        try {
+          const response = await publicApi.getOrderById(order.id);
+          setOrder(response.data || order);
+        } catch {
+          // fallback: reload page if refetch fails
+          window.location.reload();
+        }
+      } else {
+        toast({
+          title: 'Gagal Memperbarui Pembayaran',
+          description: data?.error || 'Tidak dapat mengambil status pembayaran terbaru.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    } catch (e: any) {
+      toast({
+        title: 'Kesalahan Sistem',
+        description: e?.message || 'Tidak dapat terhubung ke server.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setRefreshingPayment(false);
     }
   };
 
@@ -544,7 +597,7 @@ const PublicOrderDetailPage = () => {
             
             <HStack spacing={4} justify="center" wrap="wrap">
               {!isPaid && (
-                <Button colorScheme="teal" size="lg" onClick={() => window.location.reload()}>
+                <Button colorScheme="teal" size="lg" onClick={handleRefreshPayment} isLoading={refreshingPayment} loadingText="Memeriksa..." disabled={refreshingPayment}>
                   Perbarui Pembayaran
                 </Button>
               )}
