@@ -501,8 +501,10 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         status: isPaid ? 'complete' : 'active'
       },
       {
-        title: 'Persiapan',
-        description: isShipped ? 'Pesanan sedang disiapkan' : 'Menunggu pembayaran',
+        title: isPaid ? 'Dikemas' : 'Persiapan',
+        description: !isPaid
+          ? 'Menunggu pembayaran'
+          : (isShipped ? 'Selesai dikemas' : 'Sedang dikemas'),
         status: isPaid ? (isShipped ? 'complete' : 'active') : 'incomplete'
       },
       {
