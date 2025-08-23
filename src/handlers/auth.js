@@ -146,8 +146,9 @@ export async function loginUser(request, env) {
         }
 
         console.log(`LOGIN DB_FETCH: Searching for user '${username}' in the database.`);
-        // Fetch both password and password_hash for migration compatibility
-        const user = await env.DB.prepare('SELECT id, username, password, password_hash, role, outlet_id, name FROM users WHERE username = ?')
+        // Select all columns to avoid errors if password_hash column doesn't exist in this DB
+        // We'll handle presence of password_hash vs password at runtime below
+        const user = await env.DB.prepare('SELECT * FROM users WHERE username = ?')
             .bind(username)
             .first();
 
