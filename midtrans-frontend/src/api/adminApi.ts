@@ -27,7 +27,7 @@ export interface Order {
   pickup_method?: 'deliveryman' | 'pickup';
   lokasi_pengiriman?: string;
   pickup_location?: string;
-  order_type?: string;
+  tipe_pesanan?: string;
   courier_service?: string;
   tracking_number?: string;
   updated_at?: string;

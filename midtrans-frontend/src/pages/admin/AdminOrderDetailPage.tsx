@@ -387,7 +387,7 @@ const AdminOrderDetailPage: React.FC = () => {
                       </Tr>
                       <Tr>
                         <Td fontWeight="semibold">Tipe Pesanan</Td>
-                        <Td>{order.order_type || 'Pesan Antar'}</Td>
+                        <Td>{order.tipe_pesanan || 'Pesan Antar'}</Td>
                       </Tr>
                       <Tr>
                         <Td fontWeight="semibold">Terakhir Diupdate</Td>
@@ -511,6 +511,13 @@ const AdminOrderDetailPage: React.FC = () => {
                   <Select name="pickup_method" value={formData.pickup_method || ''} onChange={handleFormChange}>
                     <option value="deliveryman">Deliveryman</option>
                     <option value="pickup">Pickup</option>
+                  </Select>
+                </GridItem>
+                <GridItem>
+                  <Text fontWeight="semibold">Tipe Pesanan</Text>
+                  <Select name="tipe_pesanan" value={formData.tipe_pesanan || ''} onChange={handleFormChange} placeholder="Pilih tipe pesanan">
+                    <option value="Pesan Antar">Pesan Antar</option>
+                    <option value="Pesan Ambil">Pesan Ambil</option>
                   </Select>
                 </GridItem>
                 <GridItem>
