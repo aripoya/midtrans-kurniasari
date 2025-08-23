@@ -10,6 +10,13 @@ import {
   useDisclosure, Divider
 } from '@chakra-ui/react';
 import { adminApi, Order, Outlet } from '../../api/adminApi';
+import ShippingImageDisplay from '../../components/ShippingImageDisplay';
+
+type ShippingImages = {
+  ready_for_pickup: string | null;
+  picked_up: string | null;
+  delivered: string | null;
+};
 
 const AdminOrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -31,6 +38,28 @@ const AdminOrderDetailPage: React.FC = () => {
   const [newShippingStatus, setNewShippingStatus] = useState('');
   const [newPaymentStatus, setNewPaymentStatus] = useState('');
   const [outlets, setOutlets] = useState<Outlet[]>([]);
+  const [shippingImages, setShippingImages] = useState<ShippingImages>({
+    ready_for_pickup: null,
+    picked_up: null,
+    delivered: null,
+  });
+
+  const transformURL = (url: string): string => {
+    if (!url) return url;
+    if (url.includes('imagedelivery.net') || url.includes('cloudflareimages.com')) return url;
+    if (url.includes('/api/images/')) {
+      const filename = url.split('/').pop();
+      if (filename) return `https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA/${filename}/public`;
+    }
+    try {
+      const last = url.split('/').pop() || '';
+      const imageId = last.split('?')[0];
+      if (imageId && imageId.length > 10) {
+        return `https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA/${imageId}/public`;
+      }
+    } catch {}
+    return url;
+  };
 
   // Load order data
   useEffect(() => {
@@ -49,6 +78,23 @@ const AdminOrderDetailPage: React.FC = () => {
           console.log('Order data loaded:', response.data);
           setOrder(response.data);
           setFormData(response.data); // Initialize form data
+
+          // Fetch shipping images from public endpoint for consistency with outlet/public
+          try {
+            const apiUrl = import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev';
+            const res = await fetch(`${apiUrl}/api/test-shipping-photos/${id}`);
+            if (res.ok) {
+              const data = await res.json();
+              const images = data.success ? data.data : data;
+              const processed: ShippingImages = { ready_for_pickup: null, picked_up: null, delivered: null };
+              (['ready_for_pickup','picked_up','delivered'] as const).forEach((k) => {
+                if (images?.[k]?.url) processed[k] = transformURL(images[k].url);
+              });
+              setShippingImages(processed);
+            }
+          } catch (e) {
+            console.error('[AdminOrderDetail] Failed to fetch shipping images', e);
+          }
         } else {
           throw new Error(response.error || 'Failed to load order');
         }
@@ -489,17 +535,35 @@ const AdminOrderDetailPage: React.FC = () => {
           </CardHeader>
           <CardBody>
             <Grid templateColumns="repeat(3, 1fr)" gap={4}>
-              <Box textAlign="center">
-                <Text fontWeight="semibold" mb={2}>Foto Siap Kirim</Text>
-                <Text color="gray.500" fontSize="sm">Belum ada foto</Text>
+              <Box>
+                <Text fontWeight="semibold" mb={2} textAlign="center">Foto Siap Kirim</Text>
+                <ShippingImageDisplay
+                  imageUrl={shippingImages.ready_for_pickup ?? undefined}
+                  type="ready_for_pickup"
+                  label="Foto Siap Kirim"
+                  showPlaceholder={true}
+                  maxHeight="180px"
+                />
               </Box>
-              <Box textAlign="center">
-                <Text fontWeight="semibold" mb={2}>Foto Pengiriman</Text>
-                <Text color="gray.500" fontSize="sm">Belum ada foto</Text>
+              <Box>
+                <Text fontWeight="semibold" mb={2} textAlign="center">Foto Pengiriman</Text>
+                <ShippingImageDisplay
+                  imageUrl={shippingImages.picked_up ?? undefined}
+                  type="picked_up"
+                  label="Foto Pengiriman"
+                  showPlaceholder={true}
+                  maxHeight="180px"
+                />
               </Box>
-              <Box textAlign="center">
-                <Text fontWeight="semibold" mb={2}>Foto Diterima</Text>
-                <Text color="gray.500" fontSize="sm">Belum ada foto</Text>
+              <Box>
+                <Text fontWeight="semibold" mb={2} textAlign="center">Foto Diterima</Text>
+                <ShippingImageDisplay
+                  imageUrl={shippingImages.delivered ?? undefined}
+                  type="delivered"
+                  label="Foto Diterima"
+                  showPlaceholder={true}
+                  maxHeight="180px"
+                />
               </Box>
             </Grid>
             <Divider my={4} />
