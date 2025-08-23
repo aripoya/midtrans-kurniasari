@@ -18,6 +18,21 @@ type ShippingImages = {
   delivered: string | null;
 };
 
+// Normalize Midtrans/payment statuses to FE canonical values
+const normalizePaymentStatus = (status?: string): 'paid' | 'pending' | 'failed' | string => {
+  const s = (status || '').toLowerCase();
+  if (['paid', 'settlement', 'capture'].includes(s)) return 'paid';
+  if (['pending', 'authorize'].includes(s)) return 'pending';
+  if (['failed', 'deny', 'cancel', 'cancelled', 'expired'].includes(s)) return 'failed';
+  return s || 'pending';
+};
+
+const paymentLabelID = (normalized: string) => {
+  if (normalized === 'paid') return 'LUNAS';
+  if (normalized === 'pending') return 'MENUNGGU';
+  return 'GAGAL';
+};
+
 const AdminOrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -270,9 +285,11 @@ const AdminOrderDetailPage: React.FC = () => {
           </HStack>
           <HStack spacing={4} align="center" flexWrap="wrap">
             <Heading size="lg">Detail Pesanan #{order.id}</Heading>
-            <Badge colorScheme={order.payment_status === 'paid' ? 'green' : order.payment_status === 'pending' ? 'yellow' : 'red'}>
-              Pembayaran: {order.payment_status?.toUpperCase()}
-            </Badge>
+            {(() => { const n = normalizePaymentStatus(order.payment_status); return (
+              <Badge colorScheme={n === 'paid' ? 'green' : n === 'pending' ? 'yellow' : 'red'}>
+                Pembayaran: {n === 'paid' ? 'LUNAS' : paymentLabelID(n)}
+              </Badge>
+            ); })()}
             <Badge colorScheme="blue">Pengiriman: {order.shipping_status?.toUpperCase()}</Badge>
             <Badge colorScheme={order.shipping_area === 'luar-kota' ? 'orange' : 'blue'}>
               {order.shipping_area === 'luar-kota' ? 'LUAR KOTA' : 'DALAM KOTA'}
@@ -316,9 +333,11 @@ const AdminOrderDetailPage: React.FC = () => {
                       <Tr>
                         <Td fontWeight="semibold">Status Pembayaran</Td>
                         <Td>
-                          <Badge colorScheme={order.payment_status === 'paid' ? 'green' : order.payment_status === 'pending' ? 'yellow' : 'red'}>
-                            {order.payment_status?.toUpperCase()}
-                          </Badge>
+                          {(() => { const n = normalizePaymentStatus(order.payment_status); return (
+                            <Badge colorScheme={n === 'paid' ? 'green' : n === 'pending' ? 'yellow' : 'red'}>
+                              {paymentLabelID(n)}
+                            </Badge>
+                          ); })()}
                         </Td>
                       </Tr>
                       <Tr>
@@ -627,7 +646,9 @@ const AdminOrderDetailPage: React.FC = () => {
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4}>
-              <Text>Status saat ini: <Badge colorScheme={order.payment_status === 'paid' ? 'green' : 'red'}>{order.payment_status}</Badge></Text>
+              {(() => { const n = normalizePaymentStatus(order.payment_status); return (
+                <Text>Status saat ini: <Badge colorScheme={n === 'paid' ? 'green' : n === 'pending' ? 'yellow' : 'red'}>{paymentLabelID(n)}</Badge></Text>
+              ); })()}
               <Box w="full">
                 <Text fontWeight="semibold" mb={2}>Status Baru</Text>
                 <Select 
