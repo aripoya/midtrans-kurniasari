@@ -234,7 +234,7 @@ const NewOrderPage: React.FC = () => {
         
         if (window.snap) {
           window.snap.pay(response.token, {
-            onSuccess: (result: MidtransCallbackResult) => {
+            onSuccess: (_result: MidtransCallbackResult) => {
               toast({
                 title: "Pembayaran berhasil!",
                 description: "Pesanan Anda telah dibuat dan pembayaran berhasil diproses.",
@@ -244,7 +244,7 @@ const NewOrderPage: React.FC = () => {
               });
               navigate(`/orders/${response.orderId}`);
             },
-            onPending: (result: MidtransCallbackResult) => {
+            onPending: (_result: MidtransCallbackResult) => {
               toast({
                 title: "Pembayaran pending",
                 description: "Silakan selesaikan pembayaran Anda.",
@@ -254,7 +254,7 @@ const NewOrderPage: React.FC = () => {
               });
               navigate(`/orders/${response.orderId}`);
             },
-            onError: (result: MidtransCallbackResult) => {
+            onError: (_result: MidtransCallbackResult) => {
               toast({
                 title: "Pembayaran gagal",
                 description: "Terjadi kesalahan saat memproses pembayaran.",
@@ -422,11 +422,11 @@ const NewOrderPage: React.FC = () => {
                     <Table variant="simple" size="sm">
                       <Thead>
                         <Tr>
-                          <Th>Produk</Th>
-                          <Th>Harga</Th>
-                          <Th isNumeric>Jumlah</Th>
-                          <Th isNumeric>Subtotal</Th>
-                          <Th>Aksi</Th>
+                          <Th w="40%">Produk</Th>
+                          <Th w="20%">Harga</Th>
+                          <Th w="15%" isNumeric>Jumlah</Th>
+                          <Th w="15%" isNumeric>Subtotal</Th>
+                          <Th w="10%">Aksi</Th>
                         </Tr>
                       </Thead>
                       <Tbody>
