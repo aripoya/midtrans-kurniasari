@@ -170,9 +170,16 @@ export async function loginUser(request, env) {
             console.log(`LOGIN HASH_COMPARE: Comparing provided password with stored hash for user '${username}'.`);
             isMatch = await bcrypt.compare(password, user.password_hash);
         } else if (user.password) {
-            // Fallback for old system: Compare with plaintext password
-            console.log(`LOGIN PW_COMPARE: Comparing provided password with stored plaintext password for user '${username}'.`);
-            isMatch = password === user.password;
+            // Detect if the stored password is actually a bcrypt hash
+            const looksLikeBcrypt = typeof user.password === 'string' && /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(user.password);
+            if (looksLikeBcrypt) {
+                console.log(`LOGIN HASH_DETECTED: 'password' column contains bcrypt hash for user '${username}', using bcrypt.compare.`);
+                isMatch = await bcrypt.compare(password, user.password);
+            } else {
+                // Fallback for legacy plaintext storage
+                console.log(`LOGIN PW_COMPARE: Comparing provided password with stored plaintext password for user '${username}'.`);
+                isMatch = password === user.password;
+            }
         } else {
             // No password found
             console.error(`LOGIN FAIL: No password or password_hash found for user '${username}'`);
