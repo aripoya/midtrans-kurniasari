@@ -998,13 +998,43 @@ export const adminApi = {
       .then((response: AxiosResponse<OutletsResponse>) => {
         return response.data;
       })
-      .catch((error) => {
-        console.error("Error getting unified outlets:", error);
+      .catch(async (error) => {
+        console.warn("[adminApi.getUnifiedOutlets] Primary endpoint failed:", error?.response?.status || error?.message);
+        // Fallback to legacy /api/outlets when 404 (route not deployed in prod)
+        if (error?.response?.status === 404) {
+          try {
+            const fallbackResp: AxiosResponse<any> = await axios.get(
+              `${API_URL}/api/outlets`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+              }
+            );
+            // Normalize response to OutletsResponse shape
+            const data = Array.isArray(fallbackResp.data?.data)
+              ? fallbackResp.data.data
+              : Array.isArray(fallbackResp.data)
+              ? fallbackResp.data
+              : [];
+            return { success: true, data, error: null } as OutletsResponse;
+          } catch (fbErr: any) {
+            console.error("[adminApi.getUnifiedOutlets] Fallback /api/outlets failed:", fbErr);
+            return {
+              success: false,
+              data: [],
+              error:
+                fbErr?.response?.data?.error || fbErr?.message || "Error getting outlets (fallback)",
+            } as OutletsResponse;
+          }
+        }
         return {
           success: false,
           data: [],
-          error: error.response?.data?.error || error.message || "Error getting unified outlets",
-        };
+          error:
+            error.response?.data?.error || error.message || "Error getting unified outlets",
+        } as OutletsResponse;
       });
   },
 
