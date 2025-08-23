@@ -24,6 +24,7 @@ import { getAdminActivity, getActiveSessions, logoutUser, getAdminStats } from '
 import { listMigrationBackups, getMigrationBackup, restoreMigrationBackup } from './handlers/migration-backups.js';
 import { hashExistingPasswords } from '../hash-existing-passwords.js';
 import { resetAdminPassword } from '../reset-admin-password.js';
+import { handleGetOutlets } from './handlers/outlets';
 
 console.log('Initializing router');
 const router = Router();
@@ -119,6 +120,9 @@ router.post('/api/outlets', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return createOutlet(request, env);
 });
+
+// NEW: Outlet endpoint to expose outlet data via API
+router.get('/api/outlets', handleGetOutlets);
 
 // Order endpoints
 router.post('/api/orders', verifyToken, (request, env) => {

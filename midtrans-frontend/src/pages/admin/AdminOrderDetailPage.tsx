@@ -9,7 +9,7 @@ import {
   ModalFooter, ModalBody, ModalCloseButton,
   useDisclosure, Divider
 } from '@chakra-ui/react';
-import { adminApi, Order } from '../../api/adminApi';
+import { adminApi, Order, Outlet } from '../../api/adminApi';
 
 const AdminOrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +30,7 @@ const AdminOrderDetailPage: React.FC = () => {
   // Status update states
   const [newShippingStatus, setNewShippingStatus] = useState('');
   const [newPaymentStatus, setNewPaymentStatus] = useState('');
+  const [outlets, setOutlets] = useState<Outlet[]>([]);
 
   // Load order data
   useEffect(() => {
@@ -68,6 +69,23 @@ const AdminOrderDetailPage: React.FC = () => {
     };
 
     loadOrder();
+
+    const fetchOutlets = async () => {
+      try {
+        const response = await adminApi.getUnifiedOutlets();
+        if (response.success && response.data) {
+          setOutlets(response.data);
+        } else {
+          console.error("Failed to fetch outlets:", response.error);
+          toast({ title: 'Gagal Memuat Outlet', description: response.error, status: 'error' });
+        }
+      } catch (error) {
+        console.error("Error fetching outlets:", error);
+        toast({ title: 'Error', description: 'Tidak dapat memuat daftar outlet.', status: 'error' });
+      }
+    };
+
+    fetchOutlets();
   }, [id, toast]);
 
   if (loading) {
@@ -440,7 +458,13 @@ const AdminOrderDetailPage: React.FC = () => {
                 </GridItem>
                 <GridItem>
                   <Text fontWeight="semibold">Lokasi Pengiriman</Text>
-                  <Input name="lokasi_pengiriman" value={formData.lokasi_pengiriman || ''} onChange={handleFormChange} />
+                  <Select name="lokasi_pengiriman" value={formData.lokasi_pengiriman || ''} onChange={handleFormChange} placeholder="Pilih Lokasi Pengiriman">
+                    {outlets.map(outlet => (
+                      <option key={outlet.id} value={outlet.name}>
+                        {outlet.name}
+                      </option>
+                    ))}
+                  </Select>
                 </GridItem>
                  <GridItem>
                   <Text fontWeight="semibold">Lokasi Pengambilan</Text>

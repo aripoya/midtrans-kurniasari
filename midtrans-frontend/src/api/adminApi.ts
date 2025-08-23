@@ -83,6 +83,9 @@ export interface Outlet {
   name: string;
   location?: string;
   is_active?: boolean;
+  location_alias?: string;
+  address?: string;
+  status?: string;
 }
 
 export interface Location {
@@ -970,6 +973,37 @@ export const adminApi = {
             error.response?.data?.error ||
             error.message ||
             "Error saat reset password user",
+        };
+      });
+  },
+
+  // Get all unified outlets for admin
+  getUnifiedOutlets(): Promise<OutletsResponse> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: [],
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/outlets`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      .then((response: AxiosResponse<OutletsResponse>) => {
+        return response.data;
+      })
+      .catch((error) => {
+        console.error("Error getting unified outlets:", error);
+        return {
+          success: false,
+          data: [],
+          error: error.response?.data?.error || error.message || "Error getting unified outlets",
         };
       });
   },
