@@ -509,7 +509,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       },
       {
         title: 'Pengiriman',
-        description: isShipped ? 'Pesanan dalam pengiriman' : 'Belum dikirim',
+        description: isShipped
+          ? (normalizedStatus === 'siap kirim'
+              ? 'Pesanan siap kirim'
+              : 'Pesanan dalam pengiriman')
+          : 'Belum dikirim',
         status: isShipped ? (isReceived ? 'complete' : 'active') : 'incomplete'
       },
       {
