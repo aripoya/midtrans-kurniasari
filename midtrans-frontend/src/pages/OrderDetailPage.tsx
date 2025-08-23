@@ -465,12 +465,16 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     }
   };
 
+  // Normalize payment status to align with Midtrans values and dashboard
+  const isPaidStatus = (s?: string): boolean => {
+    const v = (s || '').toLowerCase();
+    return v === 'paid' || v === 'settlement' || v === 'capture';
+  };
+
   const getStatusBadge = (status: string): JSX.Element => {
-    const colorScheme = status === 'paid' ? 'green' : 
-                       status === 'pending' ? 'yellow' : 'red';
-    const displayText = status === 'paid' ? 'Lunas' :
-                       status === 'pending' ? 'Menunggu' : 'Gagal';
-    
+    const s = (status || '').toLowerCase();
+    const colorScheme = isPaidStatus(s) ? 'green' : s === 'pending' ? 'yellow' : 'red';
+    const displayText = isPaidStatus(s) ? 'Lunas' : s === 'pending' ? 'Menunggu' : 'Gagal';
     return <Badge colorScheme={colorScheme}>{displayText}</Badge>;
   };
 
@@ -485,7 +489,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const getPaymentSteps = (): Array<{title: string, description: string, status: 'complete' | 'active' | 'incomplete'}> => {
     if (!order) return [];
 
-    const isPaid = order.payment_status === 'paid';
+    const isPaid = isPaidStatus(order.payment_status);
     const normalizedStatus = normalizeShippingStatus(order.shipping_status);
     const isShipped = ['siap kirim', 'dalam pengiriman', 'diterima'].includes(normalizedStatus);
     const isReceived = normalizedStatus === 'diterima';
@@ -587,7 +591,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     );
   }
 
-  const isPaid = order.payment_status === 'paid';
+  const isPaid = isPaidStatus(order.payment_status);
   const isReceived = order.shipping_status === 'diterima';
   const steps = getPaymentSteps();
   const currentStep = steps.findIndex(step => step.status === 'active');
@@ -595,7 +599,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   // Tentukan apakah harus menampilkan foto berdasarkan shipping_area
   const isLuarKota = order.shipping_area === 'luar_kota';
   const photoSlotsToShow = isLuarKota ? ['delivered'] : ['ready_for_pickup', 'picked_up', 'delivered'];
-  const paymentText = order.payment_status === 'paid' ? 'Lunas' : order.payment_status === 'pending' ? 'Menunggu' : 'Gagal';
+  const paymentText = isPaid ? 'Lunas' : (order.payment_status?.toLowerCase() === 'pending' ? 'Menunggu' : 'Gagal');
 
   return (
     <>
