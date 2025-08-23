@@ -65,6 +65,7 @@ Lihat folder `migrations/` untuk skrip. Terakhir: `0014_drop_legacy_locations.sq
 - Assignment options: `GET /api/assignment-options` → opsi outlet + deliveryman.
 - Orders: `GET/POST/PUT /api/orders`, `GET /api/orders/:id`, `PUT /api/orders/:id/status`, dll.
 - Shipping images: `POST /api/orders/:id/shipping-images`, `GET /api/orders/:id/shipping-images`.
+- Helper (publik, baca-only): `GET /api/test-shipping-photos/:orderId` → endpoint pembacaan foto yang stabil dan bypass konflik auth; dipakai FE publik & admin untuk menampilkan 3 slot foto.
 - Auth: `POST /api/auth/login`, `GET /api/auth/profile`.
 - Migrasi aman:
   - `POST /api/admin/migrate-safe-db` → `migrateSafeRelationalDB()` (drop/create terkendali, idempoten).
@@ -116,7 +117,10 @@ Playbook umum:
   - `getUnifiedOutlets()` memukul `GET /api/admin/outlets`; fallback ke `/api/outlets` jika 404.
 - Halaman penting:
   - `AdminOrdersPage.tsx`: daftar orders admin, polling 60s.
-  - `AdminOrderDetailPage.tsx`: assignment outlet & deliveryman, logika form.
+  - `AdminOrderDetailPage.tsx`: assignment outlet & deliveryman, logika form, dan sinkronisasi foto kiriman.
+    - Menampilkan 3 slot foto memakai `ShippingImageDisplay` (`midtrans-frontend/src/components/ShippingImageDisplay.tsx`).
+    - Membaca foto via `GET /api/test-shipping-photos/:orderId` agar konsisten dengan halaman publik/outlet.
+    - Pastikan `VITE_API_BASE_URL` mengarah ke origin Worker prod agar fetch berhasil.
 - TypeScript Migration: seluruh halaman utama sudah dimigrasikan (lihat memori commit — tidak perlu revert ke `.jsx`).
 
 ---
@@ -164,6 +168,8 @@ Playbook umum:
   A: `GET /api/admin/safe-db-status` → ringkasan tabel & statistik linkages.
 - Q: Bagaimana menambah outlet baru?  
   A: Insert ke `outlets_unified` (pastikan `status='active'` agar muncul di dropdown admin).
+- Q: Foto outlet tidak muncul di halaman admin?  
+  A: Periksa `GET /api/test-shipping-photos/:orderId` mengembalikan `ready_for_pickup/picked_up/delivered.url`. Pastikan `VITE_API_BASE_URL` benar dan lakukan hard refresh untuk menghindari cache.
 
 ---
 
@@ -173,4 +179,4 @@ Playbook umum:
 - `DEVELOPMENT_SETUP.md`, `DEPLOYMENT_GUIDE.md` → setup & deploy.
 - `REAL_TIME_SYNC_TEST_GUIDE.md`, `docs/REAL_TIME_SYNC.md` → sinkronisasi.
 
-Terakhir diperbarui: 2025-08-23
+Terakhir diperbarui: 2025-08-24
