@@ -644,14 +644,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const isLuarKota = order.shipping_area === 'luar_kota';
   const photoSlotsToShow = isLuarKota ? ['delivered'] : ['ready_for_pickup', 'picked_up', 'delivered'];
   const paymentText = isPaid ? 'Lunas' : (order.payment_status?.toLowerCase() === 'pending' ? 'Menunggu' : 'Gagal');
-  const shortOrderId = React.useMemo(() => {
-    const raw = order?.id || '';
-    if (!raw) return '';
-    const parts = raw.split('-');
-    const last = parts[parts.length - 1] || raw;
-    // If last part is very short, fallback to last 6 chars of whole id
-    return last.length >= 4 ? last : raw.slice(-6);
-  }, [order?.id]);
+  const getShortOrderId = (raw?: string): string => {
+    const id = raw || '';
+    if (!id) return '';
+    const parts = id.split('-');
+    const last = parts[parts.length - 1] || id;
+    return last.length >= 4 ? last : id.slice(-6);
+  };
+  const shortOrderId = getShortOrderId(order?.id);
 
   return (
     <>
