@@ -379,7 +379,7 @@ const AdminOrderDetailPage: React.FC = () => {
                       </Tr>
                       <Tr>
                         <Td fontWeight="semibold">Metode Pengiriman</Td>
-                        <Td>{order.pickup_method}</Td>
+                        <Td>{order.pickup_method === 'deliveryman' ? 'Kurir Toko' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-')}</Td>
                       </Tr>
                       <Tr>
                         <Td fontWeight="semibold">Layanan Kurir</Td>
@@ -509,8 +509,8 @@ const AdminOrderDetailPage: React.FC = () => {
                 <GridItem>
                   <Text fontWeight="semibold">Metode Pengiriman</Text>
                   <Select name="pickup_method" value={formData.pickup_method || ''} onChange={handleFormChange}>
-                    <option value="deliveryman">Deliveryman</option>
-                    <option value="pickup">Pickup</option>
+                    <option value="deliveryman">Kurir Toko</option>
+                    <option value="ojek-online">Ojek Online</option>
                   </Select>
                 </GridItem>
                 <GridItem>
@@ -691,4 +691,4 @@ const AdminOrderDetailPage: React.FC = () => {
 };
 
 export default AdminOrderDetailPage;
-// Force deployment Fri Aug 22 21:29:19 WIB 2025
+// Force deployment Sun Aug 24 16:02:10 WIB 2025
