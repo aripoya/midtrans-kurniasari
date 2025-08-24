@@ -202,7 +202,14 @@ const AdminOrderDetailPage: React.FC = () => {
     if (!id) return;
     try {
       setUpdateLoading(true);
-      const response = await adminApi.updateOrderDetails(id, formData);
+      // Normalize payload to clear irrelevant lokasi field
+      const payload: Partial<Order> = { ...formData };
+      if ((payload.tipe_pesanan as any) === 'Pesan Antar') {
+        (payload as any).pickup_location = null;
+      } else if ((payload.tipe_pesanan as any) === 'Pesan Ambil') {
+        (payload as any).lokasi_pengiriman = null;
+      }
+      const response = await adminApi.updateOrderDetails(id, payload);
       if (!response.success) throw new Error(response.error || 'Gagal menyimpan perubahan');
 
       // Reload order from backend to ensure fresh data
