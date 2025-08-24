@@ -178,7 +178,19 @@ const AdminOrderDetailPage: React.FC = () => {
   // Handle form input changes
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      // When switching tipe_pesanan, clear the irrelevant lokasi field
+      if (name === 'tipe_pesanan') {
+        const next = { ...prev, [name]: value } as Partial<Order>;
+        if (value === 'Pesan Antar') {
+          next.pickup_location = '';
+        } else if (value === 'Pesan Ambil') {
+          next.lokasi_pengiriman = '';
+        }
+        return next;
+      }
+      return { ...prev, [name]: value };
+    });
   };
 
   // Handle form submission
@@ -545,20 +557,40 @@ const AdminOrderDetailPage: React.FC = () => {
                   <Text fontWeight="semibold">Nomor Resi</Text>
                   <Input name="tracking_number" value={formData.tracking_number || ''} onChange={handleFormChange} />
                 </GridItem>
-                <GridItem>
-                  <Text fontWeight="semibold">Lokasi Pengiriman</Text>
-                  <Select name="lokasi_pengiriman" value={formData.lokasi_pengiriman || ''} onChange={handleFormChange} placeholder="Pilih Lokasi Pengiriman">
-                    {outlets.map(outlet => (
-                      <option key={outlet.id} value={outlet.name}>
-                        {outlet.name}
-                      </option>
-                    ))}
-                  </Select>
-                </GridItem>
-                 <GridItem>
-                  <Text fontWeight="semibold">Lokasi Pengambilan</Text>
-                  <Input name="pickup_location" value={formData.pickup_location || ''} onChange={handleFormChange} />
-                </GridItem>
+                {formData.tipe_pesanan === 'Pesan Antar' && (
+                  <GridItem>
+                    <Text fontWeight="semibold">Lokasi Pengiriman</Text>
+                    <Select
+                      name="lokasi_pengiriman"
+                      value={formData.lokasi_pengiriman || ''}
+                      onChange={handleFormChange}
+                      placeholder="Pilih Lokasi Pengiriman"
+                    >
+                      {outlets.map(outlet => (
+                        <option key={outlet.id} value={outlet.name}>
+                          {outlet.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </GridItem>
+                )}
+                {formData.tipe_pesanan === 'Pesan Ambil' && (
+                  <GridItem>
+                    <Text fontWeight="semibold">Lokasi Pengambilan</Text>
+                    <Select
+                      name="pickup_location"
+                      value={formData.pickup_location || ''}
+                      onChange={handleFormChange}
+                      placeholder="Pilih Lokasi Pengambilan"
+                    >
+                      {outlets.map(outlet => (
+                        <option key={outlet.id} value={outlet.name}>
+                          {outlet.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </GridItem>
+                )}
               </Grid>
               <Box>
                 <Text fontWeight="semibold">Catatan Admin</Text>
