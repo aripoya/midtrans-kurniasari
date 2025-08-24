@@ -523,12 +523,22 @@ const AdminOrderDetailPage: React.FC = () => {
                 <GridItem>
                   <Text fontWeight="semibold">Layanan Kurir</Text>
                   {formData.pickup_method === 'ojek-online' ? (
-                    <Select name="courier_service" value={formData.courier_service || ''} onChange={handleFormChange} placeholder="Pilih layanan">
-                      <option value="Gojek">Gojek</option>
-                      <option value="Grab">Grab</option>
+                    <Select
+                      name="courier_service"
+                      value={formData.courier_service || ''}
+                      onChange={handleFormChange}
+                      placeholder="Pilih layanan ojek online"
+                    >
+                      <option value="gojek">Gojek</option>
+                      <option value="grab">Grab</option>
                     </Select>
                   ) : (
-                    <Input name="courier_service" value={formData.courier_service || ''} onChange={handleFormChange} />
+                    <Input
+                      name="courier_service"
+                      value={formData.courier_service || ''}
+                      onChange={handleFormChange}
+                      placeholder="Layanan kurir"
+                    />
                   )}
                 </GridItem>
                 <GridItem>
