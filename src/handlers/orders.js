@@ -162,6 +162,9 @@ export async function createOrder(request, env) {
       shipping_area: orderData.shipping_area
     });
 
+    // Normalize pickup_method: legacy 'pickup' -> 'ojek-online'
+    const normalizedPickupMethod = orderData.pickup_method === 'pickup' ? 'ojek-online' : orderData.pickup_method;
+
     // Insert the order into the database, now including outlet assignment
     // Ensure all values are properly defined to avoid D1 undefined errors
     const safeOutletId = outletId || null;
@@ -222,7 +225,7 @@ export async function createOrder(request, env) {
         orderData.lokasi_pengiriman || null,
         orderData.lokasi_pengambilan || null,
         orderData.shipping_area || null,
-        orderData.pickup_method || null,
+        normalizedPickupMethod || null,
         orderData.courier_service || null,
         orderData.shipping_notes || null,
         createdByAdminId,
@@ -1285,7 +1288,11 @@ export async function updateOrderDetails(request, env) {
       // Aktifkan kembali shipping_area karena kolom sudah ditambahkan ke database
       if (shipping_area !== undefined) { updateFields.push('shipping_area = ?'); updateParams.push(shipping_area); }
       // Kolom pickup_method sudah ditambahkan kembali ke database
-      if (pickup_method !== undefined) { updateFields.push('pickup_method = ?'); updateParams.push(pickup_method); }
+      if (pickup_method !== undefined) { 
+        const normalized = pickup_method === 'pickup' ? 'ojek-online' : pickup_method;
+        updateFields.push('pickup_method = ?'); 
+        updateParams.push(normalized); 
+      }
       if (tracking_number !== undefined) { updateFields.push('tracking_number = ?'); updateParams.push(tracking_number); }
       if (courier_service !== undefined) { updateFields.push('courier_service = ?'); updateParams.push(courier_service); }
     }
