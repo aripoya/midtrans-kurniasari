@@ -189,6 +189,10 @@ const AdminOrderDetailPage: React.FC = () => {
         }
         return next;
       }
+      // When switching pickup_method, clear courier_service to avoid stale values
+      if (name === 'pickup_method') {
+        return { ...prev, [name]: value, courier_service: '' } as Partial<Order>;
+      }
       return { ...prev, [name]: value };
     });
   };
@@ -533,7 +537,9 @@ const AdminOrderDetailPage: React.FC = () => {
                   </Select>
                 </GridItem>
                 <GridItem>
-                  <Text fontWeight="semibold">Layanan Kurir</Text>
+                  <Text fontWeight="semibold">
+                    {formData.pickup_method === 'deliveryman' ? 'Nama Kurir' : 'Layanan Kurir'}
+                  </Text>
                   {formData.pickup_method === 'ojek-online' ? (
                     <Select
                       name="courier_service"
@@ -543,6 +549,16 @@ const AdminOrderDetailPage: React.FC = () => {
                     >
                       <option value="gojek">Gojek</option>
                       <option value="grab">Grab</option>
+                    </Select>
+                  ) : formData.pickup_method === 'deliveryman' ? (
+                    <Select
+                      name="courier_service"
+                      value={formData.courier_service || ''}
+                      onChange={handleFormChange}
+                      placeholder="Pilih nama kurir toko"
+                    >
+                      <option value="rudi">Rudi</option>
+                      <option value="fendi">Fendi</option>
                     </Select>
                   ) : (
                     <Input
