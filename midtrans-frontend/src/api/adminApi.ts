@@ -24,7 +24,7 @@ export interface Order {
   created_at: string;
   payment_method?: string;
   shipping_area?: 'dalam-kota' | 'luar-kota';
-  pickup_method?: 'deliveryman' | 'ojek-online';
+  pickup_method?: 'deliveryman' | 'ojek-online' | 'self-pickup';
   lokasi_pengiriman?: string;
   pickup_location?: string;
   tipe_pesanan?: string;
@@ -183,7 +183,7 @@ export interface UpdateOrderDetailsRequest {
   status?: string;
   admin_note?: string;
   shipping_area?: "dalam-kota" | "luar-kota";
-  pickup_method?: string;
+  pickup_method?: 'deliveryman' | 'ojek-online' | 'self-pickup';
   courier_service?: string;
   tracking_number?: string;
   lokasi_pengambilan?: string;

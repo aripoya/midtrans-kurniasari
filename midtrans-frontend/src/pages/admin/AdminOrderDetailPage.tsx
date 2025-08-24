@@ -76,9 +76,9 @@ const AdminOrderDetailPage: React.FC = () => {
     return url;
   };
 
-  // Derived pickup method to ensure Pesan Ambil always uses ojek-online in UI
+  // Derived pickup method: for Pesan Ambil default to 'ojek-online' but allow selection
   const derivedPickupMethod = (formData.tipe_pesanan === 'Pesan Ambil')
-    ? 'ojek-online'
+    ? ((formData.pickup_method as string) || 'ojek-online')
     : (formData.pickup_method || '');
 
   // Load order data
@@ -205,7 +205,8 @@ const AdminOrderDetailPage: React.FC = () => {
       }
       // When switching pickup_method, clear courier_service to avoid stale values
       if (name === 'pickup_method') {
-        return { ...prev, [name]: value, courier_service: '' } as Partial<Order>;
+        const cleared = (value === 'self-pickup') ? null : '';
+        return { ...prev, [name]: value, courier_service: cleared as any } as Partial<Order>;
       }
       return { ...prev, [name]: value };
     });
@@ -225,7 +226,10 @@ const AdminOrderDetailPage: React.FC = () => {
       } else if ((payload.tipe_pesanan as any) === 'Pesan Ambil') {
         (payload as any).lokasi_pengiriman = null;
         // Ensure pickup_method normalized to ojek-online for pickup orders
-        (payload as any).pickup_method = 'ojek-online';
+        (payload as any).pickup_method = (payload.pickup_method as any) || 'ojek-online';
+        if ((payload.pickup_method as any) === 'self-pickup') {
+          (payload as any).courier_service = null;
+        }
       }
       const response = await adminApi.updateOrderDetails(id, payload);
       if (!response.success) throw new Error(response.error || 'Gagal menyimpan perubahan');
@@ -427,8 +431,12 @@ const AdminOrderDetailPage: React.FC = () => {
                         </Tr>
                       )}
                       <Tr>
-                        <Td fontWeight="semibold">Metode Pengiriman</Td>
-                        <Td>{order.pickup_method === 'deliveryman' ? 'Kurir Toko' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-')}</Td>
+                        <Td fontWeight="semibold">{order.tipe_pesanan === 'Pesan Ambil' ? 'Metode Pengambilan' : 'Metode Pengiriman'}</Td>
+                        <Td>
+                          {order.tipe_pesanan === 'Pesan Ambil'
+                            ? (order.pickup_method === 'self-pickup' ? 'Di Ambil Sendiri' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-'))
+                            : (order.pickup_method === 'deliveryman' ? 'Kurir Toko' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-'))}
+                        </Td>
                       </Tr>
                       <Tr>
                         <Td fontWeight="semibold">Layanan Kurir</Td>
@@ -556,9 +564,16 @@ const AdminOrderDetailPage: React.FC = () => {
                   </Select>
                 </GridItem>
                 <GridItem>
-                  <Text fontWeight="semibold">Metode Pengiriman</Text>
+                  <Text fontWeight="semibold">{formData.tipe_pesanan === 'Pesan Ambil' ? 'Metode Pengambilan' : 'Metode Pengiriman'}</Text>
                   {formData.tipe_pesanan === 'Pesan Ambil' ? (
-                    <Input value="Ojek Online" isReadOnly />
+                    <Select
+                      name="pickup_method"
+                      value={derivedPickupMethod}
+                      onChange={handleFormChange}
+                    >
+                      <option value="self-pickup">Di Ambil Sendiri</option>
+                      <option value="ojek-online">Ojek Online</option>
+                    </Select>
                   ) : (
                     <Select
                       name="pickup_method"
@@ -577,6 +592,7 @@ const AdminOrderDetailPage: React.FC = () => {
                     <option value="Pesan Ambil">Pesan Ambil</option>
                   </Select>
                 </GridItem>
+                {!(formData.tipe_pesanan === 'Pesan Ambil' && derivedPickupMethod === 'self-pickup') && (
                 <GridItem>
                   <Text fontWeight="semibold">
                     {derivedPickupMethod === 'deliveryman' ? 'Nama Kurir' : 'Layanan Kurir'}
@@ -610,6 +626,7 @@ const AdminOrderDetailPage: React.FC = () => {
                     />
                   )}
                 </GridItem>
+                )}
                 <GridItem>
                   <Text fontWeight="semibold">Nomor Resi</Text>
                   <Input name="tracking_number" value={formData.tracking_number || ''} onChange={handleFormChange} />
