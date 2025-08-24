@@ -76,6 +76,11 @@ const AdminOrderDetailPage: React.FC = () => {
     return url;
   };
 
+  // Derived pickup method to ensure Pesan Ambil always uses ojek-online in UI
+  const derivedPickupMethod = (formData.tipe_pesanan === 'Pesan Ambil')
+    ? 'ojek-online'
+    : (formData.pickup_method || '');
+
   // Load order data
   useEffect(() => {
     const loadOrder = async () => {
@@ -92,7 +97,12 @@ const AdminOrderDetailPage: React.FC = () => {
         if (response.success && response.data) {
           console.log('Order data loaded:', response.data);
           setOrder(response.data);
-          setFormData(response.data); // Initialize form data
+          // Initialize and normalize form data
+          const initial = { ...response.data } as Partial<Order>;
+          if ((initial.tipe_pesanan as any) === 'Pesan Ambil') {
+            initial.pickup_method = 'ojek-online' as any;
+          }
+          setFormData(initial);
 
           // Fetch shipping images from public endpoint for consistency with outlet/public
           try {
@@ -545,10 +555,18 @@ const AdminOrderDetailPage: React.FC = () => {
                 </GridItem>
                 <GridItem>
                   <Text fontWeight="semibold">Metode Pengiriman</Text>
-                  <Select name="pickup_method" value={formData.pickup_method || ''} onChange={handleFormChange}>
-                    <option value="deliveryman">Kurir Toko</option>
-                    <option value="ojek-online">Ojek Online</option>
-                  </Select>
+                  {formData.tipe_pesanan === 'Pesan Ambil' ? (
+                    <Input value="Ojek Online" isReadOnly />
+                  ) : (
+                    <Select
+                      name="pickup_method"
+                      value={formData.pickup_method || ''}
+                      onChange={handleFormChange}
+                    >
+                      <option value="deliveryman">Kurir Toko</option>
+                      <option value="ojek-online">Ojek Online</option>
+                    </Select>
+                  )}
                 </GridItem>
                 <GridItem>
                   <Text fontWeight="semibold">Tipe Pesanan</Text>
@@ -559,9 +577,9 @@ const AdminOrderDetailPage: React.FC = () => {
                 </GridItem>
                 <GridItem>
                   <Text fontWeight="semibold">
-                    {formData.pickup_method === 'deliveryman' ? 'Nama Kurir' : 'Layanan Kurir'}
+                    {derivedPickupMethod === 'deliveryman' ? 'Nama Kurir' : 'Layanan Kurir'}
                   </Text>
-                  {formData.pickup_method === 'ojek-online' ? (
+                  {derivedPickupMethod === 'ojek-online' ? (
                     <Select
                       name="courier_service"
                       value={formData.courier_service || ''}
@@ -571,7 +589,7 @@ const AdminOrderDetailPage: React.FC = () => {
                       <option value="gojek">Gojek</option>
                       <option value="grab">Grab</option>
                     </Select>
-                  ) : formData.pickup_method === 'deliveryman' ? (
+                  ) : derivedPickupMethod === 'deliveryman' ? (
                     <Select
                       name="courier_service"
                       value={formData.courier_service || ''}
