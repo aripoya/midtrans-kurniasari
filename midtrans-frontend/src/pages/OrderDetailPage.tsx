@@ -619,6 +619,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const isLuarKota = order.shipping_area === 'luar_kota';
   const photoSlotsToShow = isLuarKota ? ['delivered'] : ['ready_for_pickup', 'picked_up', 'delivered'];
   const paymentText = isPaid ? 'Lunas' : (order.payment_status?.toLowerCase() === 'pending' ? 'Menunggu' : 'Gagal');
+  const shortOrderId = React.useMemo(() => {
+    const raw = order?.id || '';
+    if (!raw) return '';
+    const parts = raw.split('-');
+    const last = parts[parts.length - 1] || raw;
+    // If last part is very short, fallback to last 6 chars of whole id
+    return last.length >= 4 ? last : raw.slice(-6);
+  }, [order?.id]);
 
   return (
     <>
@@ -650,6 +658,23 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         #thermal-receipt .kv { margin: 1px 0; }
         #thermal-receipt .kv .label::after { content: ': '; margin-left: 0; }
 
+        /* Compact receipt */
+        #thermal-receipt-compact {
+          display: none;
+          box-sizing: border-box;
+          width: 56mm;
+          padding: 1.5mm 1.5mm;
+          font-family: Arial, sans-serif;
+          font-size: 16px;
+          line-height: 1.15;
+          font-weight: 600;
+          color: #000;
+        }
+        #thermal-receipt-compact .title { text-align: center; font-weight: 800; font-size: 18px; margin-bottom: 6px; overflow-wrap: anywhere; }
+        #thermal-receipt-compact .line { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+        #thermal-receipt-compact .label { flex: 1; min-width: 0; }
+        #thermal-receipt-compact .label::after { content: ': '; }
+
         /* Print overrides */
         @media print {
           @page { size: 56mm auto; margin: 0; }
@@ -657,6 +682,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           body * { visibility: hidden !important; }
           #thermal-receipt, #thermal-receipt * { visibility: visible !important; }
           #thermal-receipt {
+            display: block !important;
+            position: absolute;
+            left: 0;
+            top: 0;
+          }
+          /* Allow printing the compact one when needed (devs can toggle by changing id target) */
+          #thermal-receipt-compact, #thermal-receipt-compact * { visibility: visible !important; }
+          #thermal-receipt-compact {
             display: block !important;
             position: absolute;
             left: 0;
@@ -730,6 +763,26 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         </div>
       </Box>
 
+      {/* Compact Print-only content */}
+      <Box id="thermal-receipt-compact">
+        <div className="title">Order #{shortOrderId}</div>
+        <div className="line"><span className="label">Status</span><span className="value">{paymentText}</span></div>
+        <div className="line"><span className="label">Total</span><span className="value">Rp {order.total_amount?.toLocaleString('id-ID')}</span></div>
+        {order.tipe_pesanan && (
+          <div className="line"><span className="label">Tipe</span><span className="value">{order.tipe_pesanan}</span></div>
+        )}
+        {order.pickup_outlet && (
+          <div className="line"><span className="label">Outlet</span><span className="value">{order.pickup_outlet}</span></div>
+        )}
+        {order.picked_up_by && (
+          <div className="line"><span className="label">Pengambil</span><span className="value">{order.picked_up_by}</span></div>
+        )}
+        <div className="line"><span className="label">Metode</span><span className="value">{order.pickup_method === 'self-pickup' ? 'Di Ambil Sendiri' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-')}</span></div>
+        {order.courier_service && (
+          <div className="line"><span className="label">Kurir</span><span className="value">{order.courier_service}</span></div>
+        )}
+      </Box>
+
       <Container maxW="container.lg" py={8} px={{ base: 4, md: 6 }}>
         <VStack spacing={6} align="stretch">
           <Card>
@@ -744,6 +797,13 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                       size="sm"
                     >
                       Unduh PNG 56mm
+                    </Button>
+                    <Button
+                      onClick={handleDownloadReceiptImageCompact}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Unduh Struk Ringkas
                     </Button>
                   </HStack>
                 )}
