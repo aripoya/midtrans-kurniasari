@@ -183,9 +183,9 @@ const AdminOrderDetailPage: React.FC = () => {
       if (name === 'tipe_pesanan') {
         const next = { ...prev, [name]: value } as Partial<Order>;
         if (value === 'Pesan Antar') {
-          next.pickup_location = '';
+          next.pickup_location = null as any;
         } else if (value === 'Pesan Ambil') {
-          next.lokasi_pengiriman = '';
+          next.lokasi_pengiriman = null as any;
         }
         return next;
       }
@@ -389,10 +389,12 @@ const AdminOrderDetailPage: React.FC = () => {
                       
                       {/* Editable fields */}
                       
-                      <Tr>
-                        <Td fontWeight="semibold">Lokasi Pengambilan</Td>
-                        <Td>{order.pickup_location || 'Outlet Bonbin'}</Td>
-                      </Tr>
+                      {order.tipe_pesanan !== 'Pesan Antar' && (
+                        <Tr>
+                          <Td fontWeight="semibold">Lokasi Pengambilan</Td>
+                          <Td>{order.pickup_location || '-'}</Td>
+                        </Tr>
+                      )}
                       <Tr>
                         <Td fontWeight="semibold">Metode Pengiriman</Td>
                         <Td>{order.pickup_method === 'deliveryman' ? 'Kurir Toko' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-')}</Td>
