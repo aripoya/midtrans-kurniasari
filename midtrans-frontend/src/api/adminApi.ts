@@ -24,7 +24,7 @@ export interface Order {
   created_at: string;
   payment_method?: string;
   shipping_area?: 'dalam-kota' | 'luar-kota';
-  pickup_method?: 'deliveryman' | 'pickup';
+  pickup_method?: 'deliveryman' | 'ojek-online';
   lokasi_pengiriman?: string;
   pickup_location?: string;
   tipe_pesanan?: string;
@@ -35,6 +35,11 @@ export interface Order {
   assigned_deliveryman_id?: string;
   created_by_admin_id?: string;
   created_by_admin_name?: string;
+  // Pickup detail fields
+  picked_up_by?: string | null;
+  pickup_outlet?: string | null;
+  pickup_date?: string | null;
+  pickup_time?: string | null;
 }
 
 export interface ShippingImage {
@@ -184,6 +189,11 @@ export interface UpdateOrderDetailsRequest {
   lokasi_pengambilan?: string;
   lokasi_pengantaran?: string; // Customer address for delivery destination
   tipe_pesanan?: string;
+  // Pickup details for Pesan Ambil
+  picked_up_by?: string | null;
+  pickup_outlet?: string | null;
+  pickup_date?: string | null;
+  pickup_time?: string | null;
 }
 
 export interface UpdateShippingStatusRequest {

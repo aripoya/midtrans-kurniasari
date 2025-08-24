@@ -184,8 +184,11 @@ const AdminOrderDetailPage: React.FC = () => {
         const next = { ...prev, [name]: value } as Partial<Order>;
         if (value === 'Pesan Antar') {
           next.pickup_location = null as any;
+          next.picked_up_by = null as any;
         } else if (value === 'Pesan Ambil') {
           next.lokasi_pengiriman = null as any;
+          // Default metode pengambilan ke ojek-online untuk Pesan Ambil
+          next.pickup_method = 'ojek-online' as any;
         }
         return next;
       }
@@ -206,8 +209,11 @@ const AdminOrderDetailPage: React.FC = () => {
       const payload: Partial<Order> = { ...formData };
       if ((payload.tipe_pesanan as any) === 'Pesan Antar') {
         (payload as any).pickup_location = null;
+        (payload as any).picked_up_by = null;
       } else if ((payload.tipe_pesanan as any) === 'Pesan Ambil') {
         (payload as any).lokasi_pengiriman = null;
+        // Ensure pickup_method normalized to ojek-online for pickup orders
+        (payload as any).pickup_method = 'ojek-online';
       }
       const response = await adminApi.updateOrderDetails(id, payload);
       if (!response.success) throw new Error(response.error || 'Gagal menyimpan perubahan');
@@ -400,6 +406,12 @@ const AdminOrderDetailPage: React.FC = () => {
                         <Tr>
                           <Td fontWeight="semibold">Lokasi Pengambilan</Td>
                           <Td>{order.pickup_location || '-'}</Td>
+                        </Tr>
+                      )}
+                      {order.picked_up_by && (
+                        <Tr>
+                          <Td fontWeight="semibold">Nama Pengambil Pesanan</Td>
+                          <Td>{order.picked_up_by}</Td>
                         </Tr>
                       )}
                       <Tr>
@@ -614,6 +626,17 @@ const AdminOrderDetailPage: React.FC = () => {
                         </option>
                       ))}
                     </Select>
+                  </GridItem>
+                )}
+                {formData.tipe_pesanan === 'Pesan Ambil' && (
+                  <GridItem>
+                    <Text fontWeight="semibold">Nama Pengambil Pesanan</Text>
+                    <Input
+                      name="picked_up_by"
+                      value={(formData.picked_up_by as string) || ''}
+                      onChange={handleFormChange}
+                      placeholder="Masukkan nama orang yang mengambil pesanan"
+                    />
                   </GridItem>
                 )}
               </Grid>
