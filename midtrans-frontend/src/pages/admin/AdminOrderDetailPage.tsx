@@ -194,6 +194,7 @@ const AdminOrderDetailPage: React.FC = () => {
         const next = { ...prev, [name]: value } as Partial<Order>;
         if (value === 'Pesan Antar') {
           next.pickup_location = null as any;
+          next.pickup_outlet = null as any;
           next.picked_up_by = null as any;
         } else if (value === 'Pesan Ambil') {
           next.lokasi_pengiriman = null as any;
@@ -219,6 +220,7 @@ const AdminOrderDetailPage: React.FC = () => {
       const payload: Partial<Order> = { ...formData };
       if ((payload.tipe_pesanan as any) === 'Pesan Antar') {
         (payload as any).pickup_location = null;
+        (payload as any).pickup_outlet = null;
         (payload as any).picked_up_by = null;
       } else if ((payload.tipe_pesanan as any) === 'Pesan Ambil') {
         (payload as any).lokasi_pengiriman = null;
@@ -415,7 +417,7 @@ const AdminOrderDetailPage: React.FC = () => {
                       {order.tipe_pesanan !== 'Pesan Antar' && (
                         <Tr>
                           <Td fontWeight="semibold">Lokasi Pengambilan</Td>
-                          <Td>{order.pickup_location || '-'}</Td>
+                          <Td>{order.pickup_outlet || order.pickup_location || '-'}</Td>
                         </Tr>
                       )}
                       {order.picked_up_by && (
@@ -633,8 +635,8 @@ const AdminOrderDetailPage: React.FC = () => {
                   <GridItem>
                     <Text fontWeight="semibold">Lokasi Pengambilan</Text>
                     <Select
-                      name="pickup_location"
-                      value={formData.pickup_location || ''}
+                      name="pickup_outlet"
+                      value={(formData.pickup_outlet as string) || ''}
                       onChange={handleFormChange}
                       placeholder="Pilih Lokasi Pengambilan"
                     >
