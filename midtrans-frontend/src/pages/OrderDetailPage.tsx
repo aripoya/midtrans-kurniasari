@@ -570,6 +570,31 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     }
   };
 
+  // Compact receipt download (minimal content)
+  const handleDownloadReceiptImageCompact = async (): Promise<void> => {
+    try {
+      const el = document.getElementById('thermal-receipt-compact') as HTMLElement | null;
+      if (!el) {
+        toast({ title: 'Elemen struk ringkas tidak ditemukan', status: 'error', duration: 2500, isClosable: true });
+        return;
+      }
+      const originalStyle = el.getAttribute('style') || '';
+      el.setAttribute('style', originalStyle + ';display:block;position:static;width:56mm;box-sizing:border-box;background:#ffffff;padding:1.5mm 1.5mm;font-family:Arial, sans-serif;font-size:16px;line-height:1.15;font-weight:600;');
+
+      const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2, useCORS: true });
+      const link = document.createElement('a');
+      link.download = `receipt-compact-${order?.id || 'order'}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+
+      if (originalStyle) el.setAttribute('style', originalStyle); else el.removeAttribute('style');
+      toast({ title: 'Gambar struk ringkas diunduh', status: 'success', duration: 1500, isClosable: true });
+    } catch (error) {
+      console.error('Error exporting compact receipt image:', error);
+      toast({ title: 'Gagal mengunduh struk ringkas', status: 'error', duration: 3000, isClosable: true });
+    }
+  };
+
 
   useEffect(() => {
     fetchOrderDetails();
@@ -645,6 +670,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           color: #000;
         }
         #thermal-receipt .title { text-align: center; font-weight: 800; font-size: 24px; margin-bottom: 8px; overflow-wrap: anywhere; }
+        #thermal-receipt .full-id { text-align: center; font-weight: 400; font-size: 14px; margin-bottom: 6px; color: #333; word-break: break-all; }
         #thermal-receipt hr { border: none; border-top: 1px dashed #000; margin: 4px 0; }
         #thermal-receipt .section-title { font-weight: 700; margin: 0 0 6px 0; }
         #thermal-receipt .line { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
@@ -670,7 +696,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           font-weight: 600;
           color: #000;
         }
-        #thermal-receipt-compact .title { text-align: center; font-weight: 800; font-size: 18px; margin-bottom: 6px; overflow-wrap: anywhere; }
+        #thermal-receipt-compact .title { text-align: center; font-weight: 800; font-size: 18px; margin-bottom: 2px; overflow-wrap: anywhere; }
+        #thermal-receipt-compact .full-id { text-align: center; font-weight: 400; font-size: 12px; margin-bottom: 6px; color: #333; word-break: break-all; }
         #thermal-receipt-compact .line { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
         #thermal-receipt-compact .label { flex: 1; min-width: 0; }
         #thermal-receipt-compact .label::after { content: ': '; }
@@ -700,7 +727,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
 
       {/* Print-only content */}
       <Box id="thermal-receipt">
-        <div className="title">Order #{order.id}</div>
+        <div className="title">Order #{shortOrderId}</div>
+        <div className="full-id">ID Lengkap: {order.id}</div>
         <div className="separator">==============================</div>
         <div className="section">
           <div className="section-title">Informasi Pelanggan</div>
@@ -766,6 +794,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       {/* Compact Print-only content */}
       <Box id="thermal-receipt-compact">
         <div className="title">Order #{shortOrderId}</div>
+        <div className="full-id">ID Lengkap: {order.id}</div>
         <div className="line"><span className="label">Status</span><span className="value">{paymentText}</span></div>
         <div className="line"><span className="label">Total</span><span className="value">Rp {order.total_amount?.toLocaleString('id-ID')}</span></div>
         {order.tipe_pesanan && (
@@ -788,7 +817,10 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           <Card>
             <CardHeader>
               <HStack justify="space-between" wrap="wrap">
-                <Heading size="md">Detail Pesanan #{order.id}</Heading>
+                <VStack align="start" spacing={0} mr={2}>
+                  <Heading size="md">Detail Pesanan #{shortOrderId}</Heading>
+                  <Text fontSize="xs" color="gray.500">ID Lengkap: {order.id}</Text>
+                </VStack>
                 {isOutletView && (
                   <HStack>
                     <Button
