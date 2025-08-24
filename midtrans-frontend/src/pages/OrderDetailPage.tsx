@@ -39,6 +39,12 @@ interface LocalOrder {
   shipping_status: string;
   payment_url?: string;
   created_at: string;
+  updated_at?: string;
+  payment_method?: string;
+  admin_note?: string;
+  tipe_pesanan?: string;
+  pickup_outlet?: string;
+  picked_up_by?: string;
   items: OrderItem[];
   shipping_images?: {
     ready_for_pickup?: string;
@@ -208,6 +214,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         shipping_status: apiOrder?.shipping_status || 'menunggu diproses',
         payment_url: apiOrder?.payment_url || undefined,
         created_at: apiOrder?.created_at || new Date().toISOString(),
+        updated_at: apiOrder?.updated_at || apiOrder?.updatedAt || undefined,
+        payment_method: apiOrder?.payment_method || apiOrder?.paymentMethod || undefined,
+        admin_note: apiOrder?.admin_note || apiOrder?.adminNote || undefined,
+        tipe_pesanan: apiOrder?.tipe_pesanan || apiOrder?.order_type || undefined,
+        pickup_outlet: apiOrder?.pickup_outlet || apiOrder?.lokasi_pengambilan || apiOrder?.pickup_location || undefined,
+        picked_up_by: apiOrder?.picked_up_by || apiOrder?.nama_pengambil || undefined,
         items,
         shipping_images: apiOrder?.shipping_images || undefined,
       };
@@ -225,6 +237,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         payment_status: apiOrder?.payment_status || 'pending',
         shipping_status: apiOrder?.shipping_status || 'menunggu diproses',
         created_at: apiOrder?.created_at || new Date().toISOString(),
+        updated_at: apiOrder?.updated_at || apiOrder?.updatedAt || undefined,
         items: [],
       } as LocalOrder;
     }
@@ -667,6 +680,34 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           <div className="section-title">Detail Pembayaran</div>
           <div className="line"><span className="label">Status</span><span className="value">{paymentText}</span></div>
           <div className="line"><span className="label">Total</span><span className="value">Rp {order.total_amount?.toLocaleString('id-ID')}</span></div>
+        </div>
+        <div className="separator">==============================</div>
+        <div className="section">
+          <div className="section-title">Detail Pesanan</div>
+          {order.admin_note && (
+            <div className="kv"><span className="label">Catatan Admin</span><span className="value">{order.admin_note}</span></div>
+          )}
+          <div className="kv"><span className="label">Tanggal Dibuat</span><span className="value">{new Date(order.created_at).toLocaleDateString('id-ID')}</span></div>
+          {order.payment_method && (
+            <div className="kv"><span className="label">Metode Pembayaran</span><span className="value">{order.payment_method}</span></div>
+          )}
+          <div className="kv"><span className="label">Area Pengiriman</span><span className="value">{order.shipping_area === 'dalam_kota' ? 'DALAM KOTA' : 'LUAR KOTA'}</span></div>
+          {order.pickup_outlet && (
+            <div className="kv"><span className="label">Lokasi Pengambilan</span><span className="value">{order.pickup_outlet}</span></div>
+          )}
+          {order.picked_up_by && (
+            <div className="kv"><span className="label">Nama Pengambil</span><span className="value">{order.picked_up_by}</span></div>
+          )}
+          <div className="kv"><span className="label">Metode Pengambilan</span><span className="value">{order.pickup_method === 'self-pickup' ? 'Di Ambil Sendiri' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-')}</span></div>
+          {order.courier_service && (
+            <div className="kv"><span className="label">Layanan Kurir</span><span className="value">{order.courier_service}</span></div>
+          )}
+          {order.tipe_pesanan && (
+            <div className="kv"><span className="label">Tipe Pesanan</span><span className="value">{order.tipe_pesanan}</span></div>
+          )}
+          {order.updated_at && (
+            <div className="kv"><span className="label">Terakhir Diupdate</span><span className="value">{new Date(order.updated_at).toLocaleDateString('id-ID')}</span></div>
+          )}
         </div>
         <div className="separator">==============================</div>
         <div className="section">
