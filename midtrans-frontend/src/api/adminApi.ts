@@ -26,6 +26,7 @@ export interface Order {
   shipping_area?: 'dalam-kota' | 'luar-kota';
   pickup_method?: 'deliveryman' | 'ojek-online' | 'self-pickup';
   lokasi_pengiriman?: string;
+  lokasi_pengambilan?: string;
   pickup_location?: string;
   tipe_pesanan?: string;
   courier_service?: string;

@@ -180,7 +180,6 @@ export async function createOrder(request, env) {
       totalAmount,
       snap_token: safeMidtransToken,
       payment_link: safeMidtransRedirectUrl,
-      outlet_id: safeOutletId,
       lokasi_pengiriman: orderData.lokasi_pengiriman || null
     });
 
@@ -897,7 +896,9 @@ export async function updateOrderStatus(request, env) {
   try {
     const url = new URL(request.url);
     const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id/status
-    const { status, pickupOutlet, pickedUpBy, pickupDate, pickupTime, outlet_id, assigned_deliveryman_id } = await request.json();
+    // Accept lokasi_pengambilan as the new outlet assignment field.
+    // For backward compatibility, if outlet_id is provided, resolve it to outlet name and update lokasi_pengambilan.
+    const { status, pickupOutlet, pickedUpBy, pickupDate, pickupTime, outlet_id, lokasi_pengambilan, assigned_deliveryman_id } = await request.json();
 
     if (!orderId || !status) {
       return new Response(JSON.stringify({ success: false, error: 'Order ID and status are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -926,10 +927,11 @@ export async function updateOrderStatus(request, env) {
 
     // Get current order status and related information before updating
     const currentOrder = await env.DB.prepare(`
-      SELECT o.shipping_status, o.outlet_id, o.assigned_deliveryman_id, 
-             ou.name as outlet_name
+      SELECT 
+        o.shipping_status,
+        o.lokasi_pengambilan AS outlet_name,
+        o.assigned_deliveryman_id
       FROM orders o
-      LEFT JOIN outlets_unified ou ON o.outlet_id = ou.id
       WHERE o.id = ?
     `).bind(orderId).first();
 
@@ -954,11 +956,25 @@ export async function updateOrderStatus(request, env) {
     let updateQuery = 'UPDATE orders SET shipping_status = ?, updated_at = CURRENT_TIMESTAMP';
     let updateParams = [status];
     
-    // Add outlet assignment if provided
-    if (outlet_id !== undefined) {
-      updateQuery += ', outlet_id = ?';
-      updateParams.push(outlet_id);
-      console.log(`[DEBUG] Assigning order ${orderId} to outlet: ${outlet_id}`);
+    // Add outlet assignment (by name) if provided
+    if (lokasi_pengambilan !== undefined && lokasi_pengambilan !== null) {
+      updateQuery += ', lokasi_pengambilan = ?';
+      updateParams.push(lokasi_pengambilan);
+      console.log(`[DEBUG] Assigning order ${orderId} to outlet (by name): ${lokasi_pengambilan}`);
+    } else if (outlet_id !== undefined && outlet_id !== null) {
+      try {
+        const outletRow = await env.DB.prepare('SELECT name FROM outlets_unified WHERE id = ?').bind(outlet_id).first();
+        const outletNameFromId = outletRow?.name || null;
+        if (outletNameFromId) {
+          updateQuery += ', lokasi_pengambilan = ?';
+          updateParams.push(outletNameFromId);
+          console.log(`[DEBUG] Assigning order ${orderId} to outlet (resolved from id): ${outlet_id} -> ${outletNameFromId}`);
+        } else {
+          console.log(`[DEBUG] Could not resolve outlet name for id: ${outlet_id}`);
+        }
+      } catch (resolveErr) {
+        console.error('Failed to resolve outlet name from id:', resolveErr);
+      }
     }
     
     // Add delivery person assignment if provided
@@ -1069,9 +1085,18 @@ export async function updateOrderStatus(request, env) {
     // Create notifications
     try {
       // Extract outlet and deliveryman info if available
-      const outletId = currentOrder.outlet_id;
+      const outletName = currentOrder.outlet_name || null;
       const deliverymanId = currentOrder.assigned_deliveryman_id;
-      const outletName = currentOrder.outlet_name || 'the outlet';
+      // Resolve outletId for notifications (if needed) from name
+      let outletId = null;
+      if (outletName) {
+        try {
+          const resolved = await env.DB.prepare('SELECT id FROM outlets_unified WHERE name = ?').bind(outletName).first();
+          outletId = resolved?.id || null;
+        } catch (e) {
+          console.log('Notification: failed to resolve outlet id from name', e);
+        }
+      }
       
       // Determine notification title and message based on status
       let title = `Order Status Updated`;
@@ -1199,7 +1224,7 @@ export async function updateOrderDetails(request, env) {
 
     // Fetch current order info for audit/notification and to compare status changes
     const currentOrderInfo = await env.DB.prepare(`
-      SELECT shipping_status, outlet_id, assigned_deliveryman_id
+      SELECT shipping_status, lokasi_pengambilan AS outlet_name, assigned_deliveryman_id
       FROM orders
       WHERE id = ?
     `).bind(orderId).first();
@@ -1258,11 +1283,8 @@ export async function updateOrderDetails(request, env) {
         
         // Get outlet name from current order or default
         const outletInfo = await env.DB.prepare(`
-          SELECT ou.name as outlet_name FROM orders o
-          LEFT JOIN outlets_unified ou ON o.outlet_id = ou.id
-          WHERE o.id = ?
+          SELECT lokasi_pengambilan AS outlet_name FROM orders WHERE id = ?
         `).bind(orderId).first();
-        
         const outletName = outletInfo?.outlet_name || 'Outlet Tidak Diketahui';
         
         // Get user name from request if available, fallback to role or default
@@ -1386,7 +1408,14 @@ export async function updateOrderDetails(request, env) {
 
         // Create notifications similar to updateOrderStatus
         try {
-          const outletId = currentOrderInfo?.outlet_id || null;
+          // Resolve outletId from outlet name (lokasi_pengambilan)
+          let outletId = null;
+          try {
+            const resolved = await env.DB.prepare('SELECT id FROM outlets_unified WHERE name = ?').bind(currentOrderInfo?.outlet_name || null).first();
+            outletId = resolved?.id || null;
+          } catch (e) {
+            console.log('[updateOrderDetails] Failed to resolve outlet id from name:', e);
+          }
           const deliverymanId = currentOrderInfo?.assigned_deliveryman_id || null;
 
           // Determine notification title and message based on status
@@ -1499,14 +1528,13 @@ export async function getOutletOrders(request, env) {
       outlet_id: request.user.outlet_id
     } : 'No user in request');
 
-    // Build query based on actual production database schema (simplified)
+    // Build query based on current schema (no outlet_id dependency)
     let orderQuery = `
       SELECT o.*,
-             ou.name AS outlet_name,
+             o.lokasi_pengambilan AS outlet_name,
              o.lokasi_pengiriman AS lokasi_pengiriman_nama,
              o.lokasi_pengambilan AS lokasi_pengambilan_nama
       FROM orders o
-      LEFT JOIN outlets_unified ou ON o.outlet_id = ou.id
       WHERE 1=1
     `;
     
@@ -1528,16 +1556,15 @@ export async function getOutletOrders(request, env) {
         
         try {
           // Get outlet info to check location match - use defensive coding
-          const outletId = request.user.outlet_id || '';
-          const outletInfo = outletId ? 
-            await env.DB.prepare(`SELECT name, location_alias FROM outlets_unified WHERE id = ?`).bind(outletId).first() : 
+          const outletIdFromUser = request.user.outlet_id || '';
+          const outletInfo = outletIdFromUser ? 
+            await env.DB.prepare(`SELECT name, location_alias FROM outlets_unified WHERE id = ?`).bind(outletIdFromUser).first() : 
             null;
-            
           // Default values if no outlet info found
           const outletLocation = outletInfo?.location_alias || '';
           const outletName = outletInfo?.name || '';
           
-          console.log(`📍 Outlet ${outletName} (ID: ${outletId}) with location: ${outletLocation}`);
+          console.log(`📍 Outlet ${outletName} (ID: ${outletIdFromUser}) with location: ${outletLocation}`);
           
           // Generate safe pattern strings (escape special characters)
           const outletLocationPattern = (outletLocation || '').replace(/[%_]/g, '\\$&');
@@ -1545,7 +1572,7 @@ export async function getOutletOrders(request, env) {
           
           // Debug: Check for the specific order that's missing
           console.log('🔍 Checking for ORDER-1752037059362-FLO3E...');
-          const debugOrderQuery = `SELECT id, outlet_id, lokasi_pengiriman, shipping_area FROM orders WHERE id = 'ORDER-1752037059362-FLO3E'`;
+          const debugOrderQuery = `SELECT id, lokasi_pengambilan, lokasi_pengiriman, shipping_area FROM orders WHERE id = 'ORDER-1752037059362-FLO3E'`;
           try {
             const debugOrder = await env.DB.prepare(debugOrderQuery).first();
             console.log('Debug order data:', debugOrder);
@@ -1553,7 +1580,7 @@ export async function getOutletOrders(request, env) {
             if (debugOrder) {
               // Check if this order would match our outlet conditions
               const wouldMatch = 
-                (outletId && debugOrder.outlet_id === outletId) ||
+                (outletName && debugOrder.lokasi_pengambilan && debugOrder.lokasi_pengambilan.toLowerCase() === outletName.toLowerCase()) ||
                 (outletNamePattern && (
                   (debugOrder.lokasi_pengiriman && debugOrder.lokasi_pengiriman.toLowerCase().includes(outletNamePattern.toLowerCase())) ||
                   (debugOrder.shipping_area && debugOrder.shipping_area.toLowerCase().includes(outletNamePattern.toLowerCase()))
@@ -1569,20 +1596,18 @@ export async function getOutletOrders(request, env) {
             console.error('Error in debug query:', debugErr);
           }
           
-          // Build query with PRIORITIZED conditions for outlet matching
+          // Build query with conditions for outlet matching by name/location
           let outletCondition = '';
           
-          // ⭐ PRIORITY 1: Direct outlet_id matching (most reliable)
-          if (outletId) {
-            outletCondition += `o.outlet_id = '${outletId}'`;
-            console.log(`🎯 Primary match: outlet_id = ${outletId}`);
+          // Primary: exact match on lokasi_pengambilan (canonical outlet scoping)
+          if (outletName) {
+            outletCondition += `LOWER(o.lokasi_pengambilan) = LOWER('${outletName}')`;
           }
           
-          // ⭐ PRIORITY 2: Location-based matching (fallback for legacy orders)
-          // Only use string matching for orders that don't have outlet_id set
+          // Fallback: location/name string matching
           if (outletName) {
             if (outletCondition) outletCondition += ' OR ';
-            outletCondition += `(o.outlet_id IS NULL AND (LOWER(o.lokasi_pengiriman) LIKE LOWER('%${outletName}%')`;
+            outletCondition += `(LOWER(o.lokasi_pengiriman) LIKE LOWER('%${outletName}%')`;
             
             // Add special matching patterns for common outlet names
             if (outletName.toLowerCase().includes('bonbin')) {
@@ -1610,20 +1635,18 @@ export async function getOutletOrders(request, env) {
           // If we couldn't build any conditions, use a fallback to show SOME orders
           if (!outletCondition) {
             // Fallback to show orders with no specific outlet or location assigned
-            outletCondition = "(o.outlet_id IS NULL OR o.outlet_id = '')";
+            outletCondition = "(o.lokasi_pengambilan IS NULL OR o.lokasi_pengambilan = '')";
           }
           orderQuery += ` AND (${outletCondition})`;
           countQuery += ` AND (${outletCondition})`;
           
-          console.log(`🔍 Expanded outlet order query to match outlet: ${outletName || outletId}`);
+          console.log(`🔍 Expanded outlet order query to match outlet: ${outletName}`);
         } catch (outletError) {
           console.error(`Error getting outlet info: ${outletError.message}`, outletError);
           
-          // Fallback to just outlet_id if there was an error
-          if (request.user.outlet_id) {
-            orderQuery += ` AND o.outlet_id = '${request.user.outlet_id}'`;
-            countQuery += ` AND o.outlet_id = '${request.user.outlet_id}'`;
-          }
+          // Fallback: no outlet filter applied to avoid exposing wrong data
+          orderQuery += ` AND 1=0`;
+          countQuery += ` AND 1=0`;
         }
       } else if (request.user.role === 'deliveryman') {
         // Deliverymen can only see orders assigned to them
@@ -1772,7 +1795,7 @@ export async function markOrderAsReceived(request, env) {
 
     // Verify customer info matches order and get outlet/delivery info
     const order = await env.DB.prepare(`
-      SELECT id, customer_name, customer_phone, shipping_status, outlet_id, assigned_deliveryman_id
+      SELECT id, customer_name, customer_phone, shipping_status, lokasi_pengambilan, assigned_deliveryman_id
       FROM orders
       WHERE id = ?
     `).bind(orderId).first();
@@ -1848,7 +1871,16 @@ export async function markOrderAsReceived(request, env) {
 
     // Create notifications for outlet and assigned deliveryman
     try {
-      const outletId = order.outlet_id;
+      // Resolve outlet id from outlet name (lokasi_pengambilan)
+      let outletId = null;
+      if (order.lokasi_pengambilan) {
+        try {
+          const resolved = await env.DB.prepare('SELECT id FROM outlets_unified WHERE name = ?').bind(order.lokasi_pengambilan).first();
+          outletId = resolved?.id || null;
+        } catch (e) {
+          console.log('[markOrderAsReceived] Failed to resolve outlet id from lokasi_pengambilan', e);
+        }
+      }
       const deliverymanId = order.assigned_deliveryman_id;
       const title = 'Order Delivered';
       const message = `Order #${orderId} has been marked as received by the customer (${customer_name}).`;

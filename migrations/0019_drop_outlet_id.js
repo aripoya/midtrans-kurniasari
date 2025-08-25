@@ -65,12 +65,21 @@ export default {
 
       for (const row of idxRows.results || []) {
         const sql = row.sql || '';
-        if (sql.toLowerCase().includes('outlet_id')) {
+        const loweredSql = sql.toLowerCase();
+        if (loweredSql.includes('outlet_id')) {
           console.log(`Skipping index ${row.name} referencing outlet_id`);
           continue;
         }
-        console.log(`Recreating index: ${row.name}`);
-        await env.DB.prepare(sql).run();
+        if (loweredSql.includes('users_old')) {
+          console.log(`Skipping index ${row.name} referencing users_old`);
+          continue;
+        }
+        try {
+          console.log(`Recreating index: ${row.name}`);
+          await env.DB.prepare(sql).run();
+        } catch (e) {
+          console.warn(`Failed to recreate index ${row.name}, continuing. Error:`, e?.message || e);
+        }
       }
 
       console.log('✅ Migration completed: outlet_id removed');

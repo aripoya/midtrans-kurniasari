@@ -99,6 +99,10 @@ const AdminOrderDetailPage: React.FC = () => {
           setOrder(response.data);
           // Initialize and normalize form data
           const initial = { ...response.data } as Partial<Order>;
+          // Ensure UI field is populated from backend canonical field
+          if ((initial as any).lokasi_pengambilan && !(initial as any).pickup_outlet) {
+            (initial as any).pickup_outlet = (initial as any).lokasi_pengambilan as any;
+          }
           if ((initial.tipe_pesanan as any) === 'Pesan Ambil') {
             initial.pickup_method = 'ojek-online' as any;
           }
@@ -230,6 +234,12 @@ const AdminOrderDetailPage: React.FC = () => {
         if ((payload.pickup_method as any) === 'self-pickup') {
           (payload as any).courier_service = null;
         }
+        // Map UI field pickup_outlet -> lokasi_pengambilan for backend
+        if ((payload as any).pickup_outlet && !(payload as any).lokasi_pengambilan) {
+          (payload as any).lokasi_pengambilan = (payload as any).pickup_outlet;
+        }
+        // Stop sending deprecated pickup_outlet field
+        delete (payload as any).pickup_outlet;
       }
       const response = await adminApi.updateOrderDetails(id, payload);
       if (!response.success) throw new Error(response.error || 'Gagal menyimpan perubahan');
