@@ -61,16 +61,34 @@ export async function updateOutletOrderStatus(request, env) {
     // Verify order exists and user has permission to update it
     let whereClause = 'WHERE id = ?';
     let bindParams = [orderId];
-    
-    // For outlet managers, restrict to their outlet only
+
+    // For outlet managers, restrict using lokasi_pengambilan = their outlet name
+    let outletNameForUser = null;
     if (request.user && request.user.role === 'outlet_manager') {
-      whereClause += ' AND outlet_id = ?';
-      bindParams.push(request.user.outlet_id);
+      // Resolve outlet name from user's outlet_id
+      if (request.user.outlet_id) {
+        const outletRow = await env.DB.prepare(
+          `SELECT name FROM outlets_unified WHERE id = ?`
+        ).bind(request.user.outlet_id).first();
+        outletNameForUser = outletRow?.name || null;
+      }
+      if (outletNameForUser) {
+        whereClause += ' AND lokasi_pengambilan = ?';
+        bindParams.push(outletNameForUser);
+      } else {
+        // If we cannot resolve outlet name, deny access cleanly
+        return new Response(JSON.stringify({
+          success: false,
+          message: 'Access denied: outlet context missing'
+        }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
     }
-    
+
     const existingOrder = await env.DB.prepare(
-      `SELECT o.id, o.shipping_status, o.outlet_id, ou.name as outlet_name FROM orders o
-       LEFT JOIN outlets_unified ou ON o.outlet_id = ou.id ${whereClause}`
+      `SELECT o.id, o.shipping_status FROM orders o ${whereClause}`
     ).bind(...bindParams).first();
     
     if (!existingOrder) {
@@ -104,8 +122,8 @@ export async function updateOutletOrderStatus(request, env) {
         timeZone: 'Asia/Jakarta'
       }); // HH:MM format in Jakarta timezone
       
-      // Get the outlet name from existing order
-      const outletName = existingOrder.outlet_name || 'Outlet Tidak Diketahui';
+      // Use resolved outlet name for pickup_outlet if available
+      const outletName = outletNameForUser || 'Outlet Tidak Diketahui';
       
       // Get user name from request if available, fallback to role or default
       let pickedUpBy = 'System';

@@ -208,8 +208,8 @@ export async function createOrder(request, env) {
     }
 
     await env.DB.prepare(`
-      INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_response, shipping_status, customer_address, outlet_id, lokasi_pengiriman, lokasi_pengambilan, shipping_area, pickup_method, courier_service, shipping_notes, created_by_admin_id, created_by_admin_name, tipe_pesanan)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_response, shipping_status, customer_address, lokasi_pengiriman, lokasi_pengambilan, shipping_area, pickup_method, courier_service, shipping_notes, created_by_admin_id, created_by_admin_name, tipe_pesanan)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
         orderId,
         customer_name,
@@ -221,7 +221,6 @@ export async function createOrder(request, env) {
         safeMidtransResponse,
         'pending', // Initial shipping status
         customer_address || null,
-        safeOutletId,
         orderData.lokasi_pengiriman || null,
         orderData.lokasi_pengambilan || null,
         orderData.shipping_area || null,
@@ -667,10 +666,17 @@ export async function getDeliveryOrders(request, env) {
       });
     }
 
-    // Get deliveryman's outlet assignment
+    // Get deliveryman's outlet assignment and resolve outlet name
     const deliveryUser = await env.DB.prepare(`
       SELECT outlet_id FROM users WHERE id = ? AND role = 'deliveryman'
     `).bind(deliverymanId).first();
+    let outletNameForUser = null;
+    if (deliveryUser?.outlet_id) {
+      const outletRow = await env.DB.prepare(`
+        SELECT name FROM outlets_unified WHERE id = ?
+      `).bind(deliveryUser.outlet_id).first();
+      outletNameForUser = outletRow?.name || null;
+    }
 
     // Build comprehensive query for deliveryman orders
     let deliveryQuery = `
@@ -682,17 +688,17 @@ export async function getDeliveryOrders(request, env) {
     
     let queryParams = [deliverymanId];
     
-    // Include outlet orders that are ready for delivery if user has outlet assignment
-    if (deliveryUser?.outlet_id) {
+    // Include outlet orders by lokasi_pengambilan that are ready for delivery if user has outlet assignment
+    if (outletNameForUser) {
       deliveryQuery += ` 
-         OR (outlet_id = ? AND shipping_status IN ('siap kirim', 'siap ambil', 'shipping'))
+         OR (lokasi_pengambilan = ? AND shipping_status IN ('siap kirim', 'siap ambil', 'shipping'))
       `;
-      queryParams.push(deliveryUser.outlet_id);
+      queryParams.push(outletNameForUser);
     }
     
     deliveryQuery += ` ORDER BY created_at DESC`;
     
-    console.log(`🚚 Delivery query for user ${deliverymanId} (outlet: ${deliveryUser?.outlet_id || 'none'}):`, deliveryQuery);
+    console.log(`🚚 Delivery query for user ${deliverymanId} (outlet_name: ${outletNameForUser || 'none'}):`, deliveryQuery);
     
     const ordersResult = await env.DB.prepare(deliveryQuery).bind(...queryParams).all();
 
@@ -719,7 +725,6 @@ export async function getDeliveryOrders(request, env) {
           shipping_images,
           // Ensure consistent defaults and derived fields
           shipping_status: order.shipping_status || 'menunggu diproses',
-          order_status: order.order_status || 'pending',
           // Include derived payment status for consistency
           payment_status: derivePaymentStatusFromData(order)
         });
@@ -730,7 +735,6 @@ export async function getDeliveryOrders(request, env) {
           ...order,
           shipping_images: [],
           shipping_status: order.shipping_status || 'menunggu diproses',
-          order_status: order.order_status || 'pending',
           payment_status: derivePaymentStatusFromData(order)
         });
       }

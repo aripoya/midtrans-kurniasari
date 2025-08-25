@@ -66,21 +66,13 @@ export async function getOutletOrdersRelational(request, env) {
     // ROLE-BASED RELATIONAL FILTERING
     // ================================================
     
-    // Filter by status if provided
-    if (status) {
-      const statusCondition = ` AND o.order_status = ?`;
-      orderQuery += statusCondition;
-      countQuery += statusCondition;
-    }
+    // NOTE: order_status is being removed. Ignore status filter for now to avoid relying on the column.
     
     // Apply role-specific filters using PROPER JOINS
     let queryParams = [];
     let countParams = [];
     
-    if (status) {
-      queryParams.push(status);
-      countParams.push(status);
-    }
+    // No push for removed order_status
     
     if (request.user) {
       if (request.user.role === 'outlet_manager') {
@@ -267,8 +259,7 @@ export async function getOutletOrdersRelational(request, env) {
         outlet_name: order.outlet_name,  // Keep for backward compatibility
         // Ensure status fields have defaults
         shipping_status: order.shipping_status || 'menunggu-diproses',
-        payment_status: derivePaymentStatusFromData(order),
-        order_status: order.order_status || 'pending'
+        payment_status: derivePaymentStatusFromData(order)
       };
     }) || [];
     
