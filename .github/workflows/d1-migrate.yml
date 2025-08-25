@@ -1,0 +1,31 @@
+name: Run D1 Migrations (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      databaseName:
+        description: 'D1 Database name (e.g., order-management-prod)'
+        required: true
+        default: 'order-management-prod'
+      sqlFile:
+        description: 'Path to SQL file under migrations/ (e.g., migrations/0015_new_change.sql)'
+        required: true
+        default: 'migrations/0015_new_change.sql'
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Wrangler
+        run: npm i -g wrangler@3
+
+      - name: Apply migrations to production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "Applying ${{ github.event.inputs.sqlFile }} to DB ${{ github.event.inputs.databaseName }}"
+          wrangler d1 execute "${{ github.event.inputs.databaseName }}" --file "${{ github.event.inputs.sqlFile }}" --remote --env production

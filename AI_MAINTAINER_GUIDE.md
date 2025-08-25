@@ -138,6 +138,54 @@ Playbook umum:
 
 ---
 
+### 9.1) CI/CD (Cloudflare Pages + Workers)
+
+Tujuan: Semua deploy berjalan otomatis dari GitHub. Tidak perlu deploy dari lokal.
+
+- **Frontend (Pages):**
+  - Source: `midtrans-frontend/`
+  - Build command: `npm ci && npm run build`
+  - Output dir: `dist`
+  - Project name (contoh): `kurniasari-frontend`
+  - Preview deploy untuk PR; Production deploy saat merge ke `main`.
+  - Workflow: `.github/workflows/cloudflare-pages.yml` (sudah ada di repo).
+
+- **Backend (Workers):**
+  - Source: root Worker sesuai `wrangler.toml`
+  - Environment: `production` (bindings: D1, R2, Images, dsb.)
+  - Deploy otomatis saat push ke `main` via workflow: `.github/workflows/worker.yml`
+  - Manual D1 migration via workflow: `.github/workflows/d1-migrate.yml` (workflow_dispatch)
+
+- **GitHub Secrets yang diperlukan:**
+  - `CLOUDFLARE_API_TOKEN` (scopes: Account:Read, Workers Scripts:Edit, Pages:Edit)
+  - `CLOUDFLARE_ACCOUNT_ID`
+
+- **Trigger & Alur:**
+  - Push ke `main` →
+    - Pages build & deploy frontend (Production)
+    - Workers deploy backend (Production) dengan `wrangler deploy --env production`
+  - Pull Request →
+    - Pages build & deploy Preview (URL unik per PR)
+    - (Opsional) Tambahkan workflow deploy staging Worker jika diperlukan
+
+- **Manual D1 Migration:**
+  - Buka GitHub Actions → jalankan "Run D1 Migrations (Manual)"
+  - Input `databaseName` (misal: `order-management-prod`) dan `sqlFile` (misal: `migrations/0015_new_change.sql`)
+  - Workflow menjalankan: `wrangler d1 execute <DB> --file <SQL> --remote --env production`
+
+- **Konfigurasi ENV:**
+  - Frontend (Pages): set variabel (misal `VITE_API_BASE_URL`) di Project Settings untuk Production & Preview
+  - Backend (Workers): gunakan `wrangler secret`/Dashboard untuk JWT, Midtrans, Cloudflare Images, dsb. Jangan commit secrets ke repo
+
+- **Best Practices:**
+  - Hanya `main` yang memicu production deploy
+  - Gunakan PR + Preview untuk review UI
+  - Migrasi D1 dijalankan manual/terkontrol (workflow terpisah), kecuali benar‑benar idempoten
+  - Siapkan endpoint `GET /health` sederhana untuk health check
+  - Pantau log di Cloudflare (Pages/Workers) setelah deploy
+
+---
+
 ## 10) Kinerja & Kuota
 - Polling default: 60 detik di semua dashboard (hemat kuota Workers).
 - Index DB: telah dibuat pada kolom lookup utama (`outlet_id`, dll.).
