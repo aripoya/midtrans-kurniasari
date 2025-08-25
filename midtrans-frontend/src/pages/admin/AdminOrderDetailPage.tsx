@@ -197,10 +197,16 @@ const AdminOrderDetailPage: React.FC = () => {
           next.pickup_location = null as any;
           next.lokasi_pengambilan = null as any;
           next.picked_up_by = null as any;
+          // Clear pickup scheduling when switching to delivery order
+          next.pickup_date = null as any;
+          next.pickup_time = null as any;
         } else if (value === 'Pesan Ambil') {
           next.lokasi_pengiriman = null as any;
           // Default metode pengambilan ke ojek-online untuk Pesan Ambil
           next.pickup_method = 'ojek-online' as any;
+          // Clear delivery scheduling when switching to pickup order
+          next.delivery_date = null as any;
+          next.delivery_time = null as any;
         }
         return next;
       }
@@ -224,6 +230,9 @@ const AdminOrderDetailPage: React.FC = () => {
         (payload as any).pickup_location = null;
         (payload as any).lokasi_pengambilan = null;
         (payload as any).picked_up_by = null;
+        // Ensure pickup scheduling cleared for delivery orders
+        (payload as any).pickup_date = null;
+        (payload as any).pickup_time = null;
       } else if ((payload.tipe_pesanan as any) === 'Pesan Ambil') {
         (payload as any).lokasi_pengiriman = null;
         // Ensure pickup_method normalized to ojek-online for pickup orders
@@ -231,6 +240,9 @@ const AdminOrderDetailPage: React.FC = () => {
         if ((payload.pickup_method as any) === 'self-pickup') {
           (payload as any).courier_service = null;
         }
+        // Ensure delivery scheduling cleared for pickup orders
+        (payload as any).delivery_date = null;
+        (payload as any).delivery_time = null;
       }
       const response = await adminApi.updateOrderDetails(id, payload);
       if (!response.success) throw new Error(response.error || 'Gagal menyimpan perubahan');
@@ -429,6 +441,24 @@ const AdminOrderDetailPage: React.FC = () => {
                         <Tr>
                           <Td fontWeight="semibold">Nama Pengambil Pesanan</Td>
                           <Td>{order.picked_up_by}</Td>
+                        </Tr>
+                      )}
+                      {order.tipe_pesanan === 'Pesan Ambil' && (order.pickup_date || order.pickup_time) && (
+                        <Tr>
+                          <Td fontWeight="semibold">Jadwal Pengambilan</Td>
+                          <Td>
+                            {(order.pickup_date ? new Date(order.pickup_date).toLocaleDateString('id-ID') : '-')}
+                            {order.pickup_time ? `, ${order.pickup_time}` : ''}
+                          </Td>
+                        </Tr>
+                      )}
+                      {order.tipe_pesanan === 'Pesan Antar' && (order.delivery_date || order.delivery_time) && (
+                        <Tr>
+                          <Td fontWeight="semibold">Jadwal Pengantaran</Td>
+                          <Td>
+                            {(order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('id-ID') : '-')}
+                            {order.delivery_time ? `, ${order.delivery_time}` : ''}
+                          </Td>
                         </Tr>
                       )}
                       <Tr>
@@ -649,6 +679,28 @@ const AdminOrderDetailPage: React.FC = () => {
                     </Select>
                   </GridItem>
                 )}
+                {formData.tipe_pesanan === 'Pesan Antar' && (
+                  <>
+                    <GridItem>
+                      <Text fontWeight="semibold">Tanggal Pengantaran</Text>
+                      <Input
+                        type="date"
+                        name="delivery_date"
+                        value={(formData.delivery_date as string) || ''}
+                        onChange={handleFormChange}
+                      />
+                    </GridItem>
+                    <GridItem>
+                      <Text fontWeight="semibold">Waktu Pengantaran</Text>
+                      <Input
+                        type="time"
+                        name="delivery_time"
+                        value={(formData.delivery_time as string) || ''}
+                        onChange={handleFormChange}
+                      />
+                    </GridItem>
+                  </>
+                )}
                 {formData.tipe_pesanan === 'Pesan Ambil' && (
                   <GridItem>
                     <Text fontWeight="semibold">Lokasi Pengambilan</Text>
@@ -676,6 +728,28 @@ const AdminOrderDetailPage: React.FC = () => {
                       placeholder="Masukkan nama orang yang mengambil pesanan"
                     />
                   </GridItem>
+                )}
+                {formData.tipe_pesanan === 'Pesan Ambil' && (
+                  <>
+                    <GridItem>
+                      <Text fontWeight="semibold">Tanggal Pengambilan</Text>
+                      <Input
+                        type="date"
+                        name="pickup_date"
+                        value={(formData.pickup_date as string) || ''}
+                        onChange={handleFormChange}
+                      />
+                    </GridItem>
+                    <GridItem>
+                      <Text fontWeight="semibold">Waktu Pengambilan</Text>
+                      <Input
+                        type="time"
+                        name="pickup_time"
+                        value={(formData.pickup_time as string) || ''}
+                        onChange={handleFormChange}
+                      />
+                    </GridItem>
+                  </>
                 )}
               </Grid>
               <Box>

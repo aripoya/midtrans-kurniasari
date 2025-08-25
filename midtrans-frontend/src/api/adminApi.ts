@@ -40,6 +40,9 @@ export interface Order {
   picked_up_by?: string | null;
   pickup_date?: string | null;
   pickup_time?: string | null;
+  // Delivery scheduling fields
+  delivery_date?: string | null;
+  delivery_time?: string | null;
 }
 
 export interface ShippingImage {
@@ -187,12 +190,15 @@ export interface UpdateOrderDetailsRequest {
   courier_service?: string;
   tracking_number?: string;
   lokasi_pengambilan?: string;
-  lokasi_pengantaran?: string; // Customer address for delivery destination
+  lokasi_pengiriman?: string; // Customer address for delivery destination
   tipe_pesanan?: string;
   // Pickup details for Pesan Ambil
   picked_up_by?: string | null;
   pickup_date?: string | null;
   pickup_time?: string | null;
+  // Delivery scheduling for Pesan Antar
+  delivery_date?: string | null;
+  delivery_time?: string | null;
 }
 
 export interface UpdateShippingStatusRequest {

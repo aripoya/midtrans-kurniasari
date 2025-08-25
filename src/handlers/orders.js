@@ -395,7 +395,10 @@ export async function getOrderById(request, env) {
       // Only include active pickup metadata; omit deprecated pickup_outlet
       picked_up_by: order.picked_up_by || null,
       pickup_date: order.pickup_date || null,
-      pickup_time: order.pickup_time || null
+      pickup_time: order.pickup_time || null,
+      // Delivery scheduling fields
+      delivery_date: order.delivery_date || null,
+      delivery_time: order.delivery_time || null
       // shipping_area sudah termasuk dalam ...order
     };
 
@@ -1222,7 +1225,10 @@ export async function updateOrderDetails(request, env) {
       pickup_outlet,
       picked_up_by,
       pickup_date,
-      pickup_time
+      pickup_time,
+      // Delivery scheduling fields
+      delivery_date,
+      delivery_time
     } = data;
 
     const orderCheck = await env.DB.prepare(`SELECT id FROM orders WHERE id = ?`).bind(orderId).first();
@@ -1280,6 +1286,9 @@ export async function updateOrderDetails(request, env) {
         updateFields.push('tracking_number = NULL');
         updateFields.push('lokasi_pengiriman = NULL');
         updateFields.push('lokasi_pengambilan = NULL');
+        // Also clear delivery scheduling fields for pickup transitions
+        updateFields.push('delivery_date = NULL');
+        updateFields.push('delivery_time = NULL');
         
         // Set pickup fields with current outlet and user info
         const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -1329,6 +1338,9 @@ export async function updateOrderDetails(request, env) {
       }
       if (tracking_number !== undefined) { updateFields.push('tracking_number = ?'); updateParams.push(tracking_number); }
       if (courier_service !== undefined) { updateFields.push('courier_service = ?'); updateParams.push(courier_service); }
+      // Delivery scheduling fields
+      if (delivery_date !== undefined) { updateFields.push('delivery_date = ?'); updateParams.push(delivery_date); }
+      if (delivery_time !== undefined) { updateFields.push('delivery_time = ?'); updateParams.push(delivery_time); }
     }
     
     // Non-delivery fields that can always be updated
