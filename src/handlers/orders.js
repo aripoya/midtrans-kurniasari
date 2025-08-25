@@ -290,8 +290,10 @@ export async function getOrders(request, env) {
     
     const orders = await Promise.all(results.map(async (order) => {
         const { results: items } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(order.id).all();
-        return { 
-          ...order, 
+        // Omit deprecated pickup_outlet from response payload
+        const { pickup_outlet, ...orderWithoutPickupOutlet } = order;
+        return {
+          ...orderWithoutPickupOutlet,
           items,
           // Ensure consistent payment status across endpoints
           payment_status: derivePaymentStatusFromData(order)
@@ -390,8 +392,7 @@ export async function getOrderById(request, env) {
       lokasi_pengambilan: lokasiPengambilanNama,
       items,
       shipping_images,
-      // Explicitly include pickup details from database
-      pickup_outlet: order.pickup_outlet || null,
+      // Only include active pickup metadata; omit deprecated pickup_outlet
       picked_up_by: order.picked_up_by || null,
       pickup_date: order.pickup_date || null,
       pickup_time: order.pickup_time || null
@@ -718,9 +719,12 @@ export async function getDeliveryOrders(request, env) {
         
         const shipping_images = shippingImagesResult.results || [];
 
+        // Omit deprecated pickup_outlet from response
+        const { pickup_outlet, ...orderClean } = order;
+
         // Add processed order with shipping images
         processedOrders.push({
-          ...order,
+          ...orderClean,
           shipping_images,
           // Ensure consistent defaults and derived fields
           shipping_status: order.shipping_status || 'menunggu diproses',
@@ -730,8 +734,9 @@ export async function getDeliveryOrders(request, env) {
       } catch (imageError) {
         console.error(`Error fetching images for order ${order.id}:`, imageError);
         // Continue with order but without images
+        const { pickup_outlet, ...orderClean } = order;
         processedOrders.push({
-          ...order,
+          ...orderClean,
           shipping_images: [],
           shipping_status: order.shipping_status || 'menunggu diproses',
           payment_status: derivePaymentStatusFromData(order)
@@ -828,8 +833,11 @@ export async function getAdminOrders(request, env) {
           ...restOfOrder 
         } = order;
 
+        // Omit deprecated pickup_outlet from response
+        const { pickup_outlet, ...restNoPickup } = restOfOrder;
+
         return {
-          ...restOfOrder,
+          ...restNoPickup,
           lokasi_pengiriman: lokasi_pengiriman_nama, // Use the name from the JOIN
           lokasi_pengambilan: lokasi_pengambilan_nama, // Use the name from the JOIN
           items,

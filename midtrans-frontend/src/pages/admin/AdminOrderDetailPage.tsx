@@ -99,10 +99,7 @@ const AdminOrderDetailPage: React.FC = () => {
           setOrder(response.data);
           // Initialize and normalize form data
           const initial = { ...response.data } as Partial<Order>;
-          // Ensure UI field is populated from backend canonical field
-          if ((initial as any).lokasi_pengambilan && !(initial as any).pickup_outlet) {
-            (initial as any).pickup_outlet = (initial as any).lokasi_pengambilan as any;
-          }
+          // Ensure canonical field is used directly
           if ((initial.tipe_pesanan as any) === 'Pesan Ambil') {
             initial.pickup_method = 'ojek-online' as any;
           }
@@ -198,7 +195,7 @@ const AdminOrderDetailPage: React.FC = () => {
         const next = { ...prev, [name]: value } as Partial<Order>;
         if (value === 'Pesan Antar') {
           next.pickup_location = null as any;
-          next.pickup_outlet = null as any;
+          next.lokasi_pengambilan = null as any;
           next.picked_up_by = null as any;
         } else if (value === 'Pesan Ambil') {
           next.lokasi_pengiriman = null as any;
@@ -225,7 +222,7 @@ const AdminOrderDetailPage: React.FC = () => {
       const payload: Partial<Order> = { ...formData };
       if ((payload.tipe_pesanan as any) === 'Pesan Antar') {
         (payload as any).pickup_location = null;
-        (payload as any).pickup_outlet = null;
+        (payload as any).lokasi_pengambilan = null;
         (payload as any).picked_up_by = null;
       } else if ((payload.tipe_pesanan as any) === 'Pesan Ambil') {
         (payload as any).lokasi_pengiriman = null;
@@ -234,12 +231,6 @@ const AdminOrderDetailPage: React.FC = () => {
         if ((payload.pickup_method as any) === 'self-pickup') {
           (payload as any).courier_service = null;
         }
-        // Map UI field pickup_outlet -> lokasi_pengambilan for backend
-        if ((payload as any).pickup_outlet && !(payload as any).lokasi_pengambilan) {
-          (payload as any).lokasi_pengambilan = (payload as any).pickup_outlet;
-        }
-        // Stop sending deprecated pickup_outlet field
-        delete (payload as any).pickup_outlet;
       }
       const response = await adminApi.updateOrderDetails(id, payload);
       if (!response.success) throw new Error(response.error || 'Gagal menyimpan perubahan');
@@ -431,7 +422,7 @@ const AdminOrderDetailPage: React.FC = () => {
                       {order.tipe_pesanan !== 'Pesan Antar' && (
                         <Tr>
                           <Td fontWeight="semibold">Lokasi Pengambilan</Td>
-                          <Td>{order.pickup_outlet || order.pickup_location || '-'}</Td>
+                          <Td>{order.lokasi_pengambilan || order.pickup_location || '-'}</Td>
                         </Tr>
                       )}
                       {order.picked_up_by && (
@@ -662,8 +653,8 @@ const AdminOrderDetailPage: React.FC = () => {
                   <GridItem>
                     <Text fontWeight="semibold">Lokasi Pengambilan</Text>
                     <Select
-                      name="pickup_outlet"
-                      value={(formData.pickup_outlet as string) || ''}
+                      name="lokasi_pengambilan"
+                      value={(formData.lokasi_pengambilan as string) || ''}
                       onChange={handleFormChange}
                       placeholder="Pilih Lokasi Pengambilan"
                     >

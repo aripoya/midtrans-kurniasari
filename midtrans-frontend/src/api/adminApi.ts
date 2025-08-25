@@ -38,7 +38,6 @@ export interface Order {
   created_by_admin_name?: string;
   // Pickup detail fields
   picked_up_by?: string | null;
-  pickup_outlet?: string | null;
   pickup_date?: string | null;
   pickup_time?: string | null;
 }
@@ -192,7 +191,6 @@ export interface UpdateOrderDetailsRequest {
   tipe_pesanan?: string;
   // Pickup details for Pesan Ambil
   picked_up_by?: string | null;
-  pickup_outlet?: string | null;
   pickup_date?: string | null;
   pickup_time?: string | null;
 }

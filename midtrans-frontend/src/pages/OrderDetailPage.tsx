@@ -29,9 +29,10 @@ interface LocalOrder {
   id: string;
   customer_name: string;
   customer_phone: string;
-  customer_address: string;
-  shipping_area: 'dalam_kota' | 'luar_kota';
-  pickup_method: string;
+  customer_address?: string;
+  customer_email?: string;
+  shipping_area?: 'dalam_kota' | 'luar_kota' | 'dalam-kota' | 'luar-kota';
+  pickup_method?: 'deliveryman' | 'ojek-online' | 'self-pickup';
   courier_service?: string;
   tracking_number?: string;
   total_amount: number;
@@ -43,7 +44,7 @@ interface LocalOrder {
   payment_method?: string;
   admin_note?: string;
   tipe_pesanan?: string;
-  pickup_outlet?: string;
+  lokasi_pengambilan?: string;
   picked_up_by?: string;
   items: OrderItem[];
   shipping_images?: {
@@ -218,7 +219,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         payment_method: apiOrder?.payment_method || apiOrder?.paymentMethod || undefined,
         admin_note: apiOrder?.admin_note || apiOrder?.adminNote || undefined,
         tipe_pesanan: apiOrder?.tipe_pesanan || apiOrder?.order_type || undefined,
-        pickup_outlet: apiOrder?.pickup_outlet || apiOrder?.lokasi_pengambilan || apiOrder?.pickup_location || undefined,
+        lokasi_pengambilan: apiOrder?.lokasi_pengambilan || apiOrder?.pickup_location || undefined,
         picked_up_by: apiOrder?.picked_up_by || apiOrder?.nama_pengambil || undefined,
         items,
         shipping_images: apiOrder?.shipping_images || undefined,
@@ -753,8 +754,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
             <div className="kv"><span className="label">Metode Pembayaran</span><span className="value">{order.payment_method}</span></div>
           )}
           <div className="kv"><span className="label">Area Pengiriman</span><span className="value">{order.shipping_area === 'dalam_kota' ? 'DALAM KOTA' : 'LUAR KOTA'}</span></div>
-          {order.pickup_outlet && (
-            <div className="kv"><span className="label">Lokasi Pengambilan</span><span className="value">{order.pickup_outlet}</span></div>
+          {order.lokasi_pengambilan && (
+            <div className="kv"><span className="label">Lokasi Pengambilan</span><span className="value">{order.lokasi_pengambilan}</span></div>
           )}
           {order.picked_up_by && (
             <div className="kv"><span className="label">Nama Pengambil</span><span className="value">{order.picked_up_by}</span></div>
@@ -800,8 +801,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         {order.tipe_pesanan && (
           <div className="line"><span className="label">Tipe</span><span className="value">{order.tipe_pesanan}</span></div>
         )}
-        {order.pickup_outlet && (
-          <div className="line"><span className="label">Outlet</span><span className="value">{order.pickup_outlet}</span></div>
+        {order.lokasi_pengambilan && (
+          <div className="line"><span className="label">Outlet</span><span className="value">{order.lokasi_pengambilan}</span></div>
         )}
         {order.picked_up_by && (
           <div className="line"><span className="label">Pengambil</span><span className="value">{order.picked_up_by}</span></div>
@@ -856,10 +857,10 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                     <Text><strong>Alamat:</strong> {order.customer_address}</Text>
                     <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam_kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                     <Text><strong>Metode Pengambilan:</strong> {
-                      order.pickup_method === 'pickup_sendiri' ? 'Pickup Sendiri di Outlet' : 
-                      order.pickup_method === 'alamat_customer' ? 'Antar ke Alamat' :
+                      order.pickup_method === 'self-pickup' ? 'Pickup Sendiri di Outlet' : 
+                      order.pickup_method === 'ojek-online' ? 'Ojek Online' :
                       order.pickup_method === 'deliveryman' ? 'Kurir Outlet' :
-                      order.pickup_method
+                      (order.pickup_method || '-')
                     }</Text>
                     {order.courier_service && order.shipping_area === 'luar_kota' && (
                       <Text><strong>Jasa Kurir:</strong> {order.courier_service}</Text>
