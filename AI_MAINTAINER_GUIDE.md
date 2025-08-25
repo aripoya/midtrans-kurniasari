@@ -186,6 +186,34 @@ Tujuan: Semua deploy berjalan otomatis dari GitHub. Tidak perlu deploy dari loka
 
 ---
 
+### 9.2) PR Workflow yang Direkomendasikan (Single-Branch Production)
+
+- **Buat branch fitur** dari `main`:
+  ```bash
+  git checkout -b feature/<deskripsi-singkat>
+  # commit perubahan
+  git push -u origin feature/<deskripsi-singkat>
+  ```
+- **Buat Pull Request** di GitHub (base: `main`, compare: `feature/...`).
+- **Review dengan Pages Preview**: PR akan memicu build Preview untuk frontend; buka URL Preview dari tab Checks/Cloudflare.
+- **Cek Worker jika perlu**: Tambahkan workflow staging terpisah jika butuh preview Worker; default-nya hanya deploy ke production saat merge.
+- **Merge ke `main`** jika sudah approved → otomatis deploy Pages + Worker ke production.
+- **Jalankan migrasi D1 (opsional)**: gunakan workflow "Run D1 Migrations (Manual)" bila ada perubahan skema.
+
+Catatan: aktifkan Branch Protection di `main` untuk mewajibkan checks lulus sebelum merge.
+
+#### 9.2.1) Branch Protection (disarankan)
+
+- **Rules** (GitHub → Settings → Branches → Add rule untuk `main`):
+  - Require a pull request before merging
+  - Require status checks to pass before merging
+    - Pilih checks: Cloudflare Pages build (frontend) dan Worker deploy (worker.yml)
+  - Optional: Require approvals (min 1 reviewer)
+  - Optional: Dismiss stale approvals on new commits
+  - Optional: Restrict who can push to matching branches (hanya admin/CI)
+
+Dengan protection ini, semua perubahan harus melalui PR dan lulus build sebelum bisa di-merge ke production.
+
 ## 10) Kinerja & Kuota
 - Polling default: 60 detik di semua dashboard (hemat kuota Workers).
 - Index DB: telah dibuat pada kolom lookup utama (`outlet_id`, dll.).
@@ -227,4 +255,4 @@ Tujuan: Semua deploy berjalan otomatis dari GitHub. Tidak perlu deploy dari loka
 - `DEVELOPMENT_SETUP.md`, `DEPLOYMENT_GUIDE.md` → setup & deploy.
 - `REAL_TIME_SYNC_TEST_GUIDE.md`, `docs/REAL_TIME_SYNC.md` → sinkronisasi.
 
-Terakhir diperbarui: 2025-08-24
+Terakhir diperbarui: 2025-08-26
