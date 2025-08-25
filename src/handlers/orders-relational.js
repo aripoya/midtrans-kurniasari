@@ -42,15 +42,15 @@ export async function getOutletOrdersRelational(request, env) {
     let orderQuery = `
       SELECT 
         o.*,
-        -- Primary outlet information
+        -- Primary outlet information (resolved by lokasi_pengambilan -> outlet name)
         primary_outlet.name AS outlet_name,
         primary_outlet.location_alias AS outlet_location,
         primary_outlet.address AS outlet_address
         
       FROM orders o
       
-      -- PRIMARY OUTLET JOIN (main outlet assignment)
-      LEFT JOIN outlets_unified primary_outlet ON o.outlet_id = primary_outlet.id
+      -- Resolve outlet by matching lokasi_pengambilan to outlet name
+      LEFT JOIN outlets_unified primary_outlet ON o.lokasi_pengambilan = primary_outlet.name
       
       WHERE 1=1
     `;
@@ -58,7 +58,7 @@ export async function getOutletOrdersRelational(request, env) {
     let countQuery = `
       SELECT COUNT(*) as total 
       FROM orders o
-      LEFT JOIN outlets_unified primary_outlet ON o.outlet_id = primary_outlet.id
+      LEFT JOIN outlets_unified primary_outlet ON o.lokasi_pengambilan = primary_outlet.name
       WHERE 1=1
     `;
     
@@ -76,13 +76,8 @@ export async function getOutletOrdersRelational(request, env) {
     
     if (request.user) {
       if (request.user.role === 'outlet_manager') {
-        // COMPREHENSIVE OUTLET MATCHING: 
-        // 1. Direct outlet_id matching (primary)
-        // 2. Legacy string matching for orders without outlet_id (fallback)
-        
+        // Resolve outlet name from user's outlet_id
         const outletId = request.user.outlet_id || '';
-        
-        // Get outlet info for legacy string matching
         let outletName = '';
         try {
           if (outletId) {
@@ -92,65 +87,20 @@ export async function getOutletOrdersRelational(request, env) {
         } catch (error) {
           console.warn('Could not fetch outlet info:', error);
         }
-        
-        // Build comprehensive outlet condition
-        let outletConditions = [];
-        
-        // ⭐ PRIMARY: Direct outlet_id matching (most reliable)
-        if (outletId) {
-          outletConditions.push(`o.outlet_id = ?`);
-          queryParams.push(outletId);
-          countParams.push(outletId);
-        }
-        
-        // ⭐ FALLBACK: Location-based matching for legacy orders without outlet_id
+
+        // Filter orders by lokasi_pengambilan matching the outlet name
         if (outletName) {
-          let legacyMatchingConditions = [];
-          
-          // Add outlet name matching
-          legacyMatchingConditions.push(`LOWER(o.lokasi_pengiriman) LIKE LOWER(?)`);
-          queryParams.push(`%${outletName}%`);
-          countParams.push(`%${outletName}%`);
-          
-          // Add special patterns for common outlet names
-          if (outletName.toLowerCase().includes('bonbin')) {
-            legacyMatchingConditions.push(`LOWER(o.lokasi_pengiriman) LIKE LOWER(?)`);
-            legacyMatchingConditions.push(`LOWER(o.lokasi_pengambilan) LIKE LOWER(?)`);
-            legacyMatchingConditions.push(`LOWER(o.shipping_area) LIKE LOWER(?)`);
-            queryParams.push('%bonbin%', '%bonbin%', '%bonbin%');
-            countParams.push('%bonbin%', '%bonbin%', '%bonbin%');
-          }
-          
-          if (outletName.toLowerCase().includes('malioboro')) {
-            legacyMatchingConditions.push(`LOWER(o.lokasi_pengiriman) LIKE LOWER(?)`);
-            legacyMatchingConditions.push(`LOWER(o.shipping_area) LIKE LOWER(?)`);
-            queryParams.push('%malioboro%', '%malioboro%');
-            countParams.push('%malioboro%', '%malioboro%');
-          }
-          
-          if (outletName.toLowerCase().includes('jogja')) {
-            legacyMatchingConditions.push(`LOWER(o.lokasi_pengiriman) LIKE LOWER(?)`);
-            legacyMatchingConditions.push(`LOWER(o.lokasi_pengambilan) LIKE LOWER(?)`);
-            queryParams.push('%jogja%', '%jogja%');
-            countParams.push('%jogja%', '%jogja%');
-          }
-          
-          // Create legacy condition for orders without outlet_id
-          if (legacyMatchingConditions.length > 0) {
-            outletConditions.push(`(o.outlet_id IS NULL AND (${legacyMatchingConditions.join(' OR ')}))`);
-          }
+          const outletCondition = ` AND (o.lokasi_pengambilan = ?` +
+            ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER(?))`;
+          orderQuery += outletCondition;
+          countQuery += outletCondition;
+          queryParams.push(outletName, `%${outletName}%`);
+          countParams.push(outletName, `%${outletName}%`);
         }
-        
-        // Combine all outlet conditions with OR
-        if (outletConditions.length > 0) {
-          const finalOutletCondition = ` AND (${outletConditions.join(' OR ')})`;
-          orderQuery += finalOutletCondition;
-          countQuery += finalOutletCondition;
-        }
-        
-        console.log(`🏪 Filtering orders for outlet manager: ${outletName} (ID: ${outletId}) with comprehensive matching`);
+
+        console.log(`🏪 Filtering orders for outlet manager by lokasi_pengambilan: ${outletName} (resolved from ID: ${outletId})`);
         console.log(`📊 Query params count: ${queryParams.length}, Count params count: ${countParams.length}`);
-        
+
       } else if (request.user.role === 'deliveryman') {
         // Deliverymen see only orders assigned to them
         const deliveryCondition = ` AND o.assigned_deliveryman_id = ?`;
@@ -316,6 +266,26 @@ export async function migrateOrdersToRelational(request, env) {
 
   try {
     console.log('🔄 Starting migration to relational order-outlet relationships...');
+    // If outlet_id column has been removed, perform no-op for safety
+    try {
+      const pragma = await env.DB.prepare("PRAGMA table_info('orders')").all();
+      const cols = (pragma.results || []).map(r => r.name.toLowerCase());
+      if (!cols.includes('outlet_id')) {
+        console.log('ℹ️ outlet_id column not found. Skipping legacy migration logic.');
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'No-op: orders.outlet_id already removed',
+          results: { orders_mapped: 0 }
+        }), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('PRAGMA check failed, proceeding cautiously:', e.message);
+    }
     
     // Step 1: Map orders to outlets based on lokasi_pengiriman/lokasi_pengambilan/shipping_area
     const migrationQuery = `
