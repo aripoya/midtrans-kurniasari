@@ -9,6 +9,112 @@ function generateOrderId() {
   return `ORDER-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
 }
 
+/**
+ * Delivery Overview for deliverymen/admins
+ * Returns all delivery-related orders grouped by deliveryman (including unassigned)
+ * Query params:
+ * - status: optional filter by shipping_status (case-insensitive)
+ */
+export async function getDeliveryOverview(request, env) {
+  const corsHeaders = request.corsHeaders || {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    if (!request.user) {
+      return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Allow deliveryman and admin to access overview
+    const role = request.user.role;
+    if (role !== 'deliveryman' && role !== 'admin') {
+      return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    const url = new URL(request.url);
+    const statusFilter = url.searchParams.get('status');
+
+    // Fetch all delivery users
+    const deliveryUsersRes = await env.DB.prepare(`
+      SELECT id, username, name, outlet_id
+      FROM users
+      WHERE role = 'deliveryman'
+      ORDER BY username
+    `).all();
+    const deliveryUsers = deliveryUsersRes.results || [];
+
+    // Build base query for delivery-related orders
+    let ordersQuery = `
+      SELECT 
+        id, customer_name, shipping_status, pickup_method,
+        assigned_deliveryman_id, lokasi_pengambilan AS outlet_name,
+        lokasi_pengiriman, delivery_date, delivery_time, created_at
+      FROM orders
+      WHERE (pickup_method = 'deliveryman' OR assigned_deliveryman_id IS NOT NULL)
+    `;
+    const params = [];
+    if (statusFilter) {
+      ordersQuery += ` AND LOWER(shipping_status) = LOWER(?)`;
+      params.push(statusFilter);
+    }
+    ordersQuery += ` ORDER BY created_at DESC`;
+
+    const ordersRes = await env.DB.prepare(ordersQuery).bind(...params).all();
+    const allOrders = ordersRes.results || [];
+
+    // Group by deliveryman
+    const byDeliveryman = new Map();
+    for (const user of deliveryUsers) {
+      byDeliveryman.set(user.id, { user, orders: [] });
+    }
+    const unassigned = [];
+
+    for (const order of allOrders) {
+      const did = order.assigned_deliveryman_id;
+      if (did && byDeliveryman.has(did)) {
+        byDeliveryman.get(did).orders.push(order);
+      } else {
+        unassigned.push(order);
+      }
+    }
+
+    const deliverymen = Array.from(byDeliveryman.values()).map(group => ({
+      user: group.user,
+      count: group.orders.length,
+      orders: group.orders,
+    }));
+
+    const response = {
+      success: true,
+      summary: {
+        deliverymen_count: deliveryUsers.length,
+        total_orders: allOrders.length,
+        assigned_count: allOrders.filter(o => !!o.assigned_deliveryman_id).length,
+        unassigned_count: unassigned.length,
+      },
+      deliverymen,
+      unassigned: {
+        count: unassigned.length,
+        orders: unassigned,
+      },
+    };
+
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+  } catch (error) {
+    console.error('getDeliveryOverview error:', error);
+    return new Response(JSON.stringify({ success: false, error: 'Failed to get delivery overview', details: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+}
+
 export async function createOrder(request, env) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',

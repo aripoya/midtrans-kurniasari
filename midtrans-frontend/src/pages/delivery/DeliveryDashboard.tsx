@@ -38,6 +38,7 @@ import { useRealTimeSync, useNotificationSync } from '../../hooks/useRealTimeSyn
 const DeliveryDashboard: React.FC = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
+  const [overview, setOverview] = useState<any | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<OrderStats>({
@@ -46,17 +47,18 @@ const DeliveryDashboard: React.FC = () => {
     inProgress: 0,
     completed: 0
   });
+  const [statusFilter, setStatusFilter] = useState<string>("");
 
   const toast = useToast();
   const cardBgColor = useColorModeValue('white', 'gray.700');
 
   // Real-time sync hooks
   const { syncStatus, manualRefresh } = useRealTimeSync({
-    role: 'delivery',
+    role: 'deliveryman',
     onUpdate: (updateInfo: any) => {
       console.log('DELIVERY SYNC: New updates detected:', updateInfo);
       // Refresh orders when updates are detected
-      fetchOrders();
+      fetchOverview();
     },
     pollingInterval: 60000, // Poll every 60 seconds (1 minute) - optimized for cost efficiency
     enabled: true
@@ -79,10 +81,10 @@ const DeliveryDashboard: React.FC = () => {
     pollingInterval: 60000 // Check notifications every 60 seconds (1 minute) - optimized for cost efficiency
   });
 
-  // Fetch orders function with useCallback to avoid dependency issues
-  const fetchOrders = useCallback(async (): Promise<void> => {
+  // Fetch overview function with useCallback to avoid dependency issues
+  const fetchOverview = useCallback(async (): Promise<void> => {
     try {
-      console.log('📡 Fetching deliveryman orders...');
+      console.log('📡 Fetching delivery overview...');
       console.log('🔑 Auth Token:', sessionStorage.getItem('token'));
       
       // Get user info from token
@@ -106,56 +108,33 @@ const DeliveryDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const response = await adminApi.getDeliveryOrders();
-      
-      console.log('✅ Response berhasil:', response);
-      
-      // Handle adminApi response format
+      const response = await adminApi.getDeliveryOverview(statusFilter || undefined);
+
+      console.log('✅ Overview response:', response);
+
       if (response.success === false && response.error) {
         throw new Error(response.error);
       }
-      
+
       const data = response.data || {};
-      const orders = data.orders || [];
-      
-      // Debug: Log setiap order dan shipping_photo-nya
-      if (orders && Array.isArray(orders)) {
-        orders.forEach((order: Order) => {
-          console.log(`Order ${order.id} - shipping_photo:`, (order as any).shipping_photo);
-        });
-      }
-      
-      setOrders(orders);
-      
-      // Update stats based on orders
-      if (orders && Array.isArray(orders)) {
-        const totalOrders = orders.length;
-        
-        // Normalisasi status untuk penghitungan yang lebih akurat (case-insensitive)
-        const pendingOrders = orders.filter((order: any) => {
-          const status = (order.shipping_status || '').toLowerCase();
-          return status === 'menunggu pengiriman' || status === 'pending' || status === '';
-        }).length;
-        
-        const inProgressOrders = orders.filter((order: any) => {
-          const status = (order.shipping_status || '').toLowerCase();
-          return status === 'dalam pengiriman' || status === 'shipping';
-        }).length;
-        
-        const completedOrders = orders.filter((order: any) => {
-          const status = (order.shipping_status || '').toLowerCase();
-          return status === 'diterima' || status === 'delivered';
-        }).length;
-        
-        setStats({
-          total: totalOrders,
-          pending: pendingOrders,
-          inProgress: inProgressOrders,
-          completed: completedOrders
-        });
+      setOverview(data);
+
+      // Flatten currently assigned orders to keep existing table for "Pengiriman Yang Ditugaskan" to this user
+      const myId = deliverymanId;
+      const myGroup = (data.deliverymen || []).find((g: any) => g?.user?.id === myId);
+      const myOrders = myGroup?.orders || [];
+      setOrders(myOrders);
+
+      // Update stats from summary if available
+      if (data.summary) {
+        const total = data.summary.total_orders || 0;
+        const pending = 0; // not provided per-status; keep 0 or compute from groups if needed later
+        const inProgress = 0;
+        const completed = 0;
+        setStats({ total, pending, inProgress, completed });
       }
     } catch (err: unknown) {
-      console.error('Error fetching deliveryman orders:', err);
+      console.error('Error fetching delivery overview:', err);
       const errorMessage = err instanceof Error ? err.message : 'Terjadi kesalahan saat memuat daftar pengiriman.';
       setError(errorMessage);
       
@@ -169,7 +148,7 @@ const DeliveryDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, statusFilter]);
 
   // Update shipping status
   const updateShippingStatus = async (orderId: string, newStatus: string): Promise<void> => {
@@ -256,8 +235,8 @@ const DeliveryDashboard: React.FC = () => {
   // };
 
   useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+    fetchOverview();
+  }, [fetchOverview]);
 
   if (loading) {
     return (
@@ -278,7 +257,7 @@ const DeliveryDashboard: React.FC = () => {
         <VStack spacing={8}>
           <Box textAlign="center" p={8}>
             <Text color="red.500" fontSize="lg">{error}</Text>
-            <Button mt={4} onClick={fetchOrders} colorScheme="blue">
+            <Button mt={4} onClick={fetchOverview} colorScheme="blue">
               Coba Lagi
             </Button>
           </Box>
@@ -294,8 +273,8 @@ const DeliveryDashboard: React.FC = () => {
           <Heading>Dashboard Pengiriman</Heading>
           <HStack spacing={2}>
             {syncStatus && (
-              <Badge colorScheme={syncStatus.isOnline ? 'green' : 'red'}>
-                {syncStatus.isOnline ? 'Online' : 'Offline'}
+              <Badge colorScheme={syncStatus.connected ? 'green' : 'red'}>
+                {syncStatus.connected ? 'Online' : 'Offline'}
               </Badge>
             )}
             {unreadCount > 0 && (
@@ -361,10 +340,25 @@ const DeliveryDashboard: React.FC = () => {
         </SimpleGrid>
 
         {/* Orders Table */}
-        <Box borderWidth="1px" borderRadius="lg" overflow="hidden" bg={cardBgColor}>
+        <Box borderWidth="1px" borderRadius="lg" overflow="hidden" bg="white">
           <Flex p={4} justifyContent="space-between" alignItems="center" borderBottomWidth="1px">
-            <Heading size="md">Pengiriman Yang Ditugaskan</Heading>
-          </Flex>
+          <Heading size="md">Pengiriman Yang Ditugaskan</Heading>
+          <HStack>
+            <Select
+              placeholder="Filter Status (opsional)"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              size="sm"
+              width="250px"
+            >
+              <option value="menunggu diproses">Menunggu Diproses</option>
+              <option value="dikemas">Dikemas</option>
+              <option value="siap kirim">Siap Kirim</option>
+              <option value="dalam_pengiriman">Dalam Pengiriman</option>
+              <option value="diterima">Diterima</option>
+            </Select>
+          </HStack>
+        </Flex>
           
           {orders.length > 0 ? (
             <Box overflowX="auto">
@@ -380,7 +374,7 @@ const DeliveryDashboard: React.FC = () => {
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {orders.map((order: Order) => (
+                  {orders.map((order: any) => (
                     <Tr key={order.id}>
                       <Td fontWeight="medium">{order.id}</Td>
                       <Td>{order.customer_name}</Td>
@@ -438,6 +432,86 @@ const DeliveryDashboard: React.FC = () => {
             </Box>
           )}
         </Box>
+
+        {/* Overview Grouped Sections */}
+        {overview && (
+          <Box borderWidth="1px" borderRadius="lg" overflow="hidden" bg="white">
+            <Flex p={4} justifyContent="space-between" alignItems="center" borderBottomWidth="1px">
+              <Heading size="md">Overview Semua Pengiriman</Heading>
+              <Text color="gray.500">Total: {overview?.summary?.total_orders || 0} | Unassigned: {overview?.summary?.unassigned_count || 0}</Text>
+            </Flex>
+
+            {/* Unassigned */}
+            <Box p={4}>
+              <Heading size="sm" mb={3}>Belum Di-assign</Heading>
+              {(overview.unassigned?.orders || []).length > 0 ? (
+                <Box overflowX="auto">
+                  <Table size="sm" variant="simple">
+                    <Thead>
+                      <Tr>
+                        <Th>ID Pesanan</Th>
+                        <Th>Nama Pelanggan</Th>
+                        <Th>Alamat</Th>
+                        <Th>Lokasi Pengiriman</Th>
+                        <Th>Status</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {overview.unassigned.orders.map((order: any) => (
+                        <Tr key={`unassigned-${order.id}`}>
+                          <Td>{order.id}</Td>
+                          <Td>{order.customer_name}</Td>
+                          <Td>{order.customer_address || '-'}</Td>
+                          <Td>{order.lokasi_pengiriman || '-'}</Td>
+                          <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                </Box>
+              ) : (
+                <Text color="gray.500">Tidak ada pesanan unassigned</Text>
+              )}
+            </Box>
+
+            {/* Per deliveryman */}
+            <Box p={4} pt={0}>
+              {(overview.deliverymen || []).map((group: any) => (
+                <Box key={`dm-${group?.user?.id}`} mb={6}>
+                  <Heading size="sm" mb={3}>{group?.user?.name || group?.user?.username} ({group?.count || 0})</Heading>
+                  {Array.isArray(group?.orders) && group.orders.length > 0 ? (
+                    <Box overflowX="auto">
+                      <Table size="sm" variant="simple">
+                        <Thead>
+                          <Tr>
+                            <Th>ID Pesanan</Th>
+                            <Th>Nama Pelanggan</Th>
+                            <Th>Alamat</Th>
+                            <Th>Lokasi Pengiriman</Th>
+                            <Th>Status</Th>
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {group.orders.map((order: any) => (
+                            <Tr key={`dm-${group.user.id}-${order.id}`}>
+                              <Td>{order.id}</Td>
+                              <Td>{order.customer_name}</Td>
+                              <Td>{order.customer_address || '-'}</Td>
+                              <Td>{order.lokasi_pengiriman || '-'}</Td>
+                              <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </Box>
+                  ) : (
+                    <Text color="gray.500">Tidak ada pesanan</Text>
+                  )}
+                </Box>
+              ))}
+            </Box>
+          </Box>
+        )}
       </VStack>
     </Container>
   );

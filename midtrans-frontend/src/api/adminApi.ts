@@ -740,6 +740,33 @@ export const adminApi = {
     }
   },
 
+  // Delivery overview: grouped by deliveryman + unassigned
+  getDeliveryOverview: async (status?: string): Promise<ApiResponse<any>> => {
+    try {
+      const params: any = {};
+      if (status) params.status = status;
+      const response: AxiosResponse = await axios.get(
+        `${API_URL}/api/delivery/overview`,
+        {
+          params,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getAdminToken()}`,
+          },
+        }
+      );
+
+      return { success: true, data: response.data, error: null };
+    } catch (error: any) {
+      console.error('Error getting delivery overview:', error);
+      return {
+        success: false,
+        data: null,
+        error: error.response?.data?.error || error.message || 'Error saat mengambil delivery overview',
+      };
+    }
+  },
+
   // User management API endpoints
 
   // Get all users

@@ -1,7 +1,7 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
 import jwt from 'jsonwebtoken';
-import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDetails, refreshOrderStatus, getAdminOrders, deleteOrder, getOutletOrders, getDeliveryOrders, markOrderAsReceived } from './handlers/orders.js';
+import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDetails, refreshOrderStatus, getAdminOrders, deleteOrder, getOutletOrders, getDeliveryOrders, markOrderAsReceived, getDeliveryOverview } from './handlers/orders.js';
 import { debugOutletOrderFiltering, fixOutletOrderAssignment } from './handlers/debug-outlet.js';
 import { debugDeliverySync, fixDeliveryAssignment } from './handlers/debug-delivery.js';
 import { getAssignmentOptions } from './handlers/assignment-options.js';
@@ -149,6 +149,11 @@ router.get('/api/orders/outlet-relational', verifyToken, (request, env) => {
 router.get('/api/orders/delivery', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return getDeliveryOrders(request, env);
+});
+// Delivery overview: show all delivery-related orders grouped by deliveryman (delivery/admin access)
+router.get('/api/delivery/overview', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getDeliveryOverview(request, env);
 });
 router.get('/api/orders/:id', (request, env) => {
     request.corsHeaders = corsHeaders(request);
