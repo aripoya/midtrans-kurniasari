@@ -34,17 +34,18 @@ export default {
       ).first();
       if (!schemaInfo?.sql) throw new Error('Could not fetch CREATE TABLE for orders');
 
-      // Remove the pickup_outlet column definition line(s)
-      const lowered = schemaInfo.sql.toLowerCase();
-      let newCreateSQL;
-      if (lowered.includes('\npickup_outlet ')) {
-        const lines = schemaInfo.sql.split('\n');
-        const filteredLines = lines.filter(line => !line.toLowerCase().includes('pickup_outlet'));
-        newCreateSQL = filteredLines.join('\n').replace(/CREATE TABLE orders/,'CREATE TABLE orders_new');
-      } else {
-        // Fallback: naive replace if in single line
-        newCreateSQL = schemaInfo.sql.replace(/,?\s*pickup_outlet\s+[^,\)]+/, '').replace('CREATE TABLE orders','CREATE TABLE orders_new');
-      }
+      // Remove the pickup_outlet column definition robustly (case-insensitive)
+      const origSQL = schemaInfo.sql;
+      let newCreateSQL = origSQL
+        // 1) Rename table to orders_new (case-insensitive)
+        .replace(/CREATE\s+TABLE\s+orders/i, 'CREATE TABLE orders_new')
+        // 2) Remove the column segment: optional leading comma, column name, type and until next comma or closing paren
+        .replace(/,?\s*pickup_outlet\s+[^,\)]+/i, '');
+
+      // 3) Fix potential trailing commas before closing parenthesis
+      newCreateSQL = newCreateSQL
+        .replace(/,\s*\)/g, ')')
+        .replace(/\(\s*,/g, '(');
 
       console.log('Creating orders_new without pickup_outlet...');
       await env.DB.prepare(newCreateSQL).run();
@@ -79,6 +80,12 @@ export default {
       }
 
       console.log('✅ Migration completed: pickup_outlet removed');
+      // Post-verify the column is gone
+      const verify = await env.DB.prepare("SELECT name FROM pragma_table_info('orders') WHERE name='pickup_outlet';").all();
+      const stillExists = (verify.results || []).length > 0;
+      if (stillExists) {
+        throw new Error('Verification failed: pickup_outlet still exists after migration');
+      }
       return new Response('pickup_outlet dropped successfully', { status: 200, headers: cors });
     } catch (err) {
       console.error('❌ Migration failed:', err);
