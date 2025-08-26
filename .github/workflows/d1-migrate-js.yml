@@ -19,57 +19,50 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Wrangler v4
-        run: |
-          npm install --no-audit --no-fund --save-dev wrangler@4
-
       - name: Deploy temporary migration Worker
         id: deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            deploy "${{ github.event.inputs.scriptPath }}" --name "${{ github.event.inputs.workerName }}" --env production
+
+      - name: Get Worker URL
+        id: get_url
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            deployments list --name "${{ github.event.inputs.workerName }}" --env production
+
+      - name: Parse URL from output
+        id: parse
         run: |
           set -euo pipefail
-          NAME="${{ github.event.inputs.workerName }}"
-          ENTRY="${{ github.event.inputs.scriptPath }}"
-          echo "Deploying $ENTRY as $NAME"
-          # Deploy with production bindings (DB)
-          DEPLOY_OUTPUT=$(npx wrangler deploy "$ENTRY" --name "$NAME" --env production 2>&1 | tee /dev/stderr)
-          # Extract URL from output (first https URL)
-          URL=$(echo "$DEPLOY_OUTPUT" | grep -Eo 'https://[^ ]+workers.dev' | head -n1 || true)
-          if [ -z "$URL" ]; then
-            # Fallback: use deployments list if output parsing fails
-            echo "Could not auto-detect Worker URL from deploy output. Listing deployments..." >&2
-            npx wrangler deployments list --name "$NAME" --env production || true
-          fi
+          # GitHub does not give us step stdout directly; re-run a lightweight list to capture URL
+          OUT=$(npx --yes wrangler@4 deployments list --name "${{ github.event.inputs.workerName }}" --env production || true)
+          URL=$(echo "$OUT" | grep -Eo 'https://[^ ]+workers.dev' | head -n1 || true)
+          echo "Detected URL: $URL"
           echo "url=$URL" >> $GITHUB_OUTPUT
 
       - name: Invoke migration
-        id: invoke
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          URL="${{ steps.deploy.outputs.url }}"
-          if [ -n "$URL" ]; then
-            echo "Invoking $URL"
-            curl -svS "$URL" || true
-          else
-            echo "URL not detected automatically. Please check previous step logs for the workers.dev URL and invoke manually if needed."
+          URL="${{ steps.parse.outputs.url }}"
+          if [ -z "$URL" ]; then
+            echo "Failed to detect workers.dev URL; cannot invoke automatically." >&2
+            exit 1
           fi
+          echo "Invoking $URL"
+          curl -svS "$URL" || true
 
       - name: Remove temporary Worker
         if: always()
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          NAME="${{ github.event.inputs.workerName }}"
-          echo "Deleting worker $NAME"
-          npx wrangler delete "$NAME" --env production || true
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            delete "${{ github.event.inputs.workerName }}" --env production
