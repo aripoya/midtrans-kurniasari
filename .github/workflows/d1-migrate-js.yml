@@ -1,0 +1,75 @@
+name: Run D1 JS Migration (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      scriptPath:
+        description: 'Path to JS migration (e.g., migrations/0021_drop_pickup_outlet.js)'
+        required: true
+        default: 'migrations/0021_drop_pickup_outlet.js'
+      workerName:
+        description: 'Temporary Worker name'
+        required: true
+        default: 'd1-js-migration-0021'
+
+jobs:
+  migrate_js:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Wrangler v4
+        run: |
+          npm install --no-audit --no-fund --save-dev wrangler@4
+
+      - name: Deploy temporary migration Worker
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          NAME="${{ github.event.inputs.workerName }}"
+          ENTRY="${{ github.event.inputs.scriptPath }}"
+          echo "Deploying $ENTRY as $NAME"
+          # Deploy with production bindings (DB)
+          DEPLOY_OUTPUT=$(npx wrangler deploy "$ENTRY" --name "$NAME" --env production 2>&1 | tee /dev/stderr)
+          # Extract URL from output (first https URL)
+          URL=$(echo "$DEPLOY_OUTPUT" | grep -Eo 'https://[^ ]+workers.dev' | head -n1 || true)
+          if [ -z "$URL" ]; then
+            # Fallback: use deployments list if output parsing fails
+            echo "Could not auto-detect Worker URL from deploy output. Listing deployments..." >&2
+            npx wrangler deployments list --name "$NAME" --env production || true
+          fi
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Invoke migration
+        id: invoke
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          URL="${{ steps.deploy.outputs.url }}"
+          if [ -n "$URL" ]; then
+            echo "Invoking $URL"
+            curl -svS "$URL" || true
+          else
+            echo "URL not detected automatically. Please check previous step logs for the workers.dev URL and invoke manually if needed."
+          fi
+
+      - name: Remove temporary Worker
+        if: always()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          NAME="${{ github.event.inputs.workerName }}"
+          echo "Deleting worker $NAME"
+          npx wrangler delete "$NAME" --env production || true
