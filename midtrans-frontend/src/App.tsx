@@ -45,6 +45,7 @@ const App: React.FC = () => {
               <Routes>
                 {/* Login Routes */}
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/admin/login" element={<LoginPage />} />
                 
                 {/* Root redirection */}
                 <Route path="/" element={<Navigate to="/login" replace />} />
