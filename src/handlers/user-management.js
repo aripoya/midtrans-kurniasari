@@ -467,10 +467,10 @@ export async function resetUserPassword(request, env) {
     const hashedPassword = await bcrypt.hash(password, 10);
     const now = new Date().toISOString();
 
-    // Update password
+    // Update password hash (bcrypt)
     const result = await env.DB.prepare(`
       UPDATE users
-      SET password = ?,
+      SET password_hash = ?,
           updated_at = ?
       WHERE id = ?
     `).bind(
