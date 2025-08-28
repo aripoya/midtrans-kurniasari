@@ -61,7 +61,7 @@ export async function registerUser(request, env) {
         }
 
         // Check if username already exists
-        const existingUser = await env.DB.prepare('SELECT id, username, password, role, outlet_id FROM users WHERE username = ?')
+        const existingUser = await env.DB.prepare('SELECT id, username, role, outlet_id FROM users WHERE username = ?')
             .bind(username)
             .first();
 
@@ -165,24 +165,12 @@ export async function loginUser(request, env) {
 
         console.log(`LOGIN DB_SUCCESS: Found user '${username}'. Role: ${user.role}.`);
         let isMatch = false;
-        if (user.password_hash) {
-            // New system: Compare with hashed password
-            console.log(`LOGIN HASH_COMPARE: Comparing provided password with stored hash for user '${username}'.`);
+        // Strict: require bcrypt password_hash
+        if (user.password_hash && typeof user.password_hash === 'string' && /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(user.password_hash)) {
+            console.log(`LOGIN HASH_COMPARE: Using password_hash for user '${username}'.`);
             isMatch = await bcrypt.compare(password, user.password_hash);
-        } else if (user.password) {
-            // Detect if the stored password is actually a bcrypt hash
-            const looksLikeBcrypt = typeof user.password === 'string' && /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(user.password);
-            if (looksLikeBcrypt) {
-                console.log(`LOGIN HASH_DETECTED: 'password' column contains bcrypt hash for user '${username}', using bcrypt.compare.`);
-                isMatch = await bcrypt.compare(password, user.password);
-            } else {
-                // Fallback for legacy plaintext storage
-                console.log(`LOGIN PW_COMPARE: Comparing provided password with stored plaintext password for user '${username}'.`);
-                isMatch = password === user.password;
-            }
         } else {
-            // No password found
-            console.error(`LOGIN FAIL: No password or password_hash found for user '${username}'`);
+            console.error(`LOGIN FAIL: password_hash missing or not bcrypt for user '${username}'.`);
             return new Response(JSON.stringify({ success: false, message: 'Invalid credentials' }), {
                 status: 401,
                 headers: { 'Content-Type': 'application/json', ...request.corsHeaders }

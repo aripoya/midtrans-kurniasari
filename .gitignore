@@ -91,3 +91,4 @@ temp/
 
 # Local Netlify folder
 .netlify
+login.json

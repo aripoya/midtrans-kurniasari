@@ -21,7 +21,6 @@ import { migrateShippingInfoFields, getOrdersTableSchema } from './handlers/migr
 import { migrateAdminActivity } from './handlers/migrate-admin-activity.js';
 import { getAdminActivity, getActiveSessions, logoutUser, getAdminStats } from './handlers/admin-activity.js';
 import { listMigrationBackups, getMigrationBackup, restoreMigrationBackup } from './handlers/migration-backups.js';
-import { hashExistingPasswords } from '../hash-existing-passwords.js';
 import { resetAdminPassword } from '../reset-admin-password.js';
 import { handleGetOutlets } from './handlers/outlets';
 
@@ -81,7 +80,41 @@ router.options('*', (request) => {
         status: 200,
         headers: headers
     });
+ });
+
+// Admin: Inspect users table schema
+router.get('/api/admin/users-schema', verifyToken, async (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    // Temporary endpoint: disabled by default. Enable only when explicitly needed.
+    if (env && env.ALLOW_SCHEMA_INTROSPECTION !== 'true') {
+        return new Response(JSON.stringify({ success: false, message: 'Endpoint disabled', code: 'DISABLED' }), {
+            status: 410,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+
+    try {
+        const pragma = await env.DB.prepare("PRAGMA table_info('users')").all();
+        return new Response(JSON.stringify({ success: true, schema: pragma.results || [] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    } catch (error) {
+        console.error('Error reading users schema:', error);
+        return new Response(JSON.stringify({ success: false, message: 'Failed to read schema', error: String(error && error.message || error) }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
 });
+
 
 // Auth endpoints
 router.post('/api/auth/register', (request, env) => {
@@ -543,6 +576,162 @@ router.post('/api/admin/migrate-admin-activity', verifyToken, (request, env) => 
         });
     }
     return migrateAdminActivity(request, env);
+});
+
+// Simple ping to validate router wiring and auth decoding
+router.get('/api/ping', async (request) => {
+  try {
+    const now = new Date().toISOString();
+    return new Response(JSON.stringify({ ok: true, now }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: String(e) }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+    });
+  }
+});
+
+// Admin: Drop legacy users.password column safely (recreate table)
+router.post('/api/admin/drop-legacy-password', verifyToken, async (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    console.log('[DROP-LEGACY-PASSWORD] route hit');
+    // Dangerous schema mutation: disabled by default. Enable only via env.
+    if (env && env.ALLOW_DROP_LEGACY_PASSWORD !== 'true') {
+        return new Response(JSON.stringify({ success: false, message: 'Endpoint disabled', code: 'DISABLED' }), {
+            status: 410,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+
+    try {
+        // Read optional debug flag
+        let debug = false;
+        try {
+            const body = await request.json();
+            debug = !!body?.debug;
+        } catch (_) {}
+        console.log('[DROP-LEGACY-PASSWORD] Inspecting users schema via PRAGMA');
+        // Inspect users schema
+        const pragma = await env.DB.prepare("PRAGMA table_info('users')").all();
+        console.log('[DROP-LEGACY-PASSWORD] PRAGMA result:', JSON.stringify(pragma));
+        if (!pragma || pragma.success === false) throw new Error('Failed to read users schema');
+        const cols = (pragma.results || []).map(r => ({ name: r.name, type: r.type }));
+        if (!cols.length) throw new Error('users table not found or has no columns');
+
+        const dropCol = 'password';
+        const remaining = cols.filter(c => c.name !== dropCol);
+        if (remaining.length === cols.length) {
+            console.log('[DROP-LEGACY-PASSWORD] No-op: users.password not present');
+            return new Response(JSON.stringify({ success: true, message: 'No-op: users.password not present' }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+            });
+        }
+
+        const colList = remaining.map(c => c.name).join(', ');
+
+        // Read original CREATE TABLE
+        console.log('[DROP-LEGACY-PASSWORD] Fetching CREATE TABLE');
+        const schemaInfo = await env.DB.prepare(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='users'"
+        ).first();
+        console.log('[DROP-LEGACY-PASSWORD] schemaInfo:', JSON.stringify(schemaInfo));
+        if (!schemaInfo || !schemaInfo.sql) throw new Error('Could not fetch CREATE TABLE for users');
+
+        // Build CREATE TABLE users_new from PRAGMA metadata (exclude legacy password)
+        const pragmaCols = (pragma.results || []);
+        const filteredCols = pragmaCols.filter(c => c.name !== 'password');
+        const colDefs = filteredCols.map(c => {
+            const dflt = (c.dflt_value !== null && c.dflt_value !== undefined) ? String(c.dflt_value) : null;
+            // Skip function-like defaults (contain parentheses), which can break CREATE TABLE in D1/SQLite
+            const includeDefault = dflt && !dflt.includes('(') && !dflt.includes(')');
+            const parts = [
+                `"${c.name}"`,
+                (c.type && c.type.trim()) ? c.type : 'TEXT',
+                c.pk ? 'PRIMARY KEY' : '',
+                c.notnull ? 'NOT NULL' : '',
+                includeDefault ? `DEFAULT ${dflt}` : ''
+            ].filter(Boolean);
+            return parts.join(' ');
+        });
+        const newCreateSQL = `CREATE TABLE users_new (${colDefs.join(', ')})`;
+        console.log('[DROP-LEGACY-PASSWORD] newCreateSQL (from PRAGMA):', newCreateSQL);
+
+        if (debug) {
+            return new Response(JSON.stringify({
+                success: true,
+                debug: true,
+                message: 'Dry run: returning generated SQL and PRAGMA without executing.',
+                newCreateSQL,
+                pragmaCols,
+                filteredCols,
+                colDefs
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+            });
+        }
+        // Perform atomic migration with FKs disabled
+        console.log('[DROP-LEGACY-PASSWORD] Starting sequence with foreign_keys=OFF');
+        await env.DB.prepare('PRAGMA foreign_keys = OFF').run();
+
+        // Clean up stale users_new if previous attempt failed mid-way
+        try {
+            const existsRow = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users_new'").first();
+            if (existsRow && existsRow.name === 'users_new') {
+                console.log('[DROP-LEGACY-PASSWORD] Dropping stale users_new');
+                await env.DB.prepare('DROP TABLE users_new').run();
+            }
+        } catch (e) {
+            console.log('[DROP-LEGACY-PASSWORD] users_new existence check error (ignored):', String(e));
+        }
+
+        await env.DB.prepare(newCreateSQL).run();
+        console.log('[DROP-LEGACY-PASSWORD] Created users_new');
+        await env.DB.prepare(`INSERT INTO users_new (${colList}) SELECT ${colList} FROM users`).run();
+        console.log('[DROP-LEGACY-PASSWORD] Copied data into users_new');
+        await env.DB.prepare('DROP TABLE users').run();
+        console.log('[DROP-LEGACY-PASSWORD] Dropped old users');
+        await env.DB.prepare('ALTER TABLE users_new RENAME TO users').run();
+        console.log('[DROP-LEGACY-PASSWORD] Renamed users_new to users');
+
+        await env.DB.prepare('PRAGMA foreign_keys = ON').run();
+        console.log('[DROP-LEGACY-PASSWORD] Sequence finished and foreign_keys=ON');
+
+        // Recreate indexes that do not reference password
+        const idxRows = await env.DB.prepare(
+            "SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='users' AND sql IS NOT NULL"
+        ).all();
+        console.log('[DROP-LEGACY-PASSWORD] Index rows:', JSON.stringify(idxRows));
+        for (const row of idxRows.results || []) {
+            const sql = row.sql || '';
+            const loweredSql = sql.toLowerCase();
+            if (loweredSql.includes(' password ')) continue;
+            try { await env.DB.prepare(sql).run(); } catch (e) { /* ignore */ }
+        }
+
+        return new Response(JSON.stringify({ success: true, message: 'password column dropped successfully' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    } catch (error) {
+        console.error('Error dropping legacy password column:', error);
+        try { await env.DB.prepare('PRAGMA foreign_keys = ON').run(); } catch (_) {}
+        return new Response(JSON.stringify({ success: false, message: 'Migration failed', error: String(error && error.message || error) }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
 });
 
 // Admin outlets endpoint - Get all outlets from outlets_unified table

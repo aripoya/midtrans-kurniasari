@@ -65,6 +65,22 @@ A comprehensive order management and administration system for Kurniasari, built
 - **Payment**: Midtrans Payment Gateway
 - **Deployment**: Cloudflare Pages & Workers
 
+## 🔒 Authentication & Security Updates
+
+- **Bcrypt-only passwords**: User passwords are stored exclusively in `users.password_hash` using bcrypt. There is no plaintext password storage.
+- **Legacy column removed**: The legacy `users.password` column has been removed via formal migration `migrations/0022_drop_legacy_password_column.js`.
+- **Password reset**: All reset flows update `users.password_hash` only.
+- **Temporary admin endpoints gated**: Dangerous or debug-only endpoints are disabled by default and can be enabled explicitly in development using environment flags (see below).
+
+### Temporary Admin Endpoints (Gated)
+
+The following endpoints are disabled by default in production builds and return HTTP 410 unless explicitly enabled via environment variables:
+
+- `GET /api/admin/users-schema` → enable with `ALLOW_SCHEMA_INTROSPECTION=true`
+- `POST /api/admin/drop-legacy-password` → enable with `ALLOW_DROP_LEGACY_PASSWORD=true`
+
+Do not enable these in production. For local debugging, place flags in `.dev.vars` only.
+
 ## 📁 Project Structure
 
 ```
