@@ -160,11 +160,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Logout function
   const logout = (): void => {
+    const prevRole = user?.role;
     setUser(null);
     setIsLoggedIn(false);
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
-    navigate('/login');
+    if (prevRole === 'admin') {
+      navigate('/admin/login');
+    } else {
+      navigate('/login');
+    }
   };
 
   // Helper function to check if user has specific role
