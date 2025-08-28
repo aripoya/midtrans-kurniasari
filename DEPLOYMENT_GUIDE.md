@@ -118,6 +118,21 @@ CREATE TABLE order_items (
 - Input validation and sanitization
 - Secure environment variable handling
 
+### Authentication & Schema Hardening
+
+- Passwords are stored only as bcrypt hashes in `users.password_hash`.
+- The legacy plaintext column `users.password` has been removed via migration `migrations/0022_drop_legacy_password_column.js`.
+- All password resets update `password_hash` only.
+
+### Gated Admin Endpoints (Disabled by Default)
+
+The following endpoints in `src/worker.js` are disabled by default and return HTTP 410 unless explicitly enabled for a controlled maintenance window:
+
+- `GET /api/admin/users-schema` → enable with `ALLOW_SCHEMA_INTROSPECTION=true`
+- `POST /api/admin/drop-legacy-password` → enable with `ALLOW_DROP_LEGACY_PASSWORD=true`
+
+Do not enable these in production. For local development, set flags only in `.dev.vars` (not in `.env.production` or `wrangler.toml`).
+
 ## 📱 Mobile Compatibility
 
 The application is fully responsive and optimized for:
