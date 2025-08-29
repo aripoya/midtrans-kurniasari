@@ -301,13 +301,32 @@ export async function createOrder(request, env) {
       createdByAdminId = request.user.id;
       createdByAdminName = request.user.name || request.user.username;
       adminUser = request.user;
-      
+
       console.log('✅ [ADMIN DEBUG] Admin detected:');
       console.log('   - createdByAdminId:', createdByAdminId);
       console.log('   - createdByAdminName:', createdByAdminName);
       console.log('   - request.user.id:', request.user.id);
       console.log('   - request.user.name:', request.user.name);
       console.log('   - request.user.username:', request.user.username);
+
+      // Validate admin user exists in DB to satisfy FK constraints
+      try {
+        const adminExists = await env.DB
+          .prepare('SELECT id FROM users WHERE id = ?')
+          .bind(createdByAdminId)
+          .first();
+        if (!adminExists) {
+          console.warn('[ADMIN DEBUG] JWT user not found in users table. Falling back to null to avoid FK violation.');
+          createdByAdminId = null;
+          createdByAdminName = null;
+          adminUser = null;
+        }
+      } catch (checkErr) {
+        console.warn('[ADMIN DEBUG] Failed to validate admin existence. Falling back to null. Error:', checkErr?.message || checkErr);
+        createdByAdminId = null;
+        createdByAdminName = null;
+        adminUser = null;
+      }
     } else {
       console.log('❌ [ADMIN DEBUG] No admin user found in request');
     }

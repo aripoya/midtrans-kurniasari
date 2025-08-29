@@ -35,6 +35,7 @@ const corsHeaders = (request) => {
         'https://kurniasari.co.id', 
         'https://www.kurniasari.co.id', 
         'https://tagihan.kurniasari.co.id', 
+        'https://nota.kurniasari.co.id',
         'http://localhost:5173', 
         'http://172.16.1.5:5173',
         'https://order-management-app-production.wahwooh.workers.dev', // Production frontend
