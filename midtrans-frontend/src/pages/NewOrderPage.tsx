@@ -516,12 +516,14 @@ const NewOrderPage: React.FC = () => {
       </form>
       {/* Floating Download QRIS button shown after order is created (while Snap popup is open) */}
       {orderIdForQris && (
-        <Box position="fixed" bottom={{ base: 4, md: 6 }} left="50%" transform="translateX(-50%)" zIndex={2000}>
+        <Box position="fixed" bottom={{ base: 4, md: 6 }} left="50%" transform="translateX(-50%)" zIndex={2147483647} display="flex" gap={3}>
           <Button 
             onClick={async () => {
               if (!orderIdForQris) return;
               try {
                 setIsDownloadingQris(true);
+                // Hide Snap popup so button is not blocked
+                try { (window as any).snap?.hide?.(); } catch {}
                 const res = await orderService.getQrisUrl(orderIdForQris);
                 if (!res.success || !res.qris_url) throw new Error(res.error || 'QRIS URL tidak tersedia');
                 const orderInfo = {
@@ -558,6 +560,16 @@ const NewOrderPage: React.FC = () => {
             shadow="lg"
           >
             Download QRIS
+          </Button>
+          <Button
+            onClick={() => {
+              try { (window as any).snap?.hide?.(); } catch {}
+            }}
+            colorScheme="gray"
+            variant="outline"
+            shadow="lg"
+          >
+            Sembunyikan Pembayaran
           </Button>
         </Box>
       )}
