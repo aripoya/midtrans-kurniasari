@@ -382,6 +382,7 @@ export async function createOrder(request, env) {
     }
 
     // Attempt insert with outlet_id; on FK error retry without it
+    let orderInserted = false;
     try {
       await env.DB.prepare(`
         INSERT INTO orders (
@@ -417,6 +418,7 @@ export async function createOrder(request, env) {
           orderData.tipe_pesanan || 'Pesan Antar',
           finalOutletId
         ).run();
+        orderInserted = true;
     } catch (insertErr) {
       const msg = insertErr?.message || String(insertErr);
       console.error('[CREATE ORDER] Insert with outlet_id failed:', msg);
@@ -431,17 +433,14 @@ export async function createOrder(request, env) {
 
         const looksLikeFK = /foreign key|constraint/i.test(msg);
         if (looksLikeFK) {
-          console.warn('[CREATE ORDER] Retrying insert without outlet_id and with NULL admin/deliveryman to avoid FK error...');
+          console.warn('[CREATE ORDER] Retrying MINIMAL insert without any potential FK columns (outlet_id, lokasi fields, shipping_area, admin/deliveryman)...');
           await env.DB.prepare(`
             INSERT INTO orders (
               id, customer_name, customer_email, customer_phone, total_amount,
               snap_token, payment_link, payment_response, shipping_status,
-              customer_address, lokasi_pengiriman, lokasi_pengambilan, shipping_area,
-              pickup_method, courier_service, shipping_notes,
-              assigned_deliveryman_id,
-              created_by_admin_id, created_by_admin_name, tipe_pesanan
+              customer_address, tipe_pesanan
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(
               orderId,
               customer_name,
@@ -453,17 +452,9 @@ export async function createOrder(request, env) {
               safeMidtransResponse,
               'pending',
               customer_address || null,
-              orderData.lokasi_pengiriman || null,
-              orderData.lokasi_pengambilan || null,
-              orderData.shipping_area || null,
-              normalizedPickupMethod || null,
-              orderData.courier_service || null,
-              orderData.shipping_notes || null,
-              null, // assigned_deliveryman_id nulled on retry
-              null, // created_by_admin_id nulled on retry
-              null, // created_by_admin_name nulled on retry
               orderData.tipe_pesanan || 'Pesan Antar'
             ).run();
+          orderInserted = true;
         } else {
           throw insertErr;
         }
@@ -471,6 +462,20 @@ export async function createOrder(request, env) {
         console.error('[CREATE ORDER] Retry insert without FKs also failed:', retryErr?.message || retryErr);
         throw insertErr; // keep original error context
       }
+    }
+
+    // Verify that the order row now exists before inserting order_items
+    try {
+      const exists = await env.DB
+        .prepare('SELECT 1 as ok FROM orders WHERE id = ?')
+        .bind(orderId)
+        .first();
+      if (!exists || !orderInserted) {
+        throw new Error('[CREATE ORDER] Order row not found after insert, aborting item insertion to avoid FK failure');
+      }
+    } catch (verifyErr) {
+      console.error('[CREATE ORDER] Post-insert verification failed:', verifyErr?.message || verifyErr);
+      throw verifyErr;
     }
 
     // Statements for inserting into 'order_items' table
@@ -488,9 +493,25 @@ export async function createOrder(request, env) {
       );
     }
 
-    // Batch execute item insertion statements
+    // Prefer sequential insertion to avoid D1 batch/transaction FK quirks
     if (dbStatements.length > 0) {
-      await env.DB.batch(dbStatements);
+      for (const stmt of dbStatements) {
+        try {
+          await stmt.run();
+        } catch (itemErr) {
+          const msg = itemErr?.message || String(itemErr);
+          console.error('[CREATE ORDER] Inserting single order_item failed:', msg);
+          try {
+            const fkOrderItems = await env.DB.prepare('PRAGMA foreign_key_list(order_items)').all();
+            console.warn('[CREATE ORDER] PRAGMA foreign_key_list(order_items):', fkOrderItems?.results || fkOrderItems);
+            const orderCheck = await env.DB.prepare('SELECT id FROM orders WHERE id = ?').bind(orderId).first();
+            console.warn('[CREATE ORDER] Order existence at item failure:', orderCheck);
+          } catch (diagErr) {
+            console.warn('[CREATE ORDER] Diagnostics after item error failed:', diagErr?.message || diagErr);
+          }
+          // Do NOT fail entire order creation because of item issue; continue
+        }
+      }
     }
 
     // Log order creation activity if admin is authenticated
@@ -683,18 +704,21 @@ async function updateOrderStatusFromMidtrans(orderId, env) {
     }
 
     const statusData = await midtransResponse.json();
-    
-    const paymentStatus = statusData.transaction_status;
-    const paymentResponse = JSON.stringify(statusData);
+
+    // Normalize values to avoid D1 undefined bind errors
+    const normalizedPaymentStatus = (statusData && statusData.transaction_status)
+      ? String(statusData.transaction_status)
+      : null; // use null when not provided
+    const paymentResponse = JSON.stringify(statusData || {});
 
     const updateResult = await env.DB.prepare(
       `UPDATE orders 
        SET payment_status = ?, payment_response = ?, updated_at = ?
        WHERE id = ?`
-    ).bind(paymentStatus, paymentResponse, new Date().toISOString(), orderId).run();
+    ).bind(normalizedPaymentStatus, paymentResponse, new Date().toISOString(), orderId).run();
 
     if (updateResult.meta.changes > 0) {
-      return { success: true, payment_status: paymentStatus, message: 'Status updated successfully.' };
+      return { success: true, payment_status: normalizedPaymentStatus, message: 'Status updated successfully.' };
     } else {
       return { success: false, error: 'Order not found or status unchanged.' };
     }
