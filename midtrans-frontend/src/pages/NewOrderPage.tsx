@@ -8,6 +8,7 @@ import { DeleteIcon } from '@chakra-ui/icons';
 import { orderService } from '../api/orderService';
 import { productService } from '../api/productService';
 import { loadMidtransScript } from '../utils/midtransHelper';
+import { downloadQrisPng } from '../utils/qrisDownload';
 
 // TypeScript interfaces
 interface Product {
@@ -57,6 +58,8 @@ const NewOrderPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [items, setItems] = useState<OrderItem[]>([{ productId: '', name: '', price: '', quantity: 1, isCustom: false }]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [orderIdForQris, setOrderIdForQris] = useState<string | null>(null);
+  const [isDownloadingQris, setIsDownloadingQris] = useState<boolean>(false);
   
   // Styles for react-select to ensure proper overlay and full-width on mobile/desktop
   const selectStyles: any = {
@@ -233,6 +236,8 @@ const NewOrderPage: React.FC = () => {
         await loadMidtransScript();
         
         if (window.snap) {
+          // Expose orderId to enable Download QRIS while popup is open
+          if (response.orderId) setOrderIdForQris(response.orderId);
           window.snap.pay(response.token, {
             onSuccess: (_result: MidtransCallbackResult) => {
               toast({
@@ -509,6 +514,53 @@ const NewOrderPage: React.FC = () => {
           Buat Pesanan & Lanjut ke Pembayaran
         </Button>
       </form>
+      {/* Floating Download QRIS button shown after order is created (while Snap popup is open) */}
+      {orderIdForQris && (
+        <Box position="fixed" bottom={{ base: 4, md: 6 }} left="50%" transform="translateX(-50%)" zIndex={2000}>
+          <Button 
+            onClick={async () => {
+              if (!orderIdForQris) return;
+              try {
+                setIsDownloadingQris(true);
+                const res = await orderService.getQrisUrl(orderIdForQris);
+                if (!res.success || !res.qris_url) throw new Error(res.error || 'QRIS URL tidak tersedia');
+                const orderInfo = {
+                  orderId: orderIdForQris,
+                  customerName: formData.customer_name,
+                  customerPhone: formData.phone,
+                  customerEmail: formData.email,
+                  customerAddress: formData.customer_address,
+                  totalAmount: calculateTotal(),
+                  items: items.map(it => ({ name: it.name, price: Number(it.price) || 0, quantity: Number(it.quantity) || 1 }))
+                };
+                // Prefer proxy to avoid CORS issues; fallback to direct URL
+                try {
+                  await downloadQrisPng(orderInfo, `/api/orders/${orderIdForQris}/qris-image`);
+                } catch (_proxyErr) {
+                  await downloadQrisPng(orderInfo, res.qris_url);
+                }
+              } catch (err: any) {
+                console.error('Download QRIS failed:', err);
+                toast({
+                  title: 'Gagal mengunduh QRIS',
+                  description: err?.message || 'Terjadi kesalahan',
+                  status: 'error',
+                  duration: 4000,
+                  isClosable: true,
+                });
+              } finally {
+                setIsDownloadingQris(false);
+              }
+            }}
+            colorScheme="teal"
+            isLoading={isDownloadingQris}
+            loadingText="Menyiapkan..."
+            shadow="lg"
+          >
+            Download QRIS
+          </Button>
+        </Box>
+      )}
     </Box>
   );
 };

@@ -184,6 +184,25 @@ export const orderService = {
       throw createOrderServiceError('Failed to fetch orders', error);
     }
   },
+
+  /**
+   * Get QRIS image URL for an order from backend
+   * @param orderId - The ID of the order
+   */
+  async getQrisUrl(orderId: string): Promise<{ success: boolean; qris_url?: string; error?: string }> {
+    try {
+      if (!orderId || typeof orderId !== 'string') {
+        throw new Error('Order ID is required and must be a string');
+      }
+      const response: AxiosResponse<{ success: boolean; qris_url?: string; error?: string }> = await apiClient.get(
+        `/api/orders/${orderId}/qris-url`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error(`Error fetching QRIS URL for ${orderId}:`, error);
+      throw createOrderServiceError(`Failed to fetch QRIS URL for ${orderId}`, error);
+    }
+  },
   
   /**
    * Get a single order by ID

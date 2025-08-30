@@ -9,6 +9,69 @@ function generateOrderId() {
   return `ORDER-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
 }
 
+// GET /api/orders/:id/qris-image
+// Proxy the QRIS image to bypass third-party CORS so the frontend can draw it to canvas
+export async function proxyOrderQrisImage(request, env) {
+  const corsHeaders = request.corsHeaders || {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const orderId = url.pathname.split('/')[3]; // /api/orders/:id/qris-image
+    if (!orderId) {
+      return new Response('Order ID required', { status: 400, headers: corsHeaders });
+    }
+
+    // Reuse logic to find QR URL by calling Midtrans status directly
+    const serverKey = env.MIDTRANS_SERVER_KEY;
+    const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
+    const midtransUrl = isProduction
+      ? `https://api.midtrans.com/v2/${orderId}/status`
+      : `https://api.sandbox.midtrans.com/v2/${orderId}/status`;
+
+    if (!serverKey) {
+      return new Response('Midtrans server key not configured', { status: 500, headers: corsHeaders });
+    }
+
+    const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
+    const resp = await fetch(midtransUrl, { headers: { Accept: 'application/json', Authorization: authHeader } });
+    const statusData = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      return new Response(JSON.stringify(statusData), { status: resp.status || 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+    }
+
+    let qrisUrl = null;
+    const actions = Array.isArray(statusData?.actions) ? statusData.actions : [];
+    const qrAction = actions.find(a => (a?.name || '').toLowerCase() === 'generate-qr-code');
+    qrisUrl = qrAction?.url || statusData?.qr_code_url || statusData?.qr_url || null;
+    if (!qrisUrl) {
+      return new Response('QRIS URL not available', { status: 404, headers: corsHeaders });
+    }
+
+    // Fetch the image and stream it back with permissive CORS
+    const imgResp = await fetch(qrisUrl);
+    if (!imgResp.ok) {
+      return new Response('Failed to fetch QR image', { status: 502, headers: corsHeaders });
+    }
+    const contentType = imgResp.headers.get('content-type') || 'image/png';
+    const body = await imgResp.arrayBuffer();
+    return new Response(body, { status: 200, headers: { ...corsHeaders, 'Content-Type': contentType } });
+  } catch (error) {
+    console.error('[proxyOrderQrisImage] Error:', error);
+    return new Response('Proxy error', { status: 500, headers: corsHeaders });
+  }
+}
+
 /**
  * Delivery Overview for deliverymen/admins
  * Returns all delivery-related orders grouped by deliveryman (including unassigned)
@@ -216,7 +279,8 @@ export async function createOrder(request, env) {
     
     // Create basic auth header
     const authString = `${serverKey}:`;
-    const authHeader = `Basic ${Buffer.from(authString).toString('base64')}`;
+    // Use Web Worker-compatible base64 encoding
+    const authHeader = `Basic ${btoa(authString)}`;
     
     // Make request to Midtrans
     let midtransData;
@@ -761,6 +825,99 @@ export async function refreshOrderStatus(request, env) {
 }
 
 // markOrderAsReceived moved to received.js file
+
+// GET /api/orders/:id/qris-url
+// Fetch Midtrans transaction status and extract QRIS image URL from actions (generate-qr-code)
+export async function getOrderQrisUrl(request, env) {
+  const corsHeaders = request.corsHeaders || {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const orderId = url.pathname.split('/')[3]; // /api/orders/:id/qris-url
+
+    if (!orderId) {
+      return new Response(JSON.stringify({ success: false, error: 'Order ID is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    const serverKey = env.MIDTRANS_SERVER_KEY;
+    const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
+    if (!serverKey) {
+      return new Response(JSON.stringify({ success: false, error: 'Midtrans server key not configured.' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    const midtransUrl = isProduction
+      ? `https://api.midtrans.com/v2/${orderId}/status`
+      : `https://api.sandbox.midtrans.com/v2/${orderId}/status`;
+
+    const authString = `${serverKey}:`;
+    const authHeader = `Basic ${Buffer.from(authString).toString('base64')}`;
+
+    const resp = await fetch(midtransUrl, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: authHeader,
+      },
+    });
+
+    const statusData = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      const message = statusData?.status_message || 'Midtrans status error';
+      return new Response(JSON.stringify({ success: false, error: message, details: statusData }), {
+        status: resp.status || 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    // Extract QRIS image URL robustly
+    let qrisUrl = null;
+    try {
+      const actions = Array.isArray(statusData?.actions) ? statusData.actions : [];
+      const qrAction = actions.find(a => (a?.name || '').toLowerCase() === 'generate-qr-code');
+      qrisUrl = qrAction?.url || null;
+      // Fallbacks used by some Midtrans responses
+      if (!qrisUrl && typeof statusData?.qr_code_url === 'string') qrisUrl = statusData.qr_code_url;
+      if (!qrisUrl && typeof statusData?.qr_url === 'string') qrisUrl = statusData.qr_url;
+    } catch (e) {
+      // ignore and fall through to not found handling
+    }
+
+    if (!qrisUrl) {
+      return new Response(JSON.stringify({ success: false, error: 'QRIS URL not available for this order', data: statusData }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    return new Response(JSON.stringify({ success: true, orderId, qris_url: qrisUrl }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
+  } catch (error) {
+    console.error('[getOrderQrisUrl] Error:', error);
+    return new Response(JSON.stringify({ success: false, error: 'Failed to fetch QRIS URL', details: String(error && error.message || error) }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    });
+  }
+}
 
 // Function to delete an order by ID
 export async function deleteOrder(request, env) {
