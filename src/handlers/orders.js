@@ -331,22 +331,54 @@ export async function createOrder(request, env) {
       console.log('❌ [ADMIN DEBUG] No admin user found in request');
     }
 
-    // Validate outlet_id exists to avoid FK violations on some schemas
+    // Validate outlet_id exists to avoid FK violations on some schemas (FK often points to legacy 'outlets')
     let finalOutletId = safeOutletId;
     try {
       if (safeOutletId) {
-        const outletExists = await env.DB
-          .prepare('SELECT id FROM outlets_unified WHERE id = ?')
+        // Prefer checking legacy 'outlets' because orders.outlet_id FK typically references this table
+        const outletLegacy = await env.DB
+          .prepare('SELECT id FROM outlets WHERE id = ?')
           .bind(safeOutletId)
           .first();
-        if (!outletExists) {
-          console.warn(`[CREATE ORDER] outlet_id ${safeOutletId} not found in outlets_unified. Falling back to NULL.`);
+        if (outletLegacy && outletLegacy.id) {
+          // OK
+        } else {
+          // Optionally check unified table for diagnostics
+          let unifiedFound = false;
+          try {
+            const unified = await env.DB
+              .prepare('SELECT id FROM outlets_unified WHERE id = ?')
+              .bind(safeOutletId)
+              .first();
+            unifiedFound = !!unified;
+          } catch (_) {}
+          console.warn(`[CREATE ORDER] outlet_id ${safeOutletId} not found in outlets (legacy).` + (unifiedFound ? ' It exists in outlets_unified but FK likely points to outlets. Setting NULL.' : ' Setting NULL.'));
           finalOutletId = null;
         }
       }
     } catch (outletCheckErr) {
       console.warn('[CREATE ORDER] Failed to validate outlet_id existence. Proceeding without outlet assignment. Error:', outletCheckErr?.message || outletCheckErr);
       finalOutletId = null;
+    }
+
+    // Validate assigned_deliveryman_id (if provided) to avoid FK violations
+    let finalAssignedDeliverymanId = null;
+    try {
+      const rawAssignedId = orderData.assigned_deliveryman_id || orderData.assignedDeliverymanId || null;
+      if (rawAssignedId) {
+        const deliveryUser = await env.DB
+          .prepare("SELECT id, role FROM users WHERE id = ?")
+          .bind(rawAssignedId)
+          .first();
+        if (deliveryUser && deliveryUser.id) {
+          finalAssignedDeliverymanId = deliveryUser.id; // optionally we could enforce role === 'deliveryman'
+        } else {
+          console.warn(`[CREATE ORDER] assigned_deliveryman_id ${rawAssignedId} not found in users. Falling back to NULL.`);
+        }
+      }
+    } catch (assignedCheckErr) {
+      console.warn('[CREATE ORDER] Failed to validate assigned_deliveryman_id. Proceeding with NULL. Error:', assignedCheckErr?.message || assignedCheckErr);
+      finalAssignedDeliverymanId = null;
     }
 
     // Attempt insert with outlet_id; on FK error retry without it
@@ -357,10 +389,11 @@ export async function createOrder(request, env) {
           snap_token, payment_link, payment_response, shipping_status,
           customer_address, lokasi_pengiriman, lokasi_pengambilan, shipping_area,
           pickup_method, courier_service, shipping_notes,
+          assigned_deliveryman_id,
           created_by_admin_id, created_by_admin_name, tipe_pesanan,
           outlet_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
           orderId,
           customer_name,
@@ -378,6 +411,7 @@ export async function createOrder(request, env) {
           normalizedPickupMethod || null,
           orderData.courier_service || null,
           orderData.shipping_notes || null,
+          finalAssignedDeliverymanId,
           createdByAdminId,
           createdByAdminName,
           orderData.tipe_pesanan || 'Pesan Antar',
@@ -386,41 +420,56 @@ export async function createOrder(request, env) {
     } catch (insertErr) {
       const msg = insertErr?.message || String(insertErr);
       console.error('[CREATE ORDER] Insert with outlet_id failed:', msg);
-      const looksLikeFK = /foreign key|constraint/i.test(msg);
-      if (looksLikeFK && finalOutletId) {
-        console.warn('[CREATE ORDER] Retrying insert without outlet_id due to FK error...');
-        await env.DB.prepare(`
-          INSERT INTO orders (
-            id, customer_name, customer_email, customer_phone, total_amount,
-            snap_token, payment_link, payment_response, shipping_status,
-            customer_address, lokasi_pengiriman, lokasi_pengambilan, shipping_area,
-            pickup_method, courier_service, shipping_notes,
-            created_by_admin_id, created_by_admin_name, tipe_pesanan
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(
-            orderId,
-            customer_name,
-            email,
-            customerPhone || null,
-            totalAmount,
-            safeMidtransToken,
-            safeMidtransRedirectUrl,
-            safeMidtransResponse,
-            'pending',
-            customer_address || null,
-            orderData.lokasi_pengiriman || null,
-            orderData.lokasi_pengambilan || null,
-            orderData.shipping_area || null,
-            normalizedPickupMethod || null,
-            orderData.courier_service || null,
-            orderData.shipping_notes || null,
-            createdByAdminId,
-            createdByAdminName,
-            orderData.tipe_pesanan || 'Pesan Antar'
-          ).run();
-      } else {
-        throw insertErr;
+      try {
+        // Extra diagnostics to help pinpoint FK source
+        try {
+          const fkList = await env.DB.prepare("PRAGMA foreign_key_list(orders)").all();
+          console.warn('[CREATE ORDER] PRAGMA foreign_key_list(orders):', fkList?.results || fkList);
+        } catch (pragmaErr) {
+          console.warn('[CREATE ORDER] Failed to fetch foreign_key_list pragma:', pragmaErr?.message || pragmaErr);
+        }
+
+        const looksLikeFK = /foreign key|constraint/i.test(msg);
+        if (looksLikeFK) {
+          console.warn('[CREATE ORDER] Retrying insert without outlet_id and with NULL admin/deliveryman to avoid FK error...');
+          await env.DB.prepare(`
+            INSERT INTO orders (
+              id, customer_name, customer_email, customer_phone, total_amount,
+              snap_token, payment_link, payment_response, shipping_status,
+              customer_address, lokasi_pengiriman, lokasi_pengambilan, shipping_area,
+              pickup_method, courier_service, shipping_notes,
+              assigned_deliveryman_id,
+              created_by_admin_id, created_by_admin_name, tipe_pesanan
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+              orderId,
+              customer_name,
+              email,
+              customerPhone || null,
+              totalAmount,
+              safeMidtransToken,
+              safeMidtransRedirectUrl,
+              safeMidtransResponse,
+              'pending',
+              customer_address || null,
+              orderData.lokasi_pengiriman || null,
+              orderData.lokasi_pengambilan || null,
+              orderData.shipping_area || null,
+              normalizedPickupMethod || null,
+              orderData.courier_service || null,
+              orderData.shipping_notes || null,
+              null, // assigned_deliveryman_id nulled on retry
+              null, // created_by_admin_id nulled on retry
+              null, // created_by_admin_name nulled on retry
+              orderData.tipe_pesanan || 'Pesan Antar'
+            ).run();
+        } else {
+          throw insertErr;
+        }
+      } catch (retryErr) {
+        console.error('[CREATE ORDER] Retry insert without FKs also failed:', retryErr?.message || retryErr);
+        throw insertErr; // keep original error context
       }
     }
 
@@ -1421,7 +1470,10 @@ export async function updateOrderDetails(request, env) {
       pickup_time,
       // Delivery scheduling fields
       delivery_date,
-      delivery_time
+      delivery_time,
+      // Operational FK fields (new)
+      outlet_id: rawOutletId,
+      assigned_deliveryman_id: rawAssignedDeliverymanId
     } = data;
 
     const orderCheck = await env.DB.prepare(`SELECT id FROM orders WHERE id = ?`).bind(orderId).first();
@@ -1518,7 +1570,7 @@ export async function updateOrderDetails(request, env) {
       updateFields.push('shipping_status = ?'); 
       updateParams.push(status); 
     }
-    
+
     // Skip delivery fields if this is a pickup transition (they were already set to NULL)
     if (!isPickupTransition) {
       // Aktifkan kembali shipping_area karena kolom sudah ditambahkan ke database
@@ -1535,7 +1587,7 @@ export async function updateOrderDetails(request, env) {
       if (delivery_date !== undefined) { updateFields.push('delivery_date = ?'); updateParams.push(delivery_date); }
       if (delivery_time !== undefined) { updateFields.push('delivery_time = ?'); updateParams.push(delivery_time); }
     }
-    
+
     // Non-delivery fields that can always be updated
     if (admin_note !== undefined) { updateFields.push('admin_note = ?'); updateParams.push(admin_note); }
     if (tipe_pesanan !== undefined) { updateFields.push('tipe_pesanan = ?'); updateParams.push(tipe_pesanan); }
@@ -1560,6 +1612,58 @@ export async function updateOrderDetails(request, env) {
         updateFields.push('lokasi_pengambilan = ?');
         updateParams.push(lokasiPengambilanName || null);
       }
+    }
+
+    // Operational FK fields handling with validation and safe fallbacks
+    // Validate and update outlet_id if provided
+    if (typeof rawOutletId !== 'undefined') {
+      let finalOutletId = null;
+      try {
+        if (rawOutletId) {
+          // Prefer legacy outlets table as FK usually references it
+          const legacy = await env.DB.prepare('SELECT id FROM outlets WHERE id = ?').bind(rawOutletId).first();
+          if (legacy && legacy.id) {
+            finalOutletId = legacy.id;
+          } else {
+            // Optional diagnostic check in unified table
+            let unifiedFound = false;
+            try {
+              const unified = await env.DB.prepare('SELECT id FROM outlets_unified WHERE id = ?').bind(rawOutletId).first();
+              unifiedFound = !!unified;
+            } catch (_) {}
+            console.warn(`[updateOrderDetails] outlet_id ${rawOutletId} not found in outlets (legacy).` + (unifiedFound ? ' Exists in outlets_unified; FK likely references outlets. Setting NULL.' : ' Setting NULL.'));
+            finalOutletId = null;
+          }
+        }
+      } catch (outletValidateErr) {
+        console.warn('[updateOrderDetails] Failed to validate outlet_id. Setting NULL. Error:', outletValidateErr?.message || outletValidateErr);
+        finalOutletId = null;
+      }
+
+      // Attempt to include outlet_id in update; if schema lacks the column or FK fails, catch at execution time
+      updateFields.push('outlet_id = ?');
+      updateParams.push(finalOutletId);
+    }
+
+    // Validate and update assigned_deliveryman_id if provided
+    if (typeof rawAssignedDeliverymanId !== 'undefined') {
+      let finalAssignedId = null;
+      try {
+        if (rawAssignedDeliverymanId) {
+          const user = await env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(rawAssignedDeliverymanId).first();
+          if (user && user.id) {
+            finalAssignedId = user.id; // role check optional
+          } else {
+            console.warn(`[updateOrderDetails] assigned_deliveryman_id ${rawAssignedDeliverymanId} not found in users. Setting NULL.`);
+          }
+        }
+      } catch (assignedValidateErr) {
+        console.warn('[updateOrderDetails] Failed to validate assigned_deliveryman_id. Setting NULL. Error:', assignedValidateErr?.message || assignedValidateErr);
+        finalAssignedId = null;
+      }
+
+      updateFields.push('assigned_deliveryman_id = ?');
+      updateParams.push(finalAssignedId);
     }
 
     if (updateFields.length === 0) {

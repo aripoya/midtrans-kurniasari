@@ -392,6 +392,17 @@ export async function getTableSchema(request, env) {
       `PRAGMA table_info(${tableName})`
     ).all();
     
+    // Get foreign key constraints for the table
+    let foreignKeys = { results: [] };
+    try {
+      foreignKeys = await env.DB.prepare(
+        `PRAGMA foreign_key_list(${tableName})`
+      ).all();
+    } catch (e) {
+      // Swallow errors to keep endpoint resilient across environments
+      console.log(`[DEBUG] Failed to read foreign_key_list for table ${tableName}:`, String(e));
+    }
+    
     // Get sample data
     const sampleData = await env.DB.prepare(
       `SELECT * FROM ${tableName} LIMIT 2`
@@ -402,6 +413,7 @@ export async function getTableSchema(request, env) {
       message: `Schema for table ${tableName} retrieved successfully`,
       tableName: tableName,
       schema: schema.results,
+      foreignKeys: foreignKeys.results,
       sampleData: sampleData.results
     }), {
       status: 200,
