@@ -269,9 +269,8 @@ export async function createOrder(request, env) {
       callbacks: {
         finish: finishUrl,
       },
-      // Force QRIS payment method only
-      enabled_payments: ["qris"],
-      payment_type: "qris"
+      // Enable QRIS payment method
+      enabled_payments: ["qris"]
     };
     
     console.log('Sending to Midtrans Snap API:', {
