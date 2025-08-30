@@ -237,7 +237,10 @@ const NewOrderPage: React.FC = () => {
         
         if (window.snap) {
           // Expose orderId to enable Download QRIS while popup is open
-          if (response.orderId) setOrderIdForQris(response.orderId);
+          if (response.orderId) {
+            console.log('🔍 [DEBUG] Setting orderIdForQris:', response.orderId);
+            setOrderIdForQris(response.orderId);
+          }
           window.snap.pay(response.token, {
             onSuccess: (_result: MidtransCallbackResult) => {
               toast({
@@ -520,10 +523,12 @@ const NewOrderPage: React.FC = () => {
           <Button 
             onClick={async () => {
               if (!orderIdForQris) return;
+              console.log('🔍 [DEBUG] Download QRIS clicked with orderIdForQris:', orderIdForQris);
               try {
                 setIsDownloadingQris(true);
                 // Hide Snap popup so button is not blocked
                 try { (window as any).snap?.hide?.(); } catch {}
+                console.log('🔍 [DEBUG] Calling getQrisUrl with ID:', orderIdForQris);
                 const res = await orderService.getQrisUrl(orderIdForQris);
                 if (!res.success || !res.qris_url) throw new Error(res.error || 'QRIS URL tidak tersedia');
                 const orderInfo = {
