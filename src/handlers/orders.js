@@ -331,30 +331,98 @@ export async function createOrder(request, env) {
       console.log('❌ [ADMIN DEBUG] No admin user found in request');
     }
 
-    await env.DB.prepare(`
-      INSERT INTO orders (id, customer_name, customer_email, customer_phone, total_amount, snap_token, payment_link, payment_response, shipping_status, customer_address, lokasi_pengiriman, lokasi_pengambilan, shipping_area, pickup_method, courier_service, shipping_notes, created_by_admin_id, created_by_admin_name, tipe_pesanan)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-        orderId,
-        customer_name,
-        email,
-        customerPhone || null,
-        totalAmount,
-        safeMidtransToken,
-        safeMidtransRedirectUrl,
-        safeMidtransResponse,
-        'pending', // Initial shipping status
-        customer_address || null,
-        orderData.lokasi_pengiriman || null,
-        orderData.lokasi_pengambilan || null,
-        orderData.shipping_area || null,
-        normalizedPickupMethod || null,
-        orderData.courier_service || null,
-        orderData.shipping_notes || null,
-        createdByAdminId,
-        createdByAdminName,
-        orderData.tipe_pesanan || 'Pesan Antar'
-      ).run();
+    // Validate outlet_id exists to avoid FK violations on some schemas
+    let finalOutletId = safeOutletId;
+    try {
+      if (safeOutletId) {
+        const outletExists = await env.DB
+          .prepare('SELECT id FROM outlets_unified WHERE id = ?')
+          .bind(safeOutletId)
+          .first();
+        if (!outletExists) {
+          console.warn(`[CREATE ORDER] outlet_id ${safeOutletId} not found in outlets_unified. Falling back to NULL.`);
+          finalOutletId = null;
+        }
+      }
+    } catch (outletCheckErr) {
+      console.warn('[CREATE ORDER] Failed to validate outlet_id existence. Proceeding without outlet assignment. Error:', outletCheckErr?.message || outletCheckErr);
+      finalOutletId = null;
+    }
+
+    // Attempt insert with outlet_id; on FK error retry without it
+    try {
+      await env.DB.prepare(`
+        INSERT INTO orders (
+          id, customer_name, customer_email, customer_phone, total_amount,
+          snap_token, payment_link, payment_response, shipping_status,
+          customer_address, lokasi_pengiriman, lokasi_pengambilan, shipping_area,
+          pickup_method, courier_service, shipping_notes,
+          created_by_admin_id, created_by_admin_name, tipe_pesanan,
+          outlet_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+          orderId,
+          customer_name,
+          email,
+          customerPhone || null,
+          totalAmount,
+          safeMidtransToken,
+          safeMidtransRedirectUrl,
+          safeMidtransResponse,
+          'pending', // Initial shipping status
+          customer_address || null,
+          orderData.lokasi_pengiriman || null,
+          orderData.lokasi_pengambilan || null,
+          orderData.shipping_area || null,
+          normalizedPickupMethod || null,
+          orderData.courier_service || null,
+          orderData.shipping_notes || null,
+          createdByAdminId,
+          createdByAdminName,
+          orderData.tipe_pesanan || 'Pesan Antar',
+          finalOutletId
+        ).run();
+    } catch (insertErr) {
+      const msg = insertErr?.message || String(insertErr);
+      console.error('[CREATE ORDER] Insert with outlet_id failed:', msg);
+      const looksLikeFK = /foreign key|constraint/i.test(msg);
+      if (looksLikeFK && finalOutletId) {
+        console.warn('[CREATE ORDER] Retrying insert without outlet_id due to FK error...');
+        await env.DB.prepare(`
+          INSERT INTO orders (
+            id, customer_name, customer_email, customer_phone, total_amount,
+            snap_token, payment_link, payment_response, shipping_status,
+            customer_address, lokasi_pengiriman, lokasi_pengambilan, shipping_area,
+            pickup_method, courier_service, shipping_notes,
+            created_by_admin_id, created_by_admin_name, tipe_pesanan
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+            orderId,
+            customer_name,
+            email,
+            customerPhone || null,
+            totalAmount,
+            safeMidtransToken,
+            safeMidtransRedirectUrl,
+            safeMidtransResponse,
+            'pending',
+            customer_address || null,
+            orderData.lokasi_pengiriman || null,
+            orderData.lokasi_pengambilan || null,
+            orderData.shipping_area || null,
+            normalizedPickupMethod || null,
+            orderData.courier_service || null,
+            orderData.shipping_notes || null,
+            createdByAdminId,
+            createdByAdminName,
+            orderData.tipe_pesanan || 'Pesan Antar'
+          ).run();
+      } else {
+        throw insertErr;
+      }
+    }
 
     // Statements for inserting into 'order_items' table
     const dbStatements = [];
