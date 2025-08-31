@@ -110,22 +110,12 @@ export async function downloadQrisPng(order: QrisOrderInfo, qrisImageUrl: string
 }
 
 async function loadImage(src: string): Promise<HTMLImageElement> {
-  // Fetch as blob to avoid cross-origin tainting when drawing to canvas
-  const res = await fetch(src, { mode: 'cors' }).catch(() => fetch(src));
-  if (!res || !res.ok) throw new Error('Failed to fetch QR image');
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(img);
-    };
-    img.onerror = (e) => {
-      URL.revokeObjectURL(url);
-      reject(e);
-    };
-    img.src = url;
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = (e) => reject(e);
+    img.src = src;
   });
 }
 
