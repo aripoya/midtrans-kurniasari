@@ -268,9 +268,7 @@ export async function createOrder(request, env) {
       })),
       callbacks: {
         finish: finishUrl,
-      },
-      // Enable QRIS payment method
-      enabled_payments: ["qris"]
+      }
     };
     
     console.log('Sending to Midtrans Snap API:', {
@@ -897,6 +895,14 @@ export async function getOrderQrisUrl(request, env) {
       // Fallbacks used by some Midtrans responses
       if (!qrisUrl && typeof statusData?.qr_code_url === 'string') qrisUrl = statusData.qr_code_url;
       if (!qrisUrl && typeof statusData?.qr_url === 'string') qrisUrl = statusData.qr_url;
+      
+      // Additional fallback: construct QR URL from transaction data
+      if (!qrisUrl && statusData?.payment_type === 'qris' && statusData?.transaction_id) {
+        // Try common Midtrans QR URL patterns
+        const transactionId = statusData.transaction_id;
+        qrisUrl = `https://api.midtrans.com/v2/qris/${transactionId}/qr-code`;
+        console.log(`[DEBUG] Using constructed QR URL: ${qrisUrl}`);
+      }
     } catch (e) {
       // ignore and fall through to not found handling
     }
