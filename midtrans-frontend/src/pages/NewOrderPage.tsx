@@ -163,17 +163,21 @@ const NewOrderPage: React.FC = () => {
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
-    if (!formData.customer_name) newErrors.customer_name = 'Nama pelanggan wajib diisi';
-    if (!formData.email) newErrors.email = 'Email wajib diisi';
+    if (!formData.customer_name.trim()) newErrors.customer_name = 'Nama pelanggan wajib diisi';
+    if (!formData.email.trim()) newErrors.email = 'Email wajib diisi';
     else if (!formData.email.match(/^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$/)) newErrors.email = 'Format email tidak valid';
-    if (!formData.phone) newErrors.phone = 'Nomor telepon wajib diisi';
+    if (!formData.phone.trim()) newErrors.phone = 'Nomor telepon wajib diisi';
+    if (!formData.customer_address.trim()) newErrors.customer_address = 'Alamat wajib diisi';
     
     items.forEach((item, index) => {
-      if (!item.name) {
+      if (!item.name.trim()) {
         newErrors[`items[${index}].name`] = 'Nama produk wajib diisi';
       }
       if (!item.price || Number(item.price) <= 0) {
         newErrors[`items[${index}].price`] = 'Harga produk wajib diisi dan harus lebih dari 0';
+      }
+      if (!item.quantity || Number(item.quantity) <= 0) {
+        newErrors[`items[${index}].quantity`] = 'Jumlah harus lebih dari 0';
       }
     });
 
