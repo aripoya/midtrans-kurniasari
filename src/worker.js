@@ -195,6 +195,11 @@ router.get('/api/orders/:id', (request, env) => {
 });
 // QRIS image URL for composing downloadable PNG/PDF on frontend
 router.get('/api/orders/:id/qris-url', (request, env) => {
+    console.log('🛣️ QRIS URL route hit:', {
+        method: request.method,
+        url: request.url,
+        pathname: new URL(request.url).pathname
+    });
     request.corsHeaders = corsHeaders(request);
     return getOrderQrisUrl(request, env);
 });

@@ -194,12 +194,29 @@ export const orderService = {
       if (!orderId || typeof orderId !== 'string') {
         throw new Error('Order ID is required and must be a string');
       }
-      const response: AxiosResponse<{ success: boolean; qris_url?: string; error?: string }> = await apiClient.get(
-        `/api/orders/${orderId}/qris-url`
-      );
+      
+      const url = `/api/orders/${orderId}/qris-url`;
+      console.log('🔍 [FRONTEND] Making QRIS URL request:', {
+        orderId,
+        url,
+        fullUrl: `${apiClient.defaults.baseURL}${url}`
+      });
+      
+      const response: AxiosResponse<{ success: boolean; qris_url?: string; error?: string }> = await apiClient.get(url);
+      
+      console.log('🔍 [FRONTEND] QRIS URL response:', {
+        status: response.status,
+        data: response.data
+      });
+      
       return response.data;
     } catch (error: any) {
-      console.error(`Error fetching QRIS URL for ${orderId}:`, error);
+      console.error(`❌ [FRONTEND] Error fetching QRIS URL for ${orderId}:`, {
+        error,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
       throw createOrderServiceError(`Failed to fetch QRIS URL for ${orderId}`, error);
     }
   },

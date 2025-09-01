@@ -282,6 +282,13 @@ export async function createOrder(request, env) {
     // Use Web Worker-compatible base64 encoding
     const authHeader = `Basic ${btoa(authString)}`;
     
+    console.log('🔐 Midtrans API call:', {
+      url: midtransUrl,
+      orderId,
+      serverKeyPrefix: serverKey ? serverKey.substring(0, 8) + '...' : 'MISSING',
+      isProduction
+    });
+    
     // Make request to Midtrans
     let midtransData;
     try {
@@ -298,18 +305,21 @@ export async function createOrder(request, env) {
       const responseData = await response.json();
       
       if (!response.ok) {
-        console.error('Midtrans API error:', {
+        console.error('❌ Midtrans API error:', {
           status: response.status,
           statusText: response.statusText,
-          response: responseData
+          response: responseData,
+          orderId
         });
         throw new Error(`Midtrans API error: ${responseData.error_messages ? responseData.error_messages.join(', ') : 'Unknown error'}`);
       }
       
       midtransData = responseData;
-      console.log('Midtrans response:', {
+      console.log('✅ Midtrans response success:', {
+        orderId,
         token: midtransData.token ? 'Token received' : 'No token',
-        redirect_url: midtransData.redirect_url || 'No redirect URL'
+        redirect_url: midtransData.redirect_url || 'No redirect URL',
+        hasToken: !!midtransData.token
       });
       
     } catch (error) {
@@ -844,9 +854,18 @@ export async function getOrderQrisUrl(request, env) {
 
   try {
     const url = new URL(request.url);
-    const orderId = url.pathname.split('/')[3]; // /api/orders/:id/qris-url
+    const pathParts = url.pathname.split('/');
+    const orderId = pathParts[3]; // /api/orders/:id/qris-url
+    
+    console.log('🔍 QRIS URL request debug:', {
+      fullPath: url.pathname,
+      pathParts,
+      orderId,
+      expectedFormat: '/api/orders/ORDER-ID/qris-url'
+    });
 
     if (!orderId) {
+      console.error('❌ Missing order ID in QRIS URL request:', { pathname: url.pathname });
       return new Response(JSON.stringify({ success: false, error: 'Order ID is required' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },

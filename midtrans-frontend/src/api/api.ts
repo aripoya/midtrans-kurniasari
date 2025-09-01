@@ -43,7 +43,8 @@ export interface MarkAsReceivedResponse {
 
 // Use the environment variable from Vite, with a fallback to the production URL.
 // Connect to production environment to ensure consistent authentication
-const API_BASE_URL = 'https://order-management-app-production.wahwooh.workers.dev';
+// Updated to use the actual domain where the site is hosted
+const API_BASE_URL = 'https://nota.kurniasari.co.id';
 
 // Create axios instance with default config and TypeScript typing
 const apiClient: AxiosInstance = axios.create({
