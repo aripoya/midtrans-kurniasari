@@ -76,6 +76,19 @@ const NewOrderPage: React.FC = () => {
 
   const [errors, setErrors] = useState<FormErrors>({});
 
+  // Helper: format price in Indonesian Rupiah without decimals
+  const formatRupiah = (value: number): string => {
+    try {
+      return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+      }).format(value || 0);
+    } catch {
+      return `Rp ${Number(value || 0).toLocaleString('id-ID')}`;
+    }
+  };
+
   useEffect(() => {
     const fetchProducts = async (): Promise<void> => {
       try {
@@ -380,11 +393,22 @@ const NewOrderPage: React.FC = () => {
                             <CreatableSelect
                               isClearable
                               placeholder="Cari atau buat produk..."
-                              options={products.map(p => ({ value: p.id, label: p.name }))}
+                              options={products.map(p => ({ value: p.id as any, label: p.name }))}
                               onChange={(option) => handleProductChange(index, option)}
                               onCreateOption={(inputValue) => handleProductChange(index, { value: inputValue, label: inputValue, __isNew__: true })}
                               value={item.name ? { value: item.productId || item.name, label: item.name } : null}
                               styles={selectStyles}
+                              formatOptionLabel={(option) => {
+                                const prod = products.find(p => String(p.id) === String(option.value));
+                                const price = prod ? formatRupiah(Number(prod.price)) : '';
+                                return (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                                    <span>{option.label}</span>
+                                    <span style={{ opacity: 0.7 }}>{price}</span>
+                                  </div>
+                                );
+                              }}
+                              noOptionsMessage={() => 'Tidak ada produk'}
                               menuPosition="fixed"
                               menuShouldBlockScroll
                               menuPortalTarget={document.body}
@@ -449,11 +473,22 @@ const NewOrderPage: React.FC = () => {
                                 <CreatableSelect
                                   isClearable
                                   placeholder="Cari atau buat produk..."
-                                  options={products.map(p => ({ value: p.id, label: p.name }))}
+                                  options={products.map(p => ({ value: p.id as any, label: p.name }))}
                                   onChange={(option) => handleProductChange(index, option)}
                                   onCreateOption={(inputValue) => handleProductChange(index, { value: inputValue, label: inputValue, __isNew__: true })}
                                   value={item.name ? { value: item.productId || item.name, label: item.name } : null}
                                   styles={selectStyles}
+                                  formatOptionLabel={(option) => {
+                                    const prod = products.find(p => String(p.id) === String(option.value));
+                                    const price = prod ? formatRupiah(Number(prod.price)) : '';
+                                    return (
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                                        <span>{option.label}</span>
+                                        <span style={{ opacity: 0.7 }}>{price}</span>
+                                      </div>
+                                    );
+                                  }}
+                                  noOptionsMessage={() => 'Tidak ada produk'}
                                   menuPosition="fixed"
                                   menuShouldBlockScroll
                                   menuPortalTarget={document.body}

@@ -41,10 +41,9 @@ export interface MarkAsReceivedResponse {
   error?: string;
 }
 
-// Use the environment variable from Vite, with a fallback to the production URL.
-// Connect to production environment to ensure consistent authentication
-// Updated to use the actual domain where the site is hosted
-const API_BASE_URL = 'https://nota.kurniasari.co.id';
+// Use the environment variable from Vite, with a fallback to the production Workers backend.
+// This ensures API calls (e.g., /api/products) reach the Cloudflare Workers service.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev';
 
 // Create axios instance with default config and TypeScript typing
 const apiClient: AxiosInstance = axios.create({
