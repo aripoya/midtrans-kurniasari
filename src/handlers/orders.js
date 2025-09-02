@@ -32,10 +32,9 @@ export async function proxyOrderQrisImage(request, env) {
       return new Response('Order ID required', { status: 400, headers: corsHeaders });
     }
 
-    // Reuse logic to find QR URL by calling Midtrans status directly
     const serverKey = env.MIDTRANS_SERVER_KEY;
     const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
-    const midtransUrl = isProduction
+    const makeStatusUrl = (prod) => prod
       ? `https://api.midtrans.com/v2/${orderId}/status`
       : `https://api.sandbox.midtrans.com/v2/${orderId}/status`;
 
@@ -44,8 +43,25 @@ export async function proxyOrderQrisImage(request, env) {
     }
 
     const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
-    const resp = await fetch(midtransUrl, { headers: { Accept: 'application/json', Authorization: authHeader } });
-    const statusData = await resp.json().catch(() => ({}));
+
+    // Attempt in configured environment first, then fallback to the opposite env if needed
+    async function fetchStatusWithFallback() {
+      const firstUrl = makeStatusUrl(isProduction);
+      const secondUrl = makeStatusUrl(!isProduction);
+      let resp = await fetch(firstUrl, { headers: { Accept: 'application/json', Authorization: authHeader } });
+      let statusData = await resp.json().catch(() => ({}));
+      console.log('[proxyOrderQrisImage] Midtrans status attempt 1', { url: firstUrl, ok: resp.ok, status: resp.status, keys: Object.keys(statusData || {}) });
+      if (!resp.ok) {
+        // Try opposite environment
+        const resp2 = await fetch(secondUrl, { headers: { Accept: 'application/json', Authorization: authHeader } });
+        const statusData2 = await resp2.json().catch(() => ({}));
+        console.log('[proxyOrderQrisImage] Midtrans status attempt 2', { url: secondUrl, ok: resp2.ok, status: resp2.status, keys: Object.keys(statusData2 || {}) });
+        return { resp: resp2, statusData: statusData2 };
+      }
+      return { resp, statusData };
+    }
+
+    const { resp, statusData } = await fetchStatusWithFallback();
     if (!resp.ok) {
       return new Response(JSON.stringify(statusData), { status: resp.status || 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
@@ -55,6 +71,12 @@ export async function proxyOrderQrisImage(request, env) {
     const qrAction = actions.find(a => (a?.name || '').toLowerCase() === 'generate-qr-code');
     qrisUrl = qrAction?.url || statusData?.qr_code_url || statusData?.qr_url || null;
     if (!qrisUrl) {
+      console.log('[proxyOrderQrisImage] No QR URL found. statusData summary:', {
+        hasActions: !!actions?.length,
+        payment_type: statusData?.payment_type,
+        transaction_status: statusData?.transaction_status,
+        availableKeys: Object.keys(statusData || {})
+      });
       return new Response('QRIS URL not available', { status: 404, headers: corsHeaders });
     }
 
@@ -885,8 +907,8 @@ export async function getOrderQrisUrl(request, env) {
       ? `https://api.midtrans.com/v2/${orderId}/status`
       : `https://api.sandbox.midtrans.com/v2/${orderId}/status`;
 
-    const authString = `${serverKey}:`;
-    const authHeader = `Basic ${Buffer.from(authString).toString('base64')}`;
+    // Use btoa for base64 encoding (Buffer is not available in CF Workers runtime)
+    const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
 
     const resp = await fetch(midtransUrl, {
       method: 'GET',
