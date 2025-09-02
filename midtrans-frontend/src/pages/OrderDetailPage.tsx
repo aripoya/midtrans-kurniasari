@@ -262,7 +262,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         total_amount: Number(apiOrder?.total_amount) || 0,
         payment_status: apiOrder?.payment_status || 'pending',
         shipping_status: apiOrder?.shipping_status || 'menunggu diproses',
-        payment_url: apiOrder?.payment_url || undefined,
+        payment_url: apiOrder?.payment_url || apiOrder?.payment_link || apiOrder?.redirect_url || undefined,
         created_at: apiOrder?.created_at || new Date().toISOString(),
         updated_at: apiOrder?.updated_at || apiOrder?.updatedAt || undefined,
         payment_method: apiOrder?.payment_method || apiOrder?.paymentMethod || undefined,
