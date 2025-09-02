@@ -7,8 +7,7 @@ import CreatableSelect from 'react-select/creatable';
 import { DeleteIcon } from '@chakra-ui/icons';
 import { orderService } from '../api/orderService';
 import { productService } from '../api/productService';
-import { loadMidtransScript } from '../utils/midtransHelper';
-import { downloadQrisPng } from '../utils/qrisDownload';
+ 
 
 // TypeScript interfaces
 interface Product {
@@ -43,12 +42,6 @@ interface SelectOption {
   __isNew__?: boolean;
 }
 
-interface MidtransCallbackResult {
-  transaction_status: string;
-  order_id: string;
-  payment_type: string;
-}
-
 
 
 const NewOrderPage: React.FC = () => {
@@ -58,8 +51,7 @@ const NewOrderPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [items, setItems] = useState<OrderItem[]>([{ productId: '', name: '', price: '', quantity: 1, isCustom: false }]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [orderIdForQris, setOrderIdForQris] = useState<string | null>(null);
-  const [isDownloadingQris, setIsDownloadingQris] = useState<boolean>(false);
+  
   
   // Styles for react-select to ensure proper overlay and full-width on mobile/desktop
   const selectStyles: any = {
@@ -247,55 +239,15 @@ const NewOrderPage: React.FC = () => {
       
       const response = await orderService.createOrder(orderData);
       console.log('🚀 [DEBUG] Order service response:', JSON.stringify(response, null, 2));
-      
-      if (response.success && response.token) {
-        // Load Midtrans script and show payment page
-        await loadMidtransScript();
-        
-        if (window.snap) {
-          // Expose orderId to enable Download QRIS while popup is open
-          if (response.orderId) {
-            console.log('🔍 [DEBUG] Setting orderIdForQris:', response.orderId);
-            setOrderIdForQris(response.orderId);
-          }
-          window.snap.pay(response.token, {
-            onSuccess: (_result: MidtransCallbackResult) => {
-              toast({
-                title: "Pembayaran berhasil!",
-                description: "Pesanan Anda telah dibuat dan pembayaran berhasil diproses.",
-                status: "success",
-                duration: 5000,
-                isClosable: true,
-              });
-              navigate(`/orders/${response.orderId}`);
-            },
-            onPending: (_result: MidtransCallbackResult) => {
-              toast({
-                title: "Pembayaran pending",
-                description: "Silakan selesaikan pembayaran Anda.",
-                status: "info",
-                duration: 5000,
-                isClosable: true,
-              });
-              navigate(`/orders/${response.orderId}`);
-            },
-            onError: (_result: MidtransCallbackResult) => {
-              toast({
-                title: "Pembayaran gagal",
-                description: "Terjadi kesalahan saat memproses pembayaran.",
-                status: "error",
-                duration: 5000,
-                isClosable: true,
-              });
-            },
-            onClose: () => {
-              // User closed the payment popup
-              navigate(`/orders/${response.orderId}`);
-            }
-          });
-        } else {
-          throw new Error('Midtrans script not loaded');
-        }
+      if (response.success && response.orderId) {
+        toast({
+          title: 'Pesanan berhasil dibuat',
+          description: 'Pesanan Anda telah dibuat. Pembayaran disembunyikan sesuai pengaturan.',
+          status: 'success',
+          duration: 4000,
+          isClosable: true,
+        });
+        navigate(`/orders/${response.orderId}`);
       } else {
         throw new Error(response.error || 'Gagal membuat pesanan');
       }
@@ -553,70 +505,10 @@ const NewOrderPage: React.FC = () => {
           isLoading={isLoading} 
           loadingText="Membuat Pesanan..."
         >
-          Buat Pesanan & Lanjut ke Pembayaran
+          Buat Pesanan
         </Button>
       </form>
-      {/* Floating Download QRIS button shown after order is created (while Snap popup is open) */}
-      {orderIdForQris && (
-        <Box position="fixed" bottom={{ base: 4, md: 6 }} left="50%" transform="translateX(-50%)" zIndex={2147483647} display="flex" gap={3}>
-          <Button 
-            onClick={async () => {
-              if (!orderIdForQris) return;
-              console.log('🔍 [DEBUG] Download QRIS clicked with orderIdForQris:', orderIdForQris);
-              try {
-                setIsDownloadingQris(true);
-                // Hide Snap popup so button is not blocked
-                try { (window as any).snap?.hide?.(); } catch {}
-                console.log('🔍 [DEBUG] Calling getQrisUrl with ID:', orderIdForQris);
-                const res = await orderService.getQrisUrl(orderIdForQris);
-                if (!res.success || !res.qris_url) throw new Error(res.error || 'QRIS URL tidak tersedia');
-                const orderInfo = {
-                  orderId: orderIdForQris,
-                  customerName: formData.customer_name,
-                  customerPhone: formData.phone,
-                  customerEmail: formData.email,
-                  customerAddress: formData.customer_address,
-                  totalAmount: calculateTotal(),
-                  items: items.map(it => ({ name: it.name, price: Number(it.price) || 0, quantity: Number(it.quantity) || 1 }))
-                };
-                // Prefer proxy to avoid CORS issues; fallback to direct URL
-                try {
-                  await downloadQrisPng(orderInfo, `/api/orders/${orderIdForQris}/qris-image`);
-                } catch (_proxyErr) {
-                  await downloadQrisPng(orderInfo, res.qris_url);
-                }
-              } catch (err: any) {
-                console.error('Download QRIS failed:', err);
-                toast({
-                  title: 'Gagal mengunduh QRIS',
-                  description: err?.message || 'Terjadi kesalahan',
-                  status: 'error',
-                  duration: 4000,
-                  isClosable: true,
-                });
-              } finally {
-                setIsDownloadingQris(false);
-              }
-            }}
-            colorScheme="teal"
-            isLoading={isDownloadingQris}
-            loadingText="Menyiapkan..."
-            shadow="lg"
-          >
-            Download QRIS
-          </Button>
-          <Button
-            onClick={() => {
-              try { (window as any).snap?.hide?.(); } catch {}
-            }}
-            colorScheme="gray"
-            variant="outline"
-            shadow="lg"
-          >
-            Sembunyikan Pembayaran
-          </Button>
-        </Box>
-      )}
+      
     </Box>
   );
 };
