@@ -16,6 +16,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas';
 import { adminApi } from '../api/adminApi';
 import ShippingImageDisplay from '../components/ShippingImageDisplay';
+import { downloadQrisPng } from '../utils/qrisDownload';
 
 // Local TypeScript interfaces for this component
 interface OrderItem {
@@ -82,6 +83,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const [showQRCode, setShowQRCode] = useState<boolean>(false);
   const qrCodeRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
+  const [qrisLoading, setQrisLoading] = useState<boolean>(false);
+  const [qrisUrl, setQrisUrl] = useState<string | null>(null);
   
   // Real-time sync untuk public order detail page
   useRealTimeSync({
@@ -184,6 +187,52 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       setUploadLoading(false);
     }
   };
+
+  const handleDownloadQris = useCallback(async () => {
+    if (!order || !id) return;
+    try {
+      setQrisLoading(true);
+      const resp = await orderService.getQrisUrl(id);
+      if (!resp.success || !resp.qris_url) {
+        throw new Error(resp.error || 'QRIS URL tidak tersedia');
+      }
+      setQrisUrl(resp.qris_url);
+
+      const orderInfo = {
+        orderId: order.id,
+        customerName: order.customer_name,
+        customerPhone: order.customer_phone,
+        customerEmail: order.customer_email,
+        customerAddress: order.customer_address,
+        totalAmount: order.total_amount,
+        items: (order.items || []).map((it) => ({
+          name: it.product_name,
+          price: it.product_price,
+          quantity: it.quantity,
+        })),
+      };
+
+      await downloadQrisPng(orderInfo as any, resp.qris_url);
+      toast({
+        title: 'QRIS diunduh',
+        description: 'Gambar QRIS + detail pesanan berhasil diunduh.',
+        status: 'success',
+        duration: 2500,
+        isClosable: true,
+      });
+    } catch (e: any) {
+      console.error('Gagal mengunduh QRIS:', e);
+      toast({
+        title: 'Gagal mengunduh QRIS',
+        description: e?.message || 'Terjadi kesalahan saat mengambil QRIS',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setQrisLoading(false);
+    }
+  }, [order, id, toast]);
 
   // Map API order object to LocalOrder shape used by this component
   const mapToLocalOrder = (apiOrder: any): LocalOrder => {
@@ -1066,6 +1115,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                     Unduh PNG 56mm
                   </Button>
                 </HStack>
+              )}
+              <Button onClick={handleDownloadQris} isLoading={qrisLoading} colorScheme="purple" variant="solid" size="lg">
+                Unduh QRIS + Detail
+              </Button>
+              {qrisUrl && (
+                <Button as="a" href={qrisUrl} target="_blank" rel="noopener noreferrer" variant="outline" size="lg">
+                  Buka Gambar QRIS
+                </Button>
               )}
               {!isPaid && order.payment_url && (
                 <Button as="a" href={order.payment_url} target="_blank" colorScheme="teal" size="lg">
