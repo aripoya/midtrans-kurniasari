@@ -250,6 +250,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           ? 'luar_kota'
           : 'dalam_kota';
       
+      // Build payment URL with robust fallbacks
+      const snapToken = apiOrder?.snap_token || apiOrder?.token;
+      const redirectFromToken = snapToken
+        ? `https://app.midtrans.com/snap/v4/redirection/${snapToken}`
+        : undefined;
+
       const mapped: LocalOrder = {
         id: String(apiOrder?.id || ''),
         customer_name: apiOrder?.customer_name || apiOrder?.name || '-',
@@ -262,7 +268,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         total_amount: Number(apiOrder?.total_amount) || 0,
         payment_status: apiOrder?.payment_status || 'pending',
         shipping_status: apiOrder?.shipping_status || 'menunggu diproses',
-        payment_url: apiOrder?.payment_url || apiOrder?.payment_link || apiOrder?.redirect_url || undefined,
+        payment_url: apiOrder?.payment_url || apiOrder?.payment_link || apiOrder?.redirect_url || redirectFromToken || undefined,
         created_at: apiOrder?.created_at || new Date().toISOString(),
         updated_at: apiOrder?.updated_at || apiOrder?.updatedAt || undefined,
         payment_method: apiOrder?.payment_method || apiOrder?.paymentMethod || undefined,
