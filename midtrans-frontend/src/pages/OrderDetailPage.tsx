@@ -263,6 +263,17 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         ? `https://app.midtrans.com/snap/v4/redirection/${snapToken}`
         : undefined;
 
+      // Debug payment URL mapping
+      const paymentUrl = apiOrder?.payment_url || apiOrder?.payment_link || apiOrder?.redirect_url || redirectFromToken || undefined;
+      console.log('[OrderDetailPage] Payment URL Debug:', {
+        payment_url: apiOrder?.payment_url,
+        payment_link: apiOrder?.payment_link,
+        redirect_url: apiOrder?.redirect_url,
+        redirectFromToken,
+        finalPaymentUrl: paymentUrl,
+        payment_status: apiOrder?.payment_status
+      });
+
       const mapped: LocalOrder = {
         id: String(apiOrder?.id || ''),
         customer_name: apiOrder?.customer_name || apiOrder?.name || '-',
@@ -275,7 +286,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         total_amount: Number(apiOrder?.total_amount) || 0,
         payment_status: apiOrder?.payment_status || 'pending',
         shipping_status: apiOrder?.shipping_status || 'menunggu diproses',
-        payment_url: apiOrder?.payment_url || apiOrder?.payment_link || apiOrder?.redirect_url || redirectFromToken || undefined,
+        payment_url: paymentUrl,
         created_at: apiOrder?.created_at || new Date().toISOString(),
         updated_at: apiOrder?.updated_at || apiOrder?.updatedAt || undefined,
         payment_method: apiOrder?.payment_method || apiOrder?.paymentMethod || undefined,
@@ -702,6 +713,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const isReceived = order.shipping_status === 'diterima';
   const steps = getPaymentSteps();
   const currentStep = steps.findIndex(step => step.status === 'active');
+
+  // Debug payment URL visibility condition
+  console.log('[OrderDetailPage] Payment URL Visibility Debug:', {
+    isPaid,
+    payment_status: order.payment_status,
+    payment_url: order.payment_url,
+    showPaymentUrl: !isPaid && order.payment_url
+  });
 
   // Tentukan apakah harus menampilkan foto berdasarkan shipping_area
   const isLuarKota = order.shipping_area === 'luar_kota';
