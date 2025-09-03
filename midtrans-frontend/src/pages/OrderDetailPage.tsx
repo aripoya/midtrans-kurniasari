@@ -53,7 +53,7 @@ interface LocalOrder {
     picked_up?: string;
     delivered?: string;
   };
-}
+
 
 interface ShippingImages {
   ready_for_pickup: string | null;
@@ -85,6 +85,17 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const toast = useToast();
   const [qrisLoading, setQrisLoading] = useState<boolean>(false);
   const [qrisUrl, setQrisUrl] = useState<string | null>(null);
+  
+  // Copy payment URL helper (inside component scope)
+  const copyPaymentUrl = async (url?: string): Promise<void> => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: 'Link pembayaran disalin', status: 'success', duration: 1500, isClosable: true });
+    } catch (e) {
+      toast({ title: 'Gagal menyalin link', status: 'error', duration: 2000, isClosable: true });
+    }
+  };
   
   // Real-time sync untuk public order detail page
   useRealTimeSync({
@@ -1091,6 +1102,18 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
             </Grid>
 
             <Divider my={6} />
+
+            {/* Visible payment redirect URL */}
+            {!isPaid && order.payment_url && (
+              <Box mb={4}>
+                <Heading size="sm" mb={2}>Link Pembayaran</Heading>
+                <HStack align="start">
+                  <Input value={order.payment_url} isReadOnly size="sm" />
+                  <Button onClick={() => copyPaymentUrl(order.payment_url)} size="sm" variant="outline">Salin</Button>
+                  <Button as="a" href={order.payment_url} target="_blank" rel="noopener noreferrer" size="sm" colorScheme="teal">Buka</Button>
+                </HStack>
+              </Box>
+            )}
 
             <Heading size="sm" mb={4}>Barang Pesanan</Heading>
             <Table variant="simple">
