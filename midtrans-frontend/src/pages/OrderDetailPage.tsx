@@ -48,17 +48,13 @@ interface LocalOrder {
   lokasi_pengambilan?: string;
   picked_up_by?: string;
   items: OrderItem[];
-  shipping_images?: {
-    ready_for_pickup?: string;
-    picked_up?: string;
-    delivered?: string;
-  };
-
+  shipping_images?: ShippingImages;
+}
 
 interface ShippingImages {
-  ready_for_pickup: string | null;
-  picked_up: string | null;
-  delivered: string | null;
+  ready_for_pickup?: string | null;
+  picked_up?: string | null;
+  delivered?: string | null;
 }
 
 interface OrderDetailPageProps {
