@@ -1118,17 +1118,21 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
 
             <Divider my={6} />
 
-            {/* Visible payment redirect URL - ALWAYS SHOW */}
-            <Box mb={4}>
-              <Heading size="sm" mb={2}>Link Pembayaran</Heading>
+            {/* DEBUG: Payment URL Section */}
+            <Box mb={4} p={4} border="2px solid red" borderRadius="md">
+              <Heading size="sm" mb={2} color="red.500">🔴 DEBUG: Link Pembayaran Section</Heading>
+              <Text fontSize="xs" mb={2}>payment_url: {order.payment_url || 'undefined'}</Text>
+              <Text fontSize="xs" mb={2}>payment_status: {order.payment_status}</Text>
               {order.payment_url ? (
-                <HStack align="start">
+                <VStack align="start" spacing={2}>
                   <Input value={order.payment_url} isReadOnly size="sm" />
-                  <Button onClick={() => copyPaymentUrl(order.payment_url)} size="sm" variant="outline">Salin</Button>
-                  <Button as="a" href={order.payment_url} target="_blank" rel="noopener noreferrer" size="sm" colorScheme="teal">Buka</Button>
-                </HStack>
+                  <HStack>
+                    <Button onClick={() => copyPaymentUrl(order.payment_url)} size="sm" variant="outline">Salin</Button>
+                    <Button as="a" href={order.payment_url} target="_blank" rel="noopener noreferrer" size="sm" colorScheme="teal">Buka</Button>
+                  </HStack>
+                </VStack>
               ) : (
-                <Text fontSize="sm" color="gray.500">Tidak ada link pembayaran</Text>
+                <Text fontSize="sm" color="red.500">❌ Tidak ada link pembayaran</Text>
               )}
             </Box>
 
