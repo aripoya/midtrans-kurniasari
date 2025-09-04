@@ -1118,17 +1118,19 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
 
             <Divider my={6} />
 
-            {/* Visible payment redirect URL */}
-            {order.payment_url && (
-              <Box mb={4}>
-                <Heading size="sm" mb={2}>Link Pembayaran</Heading>
+            {/* Visible payment redirect URL - ALWAYS SHOW */}
+            <Box mb={4}>
+              <Heading size="sm" mb={2}>Link Pembayaran</Heading>
+              {order.payment_url ? (
                 <HStack align="start">
                   <Input value={order.payment_url} isReadOnly size="sm" />
                   <Button onClick={() => copyPaymentUrl(order.payment_url)} size="sm" variant="outline">Salin</Button>
                   <Button as="a" href={order.payment_url} target="_blank" rel="noopener noreferrer" size="sm" colorScheme="teal">Buka</Button>
                 </HStack>
-              </Box>
-            )}
+              ) : (
+                <Text fontSize="sm" color="gray.500">Tidak ada link pembayaran</Text>
+              )}
+            </Box>
 
             <Heading size="sm" mb={4}>Barang Pesanan</Heading>
             <Table variant="simple">
