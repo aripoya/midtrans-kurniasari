@@ -263,15 +263,28 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         ? `https://app.midtrans.com/snap/v4/redirection/${snapToken}`
         : undefined;
 
+      // Extract redirect_url from payment_response JSON if needed
+      let redirectUrlFromResponse;
+      try {
+        if (apiOrder?.payment_response) {
+          const paymentResponse = JSON.parse(apiOrder.payment_response);
+          redirectUrlFromResponse = paymentResponse?.redirect_url;
+        }
+      } catch (e) {
+        console.warn('Failed to parse payment_response:', e);
+      }
+
       // Debug payment URL mapping
-      const paymentUrl = apiOrder?.payment_url || apiOrder?.payment_link || apiOrder?.redirect_url || redirectFromToken || undefined;
+      const paymentUrl = apiOrder?.payment_url || apiOrder?.payment_link || redirectUrlFromResponse || redirectFromToken || undefined;
       console.log('[OrderDetailPage] Payment URL Debug:', {
         payment_url: apiOrder?.payment_url,
         payment_link: apiOrder?.payment_link,
         redirect_url: apiOrder?.redirect_url,
+        redirectUrlFromResponse,
         redirectFromToken,
         finalPaymentUrl: paymentUrl,
-        payment_status: apiOrder?.payment_status
+        payment_status: apiOrder?.payment_status,
+        payment_response: apiOrder?.payment_response
       });
 
       const mapped: LocalOrder = {
