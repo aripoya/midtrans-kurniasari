@@ -6,6 +6,7 @@ import {
 import CreatableSelect from 'react-select/creatable';
 import { DeleteIcon } from '@chakra-ui/icons';
 import { orderService } from '../api/orderService';
+import { processPayment } from '../utils/midtransHelper';
 import { productService } from '../api/productService';
  
 
@@ -240,14 +241,27 @@ const NewOrderPage: React.FC = () => {
       const response = await orderService.createOrder(orderData);
       console.log('🚀 [DEBUG] Order service response:', JSON.stringify(response, null, 2));
       if (response.success && response.orderId) {
-        toast({
-          title: 'Pesanan berhasil dibuat',
-          description: 'Pesanan Anda telah dibuat. Pembayaran disembunyikan sesuai pengaturan.',
-          status: 'success',
-          duration: 4000,
-          isClosable: true,
-        });
-        navigate(`/orders/${response.orderId}`);
+        // Open Midtrans Snap payment popup immediately (no success toast)
+        try {
+          await processPayment({
+            snap_token: response.token,
+            payment_url: response.redirect_url,
+            order_id: response.orderId as any,
+          } as any);
+        } catch (payErr) {
+          console.error('❌ [Payment] Error during Snap process:', payErr);
+          // Optional: you may show an error toast if payment fails to open
+          toast({
+            title: 'Gagal membuka pembayaran',
+            description: payErr instanceof Error ? payErr.message : 'Silakan coba lagi dari halaman detail pesanan.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+        } finally {
+          // After payment flow (success/pending/close), go to order detail
+          navigate(`/orders/${response.orderId}`);
+        }
       } else {
         throw new Error(response.error || 'Gagal membuat pesanan');
       }
