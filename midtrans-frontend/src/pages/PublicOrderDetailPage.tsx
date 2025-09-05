@@ -504,27 +504,7 @@ const PublicOrderDetailPage = () => {
 
                   <Divider />
 
-                  {/* Debug: Link Pembayaran visible section */}
-                  <Box border="2px dashed red" borderRadius="md" p={3} bg="red.50">
-                    <Heading size="sm" mb={2}>Link Pembayaran (Debug)</Heading>
-                    {paymentUrl ? (
-                      <VStack align="stretch" spacing={2}>
-                        <HStack align="start">
-                          <Input value={paymentUrl} isReadOnly size="sm" />
-                          <Button onClick={() => copyPaymentUrl(paymentUrl)} size="sm" variant="outline">Salin</Button>
-                          <Button as="a" href={paymentUrl} target="_blank" rel="noopener noreferrer" size="sm" colorScheme="teal">Buka</Button>
-                        </HStack>
-                        {!isPaid && (
-                          <Button as="a" href={paymentUrl} target="_blank" rel="noopener noreferrer" colorScheme="teal" size="sm">
-                            Lanjutkan Pembayaran
-                          </Button>
-                        )}
-                        <Text fontSize="xs" color="gray.600">Status: {order.payment_status || 'unknown'}</Text>
-                      </VStack>
-                    ) : (
-                      <Text fontSize="sm" color="red.500">❌ Tidak ada link pembayaran</Text>
-                    )}
-                  </Box>
+                  
 
                   {(() => {
                     // Check if order is paid and has been processed by admin
