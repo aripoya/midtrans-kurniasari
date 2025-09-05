@@ -81,6 +81,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const toast = useToast();
   const [qrisLoading, setQrisLoading] = useState<boolean>(false);
   const [qrisUrl, setQrisUrl] = useState<string | null>(null);
+  const hasAutoRefreshed = useRef<boolean>(false);
   
   // Copy payment URL helper (inside component scope)
   const copyPaymentUrl = async (url?: string): Promise<void> => {
@@ -686,6 +687,24 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   useEffect(() => {
     fetchOrderDetails();
   }, [fetchOrderDetails]);
+
+  // Auto-refresh payment status once after arriving at the detail page
+  useEffect(() => {
+    const doAutoRefresh = async (): Promise<void> => {
+      if (!id) return;
+      if (hasAutoRefreshed.current) return;
+      try {
+        hasAutoRefreshed.current = true;
+        toast({ title: 'Menyinkronkan status pembayaran…', status: 'info', duration: 1500, isClosable: true });
+        await refreshOrderStatus(id);
+        await fetchOrderDetails();
+        toast({ title: 'Status pembayaran terbarui', status: 'success', duration: 1200, isClosable: true });
+      } catch (e) {
+        console.warn('[OrderDetailPage] Auto refresh failed:', e);
+      }
+    };
+    doAutoRefresh();
+  }, [id, fetchOrderDetails]);
 
   // Tampilan loading
   if (loading) {

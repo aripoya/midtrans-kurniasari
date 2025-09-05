@@ -7,6 +7,7 @@ import CreatableSelect from 'react-select/creatable';
 import { DeleteIcon } from '@chakra-ui/icons';
 import { orderService } from '../api/orderService';
 import { processPayment } from '../utils/midtransHelper';
+import { refreshOrderStatus } from '../api/api';
 import { productService } from '../api/productService';
  
 
@@ -68,6 +69,8 @@ const NewOrderPage: React.FC = () => {
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
+  // Small helper for retry delays
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   // Helper: format price in Indonesian Rupiah without decimals
   const formatRupiah = (value: number): string => {
@@ -259,8 +262,31 @@ const NewOrderPage: React.FC = () => {
             isClosable: true,
           });
         } finally {
-          // After payment flow (success/pending/close), go to order detail
-          navigate(`/orders/${response.orderId}`);
+          // Force refresh payment status from Midtrans before navigating (with quick retry)
+          try {
+            toast({ title: 'Menyinkronkan status pembayaran…', status: 'info', duration: 1500, isClosable: true });
+            let refreshed = false;
+            for (let attempt = 1; attempt <= 2; attempt++) {
+              try {
+                const resp = await refreshOrderStatus(response.orderId);
+                if (resp?.data?.success) {
+                  refreshed = true;
+                  break;
+                }
+              } catch (e) {
+                // ignore and retry
+              }
+              await delay(1500);
+            }
+            if (refreshed) {
+              toast({ title: 'Status pembayaran terbarui', status: 'success', duration: 1200, isClosable: true });
+            }
+          } catch (e) {
+            console.warn('⚠️ Failed to refresh status immediately after payment:', e);
+          } finally {
+            // After refresh, go to order detail
+            navigate(`/orders/${response.orderId}`);
+          }
         }
       } else {
         throw new Error(response.error || 'Gagal membuat pesanan');
