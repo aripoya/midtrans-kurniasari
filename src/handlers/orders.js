@@ -777,29 +777,33 @@ async function updateOrderStatusFromMidtrans(orderId, env) {
     return { success: false, error: 'Midtrans server key not configured.' };
   }
 
-  const midtransUrl = isProduction
+  const makeStatusUrl = (prod) => prod
     ? `https://api.midtrans.com/v2/${orderId}/status`
     : `https://api.sandbox.midtrans.com/v2/${orderId}/status`;
 
-  const authString = `${serverKey}:`;
-  const authHeader = `Basic ${Buffer.from(authString).toString('base64')}`;
+  // Use Web Worker-compatible base64 (Buffer may be unavailable on Workers)
+  const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
 
   try {
-    const midtransResponse = await fetch(midtransUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': authHeader,
-      },
-    });
-
-    if (!midtransResponse.ok) {
-      const errorData = await midtransResponse.json();
-      console.error('Midtrans status check failed:', errorData);
-      return { success: false, error: `Midtrans API error: ${errorData.status_message || 'Unknown error'}` };
+    // Attempt in configured environment first, then fallback to opposite if needed
+    async function fetchStatusWithFallback() {
+      const firstUrl = makeStatusUrl(isProduction);
+      const secondUrl = makeStatusUrl(!isProduction);
+      const resp1 = await fetch(firstUrl, { method: 'GET', headers: { Accept: 'application/json', Authorization: authHeader } });
+      let data1 = await resp1.json().catch(() => ({}));
+      if (!resp1.ok) {
+        const resp2 = await fetch(secondUrl, { method: 'GET', headers: { Accept: 'application/json', Authorization: authHeader } });
+        const data2 = await resp2.json().catch(() => ({}));
+        return { resp: resp2, statusData: data2 };
+      }
+      return { resp: resp1, statusData: data1 };
     }
 
-    const statusData = await midtransResponse.json();
+    const { resp, statusData } = await fetchStatusWithFallback();
+    if (!resp.ok) {
+      console.error('Midtrans status check failed:', statusData);
+      return { success: false, error: `Midtrans API error: ${statusData?.status_message || 'Unknown error'}` };
+    }
 
     // Normalize values to avoid D1 undefined bind errors
     const normalizedPaymentStatus = (statusData && statusData.transaction_status)
