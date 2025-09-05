@@ -34,7 +34,8 @@ import {
   StepStatus,
   StepTitle,
   Stepper,
-  useToast
+  useToast,
+  Input
 } from '@chakra-ui/react';
 import { publicApi, PublicOrder } from '../api/publicApi';
 import { API_URL } from '../api/config';
@@ -97,6 +98,17 @@ const PublicOrderDetailPage = () => {
       }
     } catch (error) {
       console.error('📸 [PublicOrderDetailPage] Error fetching shipping images:', error);
+    }
+  };
+
+  // Copy payment URL helper
+  const copyPaymentUrl = async (url?: string) => {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: 'Link pembayaran disalin', status: 'success', duration: 1500, isClosable: true });
+    } catch (e) {
+      toast({ title: 'Gagal menyalin link', status: 'error', duration: 2000, isClosable: true });
     }
   };
 
@@ -304,6 +316,29 @@ const PublicOrderDetailPage = () => {
   const isReceived = order.shipping_status === 'diterima';
   const steps = getOrderProgressSteps();
   
+  // Build payment URL with robust fallbacks for public page
+  const snapToken = (order as any)?.snap_token || (order as any)?.token;
+  const redirectFromToken = snapToken ? `https://app.midtrans.com/snap/v4/redirection/${snapToken}` : undefined;
+  let redirectUrlFromResponse: string | undefined = undefined;
+  try {
+    if ((order as any)?.payment_response) {
+      const paymentResponse = JSON.parse((order as any).payment_response);
+      redirectUrlFromResponse = paymentResponse?.redirect_url;
+    }
+  } catch (e) {
+    console.warn('[PublicOrderDetailPage] Failed to parse payment_response:', e);
+  }
+  const paymentUrl: string | undefined = (order as any)?.payment_url || (order as any)?.payment_link || redirectUrlFromResponse || redirectFromToken || undefined;
+  console.log('[PublicOrderDetailPage] Payment URL Debug:', {
+    payment_url: (order as any)?.payment_url,
+    payment_link: (order as any)?.payment_link,
+    redirectFromToken,
+    redirectUrlFromResponse,
+    finalPaymentUrl: paymentUrl,
+    payment_status: order.payment_status,
+    hasPaymentUrl: !!paymentUrl
+  });
+  
   // Calculate currentStep: if order is received, show all steps as complete (use last index)
   // Otherwise, find the active step or the last completed step
   let currentStep = 0;
@@ -468,6 +503,28 @@ const PublicOrderDetailPage = () => {
                   </Box>
 
                   <Divider />
+
+                  {/* Debug: Link Pembayaran visible section */}
+                  <Box border="2px dashed red" borderRadius="md" p={3} bg="red.50">
+                    <Heading size="sm" mb={2}>Link Pembayaran (Debug)</Heading>
+                    {paymentUrl ? (
+                      <VStack align="stretch" spacing={2}>
+                        <HStack align="start">
+                          <Input value={paymentUrl} isReadOnly size="sm" />
+                          <Button onClick={() => copyPaymentUrl(paymentUrl)} size="sm" variant="outline">Salin</Button>
+                          <Button as="a" href={paymentUrl} target="_blank" rel="noopener noreferrer" size="sm" colorScheme="teal">Buka</Button>
+                        </HStack>
+                        {!isPaid && (
+                          <Button as="a" href={paymentUrl} target="_blank" rel="noopener noreferrer" colorScheme="teal" size="sm">
+                            Lanjutkan Pembayaran
+                          </Button>
+                        )}
+                        <Text fontSize="xs" color="gray.600">Status: {order.payment_status || 'unknown'}</Text>
+                      </VStack>
+                    ) : (
+                      <Text fontSize="sm" color="red.500">❌ Tidak ada link pembayaran</Text>
+                    )}
+                  </Box>
 
                   {(() => {
                     // Check if order is paid and has been processed by admin
