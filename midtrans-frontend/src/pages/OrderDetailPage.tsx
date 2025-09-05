@@ -1150,23 +1150,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
 
             <Divider my={6} />
 
-            {/* DEBUG: Payment URL Section */}
-            <Box mb={4} p={4} border="2px solid red" borderRadius="md">
-              <Heading size="sm" mb={2} color="red.500">🔴 DEBUG: Link Pembayaran Section</Heading>
-              <Text fontSize="xs" mb={2}>payment_url: {order.payment_url || 'undefined'}</Text>
-              <Text fontSize="xs" mb={2}>payment_status: {order.payment_status}</Text>
-              {order.payment_url ? (
-                <VStack align="start" spacing={2}>
-                  <Input value={order.payment_url} isReadOnly size="sm" />
-                  <HStack>
-                    <Button onClick={() => copyPaymentUrl(order.payment_url)} size="sm" variant="outline">Salin</Button>
-                    <Button as="a" href={order.payment_url} target="_blank" rel="noopener noreferrer" size="sm" colorScheme="teal">Buka</Button>
-                  </HStack>
-                </VStack>
-              ) : (
-                <Text fontSize="sm" color="red.500">❌ Tidak ada link pembayaran</Text>
-              )}
-            </Box>
 
             <Heading size="sm" mb={4}>Barang Pesanan</Heading>
             <Table variant="simple">
