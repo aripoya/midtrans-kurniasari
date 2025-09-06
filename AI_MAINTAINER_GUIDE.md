@@ -249,10 +249,124 @@ Dengan protection ini, semua perubahan harus melalui PR dan lulus build sebelum 
 
 ---
 
-## 14) Referensi
+## 14) Pembaruan Integrasi Pembayaran Midtrans (2025-09-06)
+
+Perubahan ini memastikan pengalaman pembayaran yang mulus, status terbarui tepat waktu, dan tidak ada UI debug yang tersisa di produksi.
+
+- **Frontend — Snap muncul langsung saat order dibuat**
+  - File: `midtrans-frontend/src/pages/NewOrderPage.tsx`
+  - Menghapus toast sukses lama setelah pembuatan order.
+  - Memanggil `processPayment()` (utils Midtrans) untuk membuka Snap segera.
+  - Setelah Snap selesai/ditutup: memanggil `refreshOrderStatus(orderId)` dengan retry 2× (interval 1.5s), lalu navigasi ke detail pesanan.
+
+- **Frontend — Auto-refresh status di halaman detail**
+  - File: `midtrans-frontend/src/pages/OrderDetailPage.tsx`
+  - Pada mount: `refreshOrderStatus(id)` sekali, lalu `fetchOrderDetails()` agar badge pembayaran segera berubah ke Lunas bila sudah settle.
+  - Menambahkan toast singkat “Menyinkronkan status pembayaran…” → “Status pembayaran terbarui”.
+
+- **Frontend — Halaman publik: tombol pembayaran saat belum lunas**
+  - File: `midtrans-frontend/src/pages/PublicOrderDetailPage.tsx`
+  - Menampilkan tombol "Bayar Sekarang" jika `!isPaid && paymentUrl`.
+  - Menghapus semua blok/section Debug link pembayaran.
+
+- **Frontend — Menghapus UI Debug**
+  - File: `OrderDetailPage.tsx` dan `PublicOrderDetailPage.tsx`.
+  - Menghapus box/section bertanda “Link Pembayaran (Debug)”.
+
+- **Backend — Perbaikan endpoint refresh-status**
+  - File: `src/handlers/orders.js`
+  - Fungsi: `updateOrderStatusFromMidtrans()` dan `export async function refreshOrderStatus()`.
+  - Perubahan:
+    - Gunakan `btoa(`${serverKey}:`)` alih-alih `Buffer.from(...).toString('base64')` agar kompatibel dengan Cloudflare Workers.
+    - Tambahkan fallback environment (prod/sandbox) jika request status Midtrans gagal di env saat ini.
+  - Route sudah terdaftar: `POST /api/orders/:id/refresh-status` di `src/worker.js`.
+
+- **Deployment & Cache Notes**
+  - Untuk memaksa Pages rebuild: sentuh/ubah `midtrans-frontend/.deploy-trigger` lalu commit.
+  - Jika UI lama masih muncul: lakukan hard refresh (Cmd+Shift+R) atau tambahkan query `?v=<timestamp>`; bila perlu purge cache Cloudflare.
+
+- **Env yang perlu ada**
+  - Frontend: `VITE_MIDTRANS_CLIENT_KEY`, `VITE_API_BASE_URL` (mengarah ke Worker prod).
+  - Backend (Workers): `MIDTRANS_SERVER_KEY`, `MIDTRANS_IS_PRODUCTION` (`'true'` untuk produksi), JWT secret, bindings D1/R2/Images.
+
+Checklist verifikasi pasca deploy:
+- Buat order baru → Snap muncul langsung tanpa toast sukses lama.
+- Selesaikan pembayaran → kembali ke detail, status berubah ke Lunas (tanpa menunggu 60 detik).
+- Halaman publik untuk order BELUM BAYAR menampilkan tombol "Bayar Sekarang" dan berfungsi.
+ - Tidak ada section "Link Pembayaran (Debug)" yang tampil di UI.
+
+ ---
+
+ ### 14.1) Troubleshooting Cepat Midtrans
+ 
+ - Popup Snap tidak muncul setelah membuat order
+   - Pastikan `processPayment()` dipanggil di `midtrans-frontend/src/pages/NewOrderPage.tsx` segera setelah create order.
+   - Cek `VITE_MIDTRANS_CLIENT_KEY` di Cloudflare Pages Project Settings.
+   - Periksa Network: request ke `https://app.midtrans.com/snap/v1/transactions` sukses dan mengembalikan `token`.
+ 
+ - Status pembayaran tidak berubah ke Lunas setelah selesai bayar
+   - Tes endpoint backend: `POST /api/orders/:id/refresh-status`.
+   - Validasi di `src/handlers/orders.js` → `updateOrderStatusFromMidtrans()` memakai `btoa` (bukan `Buffer`) dan fallback env prod/sandbox.
+   - Cek kolom `payment_response` dan fungsi `derivePaymentStatusFromData()`.
+ 
+ - Halaman publik tidak menampilkan tombol Bayar
+   - `midtrans-frontend/src/pages/PublicOrderDetailPage.tsx` menampilkan tombol jika `!isPaid && paymentUrl`.
+   - Jika `paymentUrl` kosong: FE mencoba `payment_url`, `payment_link`, `payment_response.redirect_url`, atau redirection dari `snap_token`.
+ 
+ - CORS/Origin warning saat membuka link Midtrans
+   - Normal karena redirection ke domain Midtrans; selama `redirect_url` valid, alur pembayaran aman.
+   - Pastikan payload Snap menyertakan `callbacks.finish` ke domain frontend publik yang benar.
+ 
+ ### 14.2) Cuplikan Kode Penting
+ 
+ - Backend: Auth header Midtrans kompatibel Workers (`src/handlers/orders.js`)
+ 
+   ```js
+   const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
+   ```
+ 
+ - Backend: Fallback env untuk status Midtrans (`src/handlers/orders.js`)
+ 
+   ```js
+   const makeStatusUrl = (prod) => prod
+     ? `https://api.midtrans.com/v2/${orderId}/status`
+     : `https://api.sandbox.midtrans.com/v2/${orderId}/status`;
+ 
+   const firstUrl = makeStatusUrl(isProduction);
+   const secondUrl = makeStatusUrl(!isProduction);
+   const resp1 = await fetch(firstUrl, { headers: { Accept: 'application/json', Authorization: authHeader } });
+   let data1 = await resp1.json().catch(() => ({}));
+   const { resp, statusData } = resp1.ok
+     ? { resp: resp1, statusData: data1 }
+     : (() => ({
+         resp: await fetch(secondUrl, { headers: { Accept: 'application/json', Authorization: authHeader } }),
+         statusData: await (await fetch(secondUrl, { headers: { Accept: 'application/json', Authorization: authHeader } })).json().catch(() => ({}))
+       }))();
+   ```
+ 
+ - Frontend: Buka Snap segera setelah create order (`midtrans-frontend/src/pages/NewOrderPage.tsx`)
+ 
+   ```ts
+   const result = await processPayment(orderResponse, async () => {
+     await refreshOrderStatusWithRetry(orderId, 2, 1500);
+     navigate(`/orders/${orderId}`);
+   });
+   ```
+ 
+ - Frontend: Tombol bayar di halaman publik (`midtrans-frontend/src/pages/PublicOrderDetailPage.tsx`)
+ 
+   ```tsx
+   {!isPaid && paymentUrl && (
+     <Button as="a" href={paymentUrl} target="_blank" rel="noopener noreferrer" colorScheme="teal">
+       Bayar Sekarang
+     </Button>
+   )}
+   ```
+ 
+ ## 15) Referensi
 - `APP_DOCUMENTATION_COMPREHENSIVE.md` → deskripsi lengkap sistem.
 - `MIDTRANS_GUIDE.md`, `MIDTRANS_PRODUCTION_SETUP.md` → integrasi pembayaran.
 - `DEVELOPMENT_SETUP.md`, `DEPLOYMENT_GUIDE.md` → setup & deploy.
 - `REAL_TIME_SYNC_TEST_GUIDE.md`, `docs/REAL_TIME_SYNC.md` → sinkronisasi.
 
-Terakhir diperbarui: 2025-08-26
+Terakhir diperbarui: 2025-09-06
