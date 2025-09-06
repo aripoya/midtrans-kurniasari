@@ -504,7 +504,14 @@ const PublicOrderDetailPage = () => {
 
                   <Divider />
 
-                  
+                  {/* Tampilkan tombol pembayaran hanya jika pesanan belum dibayar */}
+                  {!isPaid && paymentUrl && (
+                    <Box>
+                      <Button as="a" href={paymentUrl} target="_blank" rel="noopener noreferrer" colorScheme="teal" size="md">
+                        Bayar Sekarang
+                      </Button>
+                    </Box>
+                  )}
 
                   {(() => {
                     // Check if order is paid and has been processed by admin
