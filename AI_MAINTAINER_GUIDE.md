@@ -361,7 +361,67 @@ Checklist verifikasi pasca deploy:
        Bayar Sekarang
      </Button>
    )}
-   ```
+  ```
+ 
+ ### 14.3) Diagram Arsitektur (Teks)
+ 
+ ```
+ [Client (Browser)]
+     ├─ Frontend (Cloudflare Pages)
+     │   └─ React + TypeScript (Vite, Chakra UI)
+     │       ├─ Pages: Admin, Outlet, Delivery, Public
+     │       ├─ API Layer: src/api/*.ts (axios/fetch)
+     │       └─ Payment: utils/midtransHelper.ts (Snap)
+     │
+     └─ Hits API URL (VITE_API_BASE_URL) →
+ 
+ [Cloudflare Workers Backend]
+     ├─ src/worker.js (itty-router)
+     │   ├─ Auth (JWT), CORS
+     │   ├─ Orders, Delivery, Outlets, Images, Admin
+     │   └─ Public endpoints (order detail, shipping photos test)
+     ├─ src/handlers/*.js (domain logic)
+     │   └─ orders.js (create/read/update, Midtrans refresh-status, QRIS helpers)
+     ├─ src/utils/*.js (logger, payment-status, helpers)
+     └─ ENV (secrets & bindings): MIDTRANS_*, DB (D1), R2/Images
+ 
+ [Cloudflare D1 (SQLite)]
+     ├─ orders, order_items, users
+     ├─ outlets_unified (canonical)
+     ├─ shipping_images
+     └─ notifications, order_update_logs
+ 
+ [Cloudflare Images/R2]
+     └─ Penyimpanan foto pengiriman
+ ```
+ 
+ ### 14.4) First-time Maintainer Checklist
+ 
+ - Konfigurasi ENV
+   - Pastikan di Workers: `MIDTRANS_SERVER_KEY`, `MIDTRANS_IS_PRODUCTION`, JWT secret, bindings `DB` (D1), R2/Images.
+   - Pastikan di Pages: `VITE_API_BASE_URL`, `VITE_MIDTRANS_CLIENT_KEY`.
+ 
+ - Verifikasi Dasar
+   - `GET /api/ping` mengembalikan `{ ok: true }`.
+   - Login Admin berfungsi; token tersimpan di `sessionStorage`.
+ 
+ - Alur Order + Pembayaran
+   - Buat order baru (Admin) → Snap tampil langsung.
+   - Selesaikan pembayaran → `POST /api/orders/:id/refresh-status` sukses; detail pesanan menampilkan LUNAS.
+   - Halaman publik: untuk order unpaid, tombol “Bayar Sekarang” muncul dan valid.
+ 
+ - Foto Pengiriman
+   - Upload foto via endpoint modern → tampil di admin/public melalui `GET /api/test-shipping-photos/:orderId`.
+ 
+ - Observability
+   - Periksa log Workers setelah pembayaran dan refresh-status.
+   - Pastikan tidak ada UI “Debug Link Pembayaran”.
+ 
+ - Kuota & Performa
+   - Pastikan polling interval 60s di seluruh dashboard.
+ 
+ - Anti-legacy
+   - Cari referensi `locations`/`locations_view` (harus 0). Gunakan `outlets_unified`.
  
  ## 15) Referensi
 - `APP_DOCUMENTATION_COMPREHENSIVE.md` → deskripsi lengkap sistem.
