@@ -684,7 +684,7 @@ const AdminOrderDetailPage: React.FC = () => {
                   <Text fontWeight="semibold">Nomor Resi</Text>
                   <Input name="tracking_number" value={formData.tracking_number || ''} onChange={handleFormChange} />
                 </GridItem>
-                {formData.tipe_pesanan === 'Pesan Antar' && (
+                {formData.tipe_pesanan === 'Pesan Antar' && !isLuarKota && (
                   <GridItem>
                     <Text fontWeight="semibold">Lokasi Pengiriman</Text>
                     <Select
