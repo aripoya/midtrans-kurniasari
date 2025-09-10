@@ -971,15 +971,18 @@ export const adminApi = {
         return response.data;
       })
       .catch(async (error) => {
-        console.warn("[adminApi.getUnifiedOutlets] Primary endpoint failed:", error?.response?.status || error?.message);
-        // Fallback to legacy /api/outlets when 404 (route not deployed in prod)
-        if (error?.response?.status === 404) {
+        const status = error?.response?.status;
+        console.warn("[adminApi.getUnifiedOutlets] Primary endpoint failed:", status || error?.message);
+        // Fallback to public/compat endpoint when 404 (not found) or 401 (unauthorized/middleware mismatch)
+        if (status === 404 || status === 401) {
           try {
+            console.info("[adminApi.getUnifiedOutlets] Trying fallback /api/outlets ...");
             const fallbackResp: AxiosResponse<any> = await axios.get(
               `${API_URL}/api/outlets`,
               {
                 headers: {
-                  Authorization: `Bearer ${token}`,
+                  // Authorization header is optional for the public fallback; include if available
+                  ...(token ? { Authorization: `Bearer ${token}` } : {}),
                   "Content-Type": "application/json",
                 },
               }

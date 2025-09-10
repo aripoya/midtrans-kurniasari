@@ -7,6 +7,11 @@ A comprehensive order management and administration system for Kurniasari, built
 **Backend API**: https://order-management-app-production.wahwooh.workers.dev
 **Admin Dashboard**: React/TypeScript application (midtrans-frontend)
 
+## 🏷️ Latest Release
+
+- Tag: [v2025.09.10-0911](https://github.com/aripoya/midtrans-kurniasari/tree/v2025.09.10-0911)
+- Notes: [RELEASE_NOTES_v2025.09.10-0911.md](./RELEASE_NOTES_v2025.09.10-0911.md)
+
 ### ⚠️ Important: Production Backend Configuration
 
 **The frontend MUST be built to use the production backend environment:**
