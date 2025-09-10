@@ -81,6 +81,9 @@ const AdminOrderDetailPage: React.FC = () => {
     ? ((formData.pickup_method as string) || 'ojek-online')
     : (formData.pickup_method || '');
 
+  // Determine area-based behavior
+  const isLuarKota = formData.shipping_area === 'luar-kota';
+
   // Load order data
   useEffect(() => {
     const loadOrder = async () => {
@@ -769,44 +772,38 @@ const AdminOrderDetailPage: React.FC = () => {
             <Heading size="md">Status Foto Pesanan</Heading>
           </CardHeader>
           <CardBody>
-            <Grid templateColumns="repeat(3, 1fr)" gap={4}>
-              <Box>
-                <Text fontWeight="semibold" mb={2} textAlign="center">Foto Siap Kirim</Text>
-                <ShippingImageDisplay
-                  imageUrl={shippingImages.ready_for_pickup ?? undefined}
-                  type="ready_for_pickup"
-                  label="Foto Siap Kirim"
-                  showPlaceholder={true}
-                  maxHeight="180px"
-                />
-              </Box>
-              <Box>
-                <Text fontWeight="semibold" mb={2} textAlign="center">Foto Pengiriman</Text>
-                <ShippingImageDisplay
-                  imageUrl={shippingImages.picked_up ?? undefined}
-                  type="picked_up"
-                  label="Foto Pengiriman"
-                  showPlaceholder={true}
-                  maxHeight="180px"
-                />
-              </Box>
-              <Box>
-                <Text fontWeight="semibold" mb={2} textAlign="center">Foto Diterima</Text>
-                <ShippingImageDisplay
-                  imageUrl={shippingImages.delivered ?? undefined}
-                  type="delivered"
-                  label="Foto Diterima"
-                  showPlaceholder={true}
-                  maxHeight="180px"
-                />
-              </Box>
-            </Grid>
-            <Divider my={4} />
-            <Box textAlign="center">
-              <Button colorScheme="blue">
-                📱 Generate QR Code
-              </Button>
-            </Box>
+            {(() => {
+              // Untuk luar kota: tampilkan 1 foto saja (pengiriman)
+              // Untuk dalam kota: tampilkan 3 tahapan foto
+              const photoSlotsToShow = isLuarKota
+                ? ['picked_up']
+                : ['ready_for_pickup', 'picked_up', 'delivered'];
+
+              const labels: Record<string, string> = {
+                ready_for_pickup: 'Foto Siap Kirim',
+                picked_up: 'Foto Pengiriman',
+                delivered: 'Foto Diterima',
+              };
+
+              const columns = photoSlotsToShow.length === 1 ? 'repeat(1, 1fr)' : 'repeat(3, 1fr)';
+
+              return (
+                <Grid templateColumns={columns} gap={4}>
+                  {photoSlotsToShow.map((type) => (
+                    <Box key={type}>
+                      <Text fontWeight="semibold" mb={2} textAlign="center">{labels[type]}</Text>
+                      <ShippingImageDisplay
+                        imageUrl={(shippingImages as any)[type] ?? undefined}
+                        type={type as any}
+                        label={labels[type]}
+                        showPlaceholder={true}
+                        maxHeight="180px"
+                      />
+                    </Box>
+                  ))}
+                </Grid>
+              );
+            })()}
           </CardBody>
         </Card>
       </VStack>
