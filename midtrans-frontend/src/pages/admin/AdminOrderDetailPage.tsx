@@ -9,6 +9,7 @@ import {
   ModalFooter, ModalBody, ModalCloseButton,
   useDisclosure, Divider
 } from '@chakra-ui/react';
+import QRCodeGenerator from '../../components/QRCodeGenerator';
 import { adminApi, Order, Outlet } from '../../api/adminApi';
 import ShippingImageDisplay from '../../components/ShippingImageDisplay';
 
@@ -783,6 +784,46 @@ const AdminOrderDetailPage: React.FC = () => {
               <Button type="submit" colorScheme="blue" isLoading={updateLoading} size="lg">
                 Simpan Perubahan
               </Button>
+            </VStack>
+          </CardBody>
+        </Card>
+
+        <Divider my={4} />
+
+        {/* QR Halaman Publik untuk Konsumen */}
+        <Card>
+          <CardHeader>
+            <Heading size="md">QR Halaman Publik</Heading>
+          </CardHeader>
+          <CardBody>
+            <VStack spacing={4} align="center">
+              {order && (
+                (() => {
+                  const publicUrl = `https://tagihan.kurniasari.id/orders/${order.id}`;
+                  return (
+                    <>
+                      <QRCodeGenerator
+                        value={publicUrl}
+                        size={180}
+                        includeMargin={true}
+                        showDownload={true}
+                        downloadFilename={`order-${order.id}-qr`}
+                      />
+                      <HStack>
+                        <Text fontSize="sm" color="gray.600">{publicUrl}</Text>
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            try { await navigator.clipboard.writeText(publicUrl); } catch (e) {}
+                          }}
+                        >
+                          Copy
+                        </Button>
+                      </HStack>
+                    </>
+                  );
+                })()
+              )}
             </VStack>
           </CardBody>
         </Card>
