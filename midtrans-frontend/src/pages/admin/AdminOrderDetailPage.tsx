@@ -638,13 +638,15 @@ const AdminOrderDetailPage: React.FC = () => {
                     </>
                   )}
                 </GridItem>
-                <GridItem>
-                  <Text fontWeight="semibold">Tipe Pesanan</Text>
-                  <Select name="tipe_pesanan" value={formData.tipe_pesanan || ''} onChange={handleFormChange} placeholder="Pilih tipe pesanan">
-                    <option value="Pesan Antar">Pesan Antar</option>
-                    <option value="Pesan Ambil">Pesan Ambil</option>
-                  </Select>
-                </GridItem>
+                {!isLuarKota && (
+                  <GridItem>
+                    <Text fontWeight="semibold">Tipe Pesanan</Text>
+                    <Select name="tipe_pesanan" value={formData.tipe_pesanan || ''} onChange={handleFormChange} placeholder="Pilih tipe pesanan">
+                      <option value="Pesan Antar">Pesan Antar</option>
+                      <option value="Pesan Ambil">Pesan Ambil</option>
+                    </Select>
+                  </GridItem>
+                )}
                 {!isLuarKota && !(formData.tipe_pesanan === 'Pesan Ambil' && derivedPickupMethod === 'self-pickup') && (
                 <GridItem>
                   <Text fontWeight="semibold">
@@ -701,7 +703,7 @@ const AdminOrderDetailPage: React.FC = () => {
                     </Select>
                   </GridItem>
                 )}
-                {formData.tipe_pesanan === 'Pesan Antar' && (
+                {formData.tipe_pesanan === 'Pesan Antar' && !isLuarKota && (
                   <>
                     <GridItem>
                       <Text fontWeight="semibold">Tanggal Pengantaran</Text>
