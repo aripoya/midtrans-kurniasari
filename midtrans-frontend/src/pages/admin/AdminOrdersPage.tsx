@@ -215,25 +215,48 @@ const AdminOrdersPage: React.FC = () => {
       (order.customer_name || '').toLowerCase().includes(q) ||
       (order.customer_email || '').toLowerCase().includes(q);
 
-    // Normalize status values
-    const sf = (statusFilter || '').toLowerCase().trim();
+    // Normalize values
+    const sfRaw = (statusFilter || '').toLowerCase().trim();
+    // Map common UI labels to internal values defensively
+    const sfMap: Record<string, string> = {
+      'menunggu pembayaran': 'pending',
+      'sudah dibayar': 'paid',
+      'dibayar': 'paid',
+      'sedang dikirim': 'dikirim',
+      'dikirim': 'dikirim',
+      'siap kirim': 'siap kirim',
+      'diterima': 'received',
+    };
+    const sf = sfMap[sfRaw] || sfRaw;
     const pay = (order.payment_status || '').toLowerCase().trim();
     const shipRaw = (order.shipping_status || '').toLowerCase().trim();
+    const ship = shipRaw === 'sedang dikirim' ? 'dikirim' : shipRaw; // synonym mapping
 
-    // Map shipping synonyms: treat "sedang dikirim" as "dikirim"
-    const ship = shipRaw === 'sedang dikirim' ? 'dikirim' : shipRaw;
+    // Define filter domains
+    const paymentSet = new Set(['pending', 'paid', 'settlement', 'capture', 'cancel', 'expire', 'failure']);
+    const shippingSet = new Set(['dikemas', 'siap kirim', 'dikirim', 'received']);
 
     // Payment equivalence: settlement/capture ~ paid
     const paymentMatches = (
-      !sf ||
       pay === sf ||
       (sf === 'paid' && (pay === 'settlement' || pay === 'capture')) ||
       ((sf === 'settlement' || sf === 'capture') && pay === 'paid')
     );
+    const shippingMatches = (ship === sf);
 
-    const shippingMatches = (!sf || ship === sf);
-
-    const matchesStatus = !sf || paymentMatches || shippingMatches;
+    let matchesStatus = true;
+    if (sf) {
+      if (paymentSet.has(sf)) {
+        // Filter ONLY by payment when selecting a payment status
+        matchesStatus = paymentMatches;
+      } else if (shippingSet.has(sf)) {
+        // Filter ONLY by shipping when selecting a shipping status
+        matchesStatus = shippingMatches;
+      } else {
+        // Unknown filter -> do not match anything unexpected
+        matchesStatus = false;
+      }
+    }
 
     return matchesSearch && matchesStatus;
   });
