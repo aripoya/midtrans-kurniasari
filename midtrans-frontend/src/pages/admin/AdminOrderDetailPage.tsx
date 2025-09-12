@@ -45,10 +45,12 @@ const AdminOrderDetailPage: React.FC = () => {
   // Edit states
   const [formData, setFormData] = useState<Partial<Order>>({});
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
   
   // Modal states
   const { isOpen: isStatusOpen, onOpen: onStatusOpen, onClose: onStatusClose } = useDisclosure();
   const { isOpen: isPaymentOpen, onOpen: onPaymentOpen, onClose: onPaymentClose } = useDisclosure();
+  const { isOpen: isCancelOpen, onOpen: onCancelOpen, onClose: onCancelClose } = useDisclosure();
   
   // Status update states
   const [newShippingStatus, setNewShippingStatus] = useState('');
@@ -523,6 +525,8 @@ const AdminOrderDetailPage: React.FC = () => {
                       variant="outline" 
                       width="full"
                       size="lg"
+                      onClick={onCancelOpen}
+                      isLoading={cancelLoading}
                     >
                       Batalkan Pesanan
                     </Button>
@@ -908,6 +912,47 @@ const AdminOrderDetailPage: React.FC = () => {
               isDisabled={!newShippingStatus}
             >
               Update Status
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Cancel Order Confirmation Modal */}
+      <Modal isOpen={isCancelOpen} onClose={() => { if (!cancelLoading) onCancelClose(); }}>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Batalkan Pesanan</ModalHeader>
+          <ModalCloseButton isDisabled={cancelLoading} />
+          <ModalBody>
+            <VStack align="stretch" spacing={3}>
+              <Text>Anda yakin ingin membatalkan pesanan ini? Tindakan ini tidak dapat dibatalkan.</Text>
+              <Box p={3} borderWidth={1} borderRadius="md">
+                <Text fontSize="sm"><b>ID Pesanan:</b> {order?.id}</Text>
+                <Text fontSize="sm"><b>Nama:</b> {order?.customer_name}</Text>
+                <Text fontSize="sm"><b>Total:</b> Rp {order?.total_amount?.toLocaleString('id-ID')}</Text>
+              </Box>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={onCancelClose} isDisabled={cancelLoading}>
+              Tidak
+            </Button>
+            <Button colorScheme="red" onClick={async () => {
+              if (!id) return;
+              try {
+                setCancelLoading(true);
+                const resp = await adminApi.deleteOrder(id);
+                if (!resp.success) throw new Error(resp.error || 'Gagal membatalkan pesanan');
+                toast({ title: 'Pesanan dibatalkan', status: 'success', duration: 3000, isClosable: true });
+                onCancelClose();
+                navigate('/admin/orders');
+              } catch (e: any) {
+                toast({ title: 'Gagal membatalkan pesanan', description: e?.message || 'Terjadi kesalahan', status: 'error', duration: 5000, isClosable: true });
+              } finally {
+                setCancelLoading(false);
+              }
+            }} isLoading={cancelLoading}>
+              Ya, Batalkan
             </Button>
           </ModalFooter>
         </ModalContent>
