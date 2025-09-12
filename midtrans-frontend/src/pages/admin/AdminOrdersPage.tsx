@@ -209,15 +209,32 @@ const AdminOrdersPage: React.FC = () => {
 
   // Filter orders based on search term and status
   const filteredOrders = orders.filter((order: any) => {
-    const matchesSearch = !searchTerm || 
-      order.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customer_email?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = !statusFilter || 
-      order.payment_status === statusFilter ||
-      order.shipping_status === statusFilter;
-    
+    const q = (searchTerm || '').toLowerCase().trim();
+    const matchesSearch = !q ||
+      (order.id || '').toLowerCase().includes(q) ||
+      (order.customer_name || '').toLowerCase().includes(q) ||
+      (order.customer_email || '').toLowerCase().includes(q);
+
+    // Normalize status values
+    const sf = (statusFilter || '').toLowerCase().trim();
+    const pay = (order.payment_status || '').toLowerCase().trim();
+    const shipRaw = (order.shipping_status || '').toLowerCase().trim();
+
+    // Map shipping synonyms: treat "sedang dikirim" as "dikirim"
+    const ship = shipRaw === 'sedang dikirim' ? 'dikirim' : shipRaw;
+
+    // Payment equivalence: settlement/capture ~ paid
+    const paymentMatches = (
+      !sf ||
+      pay === sf ||
+      (sf === 'paid' && (pay === 'settlement' || pay === 'capture')) ||
+      ((sf === 'settlement' || sf === 'capture') && pay === 'paid')
+    );
+
+    const shippingMatches = (!sf || ship === sf);
+
+    const matchesStatus = !sf || paymentMatches || shippingMatches;
+
     return matchesSearch && matchesStatus;
   });
 
