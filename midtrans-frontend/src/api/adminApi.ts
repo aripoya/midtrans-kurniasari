@@ -333,6 +333,16 @@ export const adminApi = {
     shippingData: UpdateOrderDetailsRequest
   ): Promise<ApiResponse> => {
     try {
+      // Ensure we have a valid token before attempting the request
+      const token = getAdminToken();
+      if (!token) {
+        console.warn("updateOrderDetails: No token found. Please login again.");
+        return {
+          success: false,
+          data: null,
+          error: "Sesi login berakhir. Silakan login ulang.",
+        };
+      }
       // Debug logs untuk membantu troubleshooting
       console.group("updateOrderDetails - Request Details");
       console.log("Order ID:", orderId);
@@ -340,20 +350,42 @@ export const adminApi = {
       console.log("Request Payload:", JSON.stringify(shippingData, null, 2));
       console.groupEnd();
 
-      const response: AxiosResponse = await axios.patch(
-        `${API_URL}/api/orders/${orderId}`,
-        shippingData,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${getAdminToken()}`,
-          },
+      // Attempt PATCH first
+      try {
+        const response: AxiosResponse = await axios.patch(
+          `${API_URL}/api/orders/${orderId}`,
+          shippingData,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        console.log("updateOrderDetails (PATCH) - Response:", response.data);
+        return { success: true, data: response.data, error: null };
+      } catch (patchErr: any) {
+        const status = patchErr?.response?.status;
+        console.warn("updateOrderDetails (PATCH) failed with status:", status, patchErr?.response?.data || patchErr?.message);
+        // Fallback to PUT for environments where PATCH might be blocked or misrouted
+        if (status === 401 || status === 404 || status === 405) {
+          console.info("updateOrderDetails: Trying PUT fallback...");
+          const putResp: AxiosResponse = await axios.put(
+            `${API_URL}/api/orders/${orderId}`,
+            shippingData,
+            {
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+          console.log("updateOrderDetails (PUT) - Response:", putResp.data);
+          return { success: true, data: putResp.data, error: null };
         }
-      );
-
-      console.log("updateOrderDetails - Response:", response.data);
-
-      return { success: true, data: response.data, error: null };
+        // If not a known fallback case, rethrow to outer catch
+        throw patchErr;
+      }
     } catch (error: any) {
       console.group("updateOrderDetails - Error Details");
       console.error("Error updating order details:", error);
@@ -367,6 +399,7 @@ export const adminApi = {
         data: null,
         error:
           error.response?.data?.error ||
+          (error.response?.status === 401 ? "Sesi login berakhir. Silakan login ulang." : null) ||
           error.message ||
           "Error saat memperbarui detail pesanan",
       };
