@@ -803,7 +803,7 @@ const AdminOrderDetailPage: React.FC = () => {
             <VStack spacing={4} align="center">
               {order && (
                 (() => {
-                  const publicUrl = `https://tagihan.kurniasari.id/orders/${order.id}`;
+                  const publicUrl = `https://nota.kurniasari.co.id/orders/${order.id}`;
                   return (
                     <>
                       <QRCodeGenerator
