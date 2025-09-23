@@ -31,7 +31,7 @@ import {
   AccordionPanel,
   AccordionIcon,
 } from '@chakra-ui/react';
-import { adminApi } from '../../api/adminApi';
+import { adminApi, AdminStats } from '../../api/adminApi';
 import { formatDate } from '../../utils/date';
 import { useRealTimeSync, useNotificationSync } from '../../hooks/useRealTimeSync';
 
@@ -71,6 +71,7 @@ const AdminOrdersPage: React.FC = () => {
     paid: 0,
     shipping: 0,
   });
+  const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
   const toast = useToast();
   const isMobile = useBreakpointValue({ base: true, md: false });
   const { logout } = useAuth();
@@ -205,6 +206,19 @@ const AdminOrdersPage: React.FC = () => {
   useEffect(() => {
     console.log('[DEBUG] 🚀 useEffect called - starting fetch process...');
     fetchOrders();
+    // Fetch admin dashboard stats (activities/sessions)
+    (async () => {
+      try {
+        const resp = await adminApi.getAdminStats();
+        if (resp.success && resp.data) {
+          setAdminStats(resp.data);
+        } else {
+          console.warn('[AdminOrdersPage] Failed to fetch admin stats:', resp.error);
+        }
+      } catch (e) {
+        console.warn('[AdminOrdersPage] Error fetching admin stats:', e);
+      }
+    })();
   }, [fetchOrders]);
 
   // Filter orders based on search term and status
@@ -337,7 +351,18 @@ const AdminOrdersPage: React.FC = () => {
         </Flex>
 
 
-        {/* Stats Cards */}
+        {/* Admin Activity/Session Stats */}
+        {adminStats && (
+          <SimpleGrid columns={{ base: 2, md: 5 }} spacing={6} mb={6}>
+            <StatCard label="Aktivitas Hari Ini" value={adminStats.today?.total_activities ?? 0} colorScheme="teal" />
+            <StatCard label="Login Hari Ini" value={adminStats.today?.logins ?? 0} colorScheme="cyan" />
+            <StatCard label="Order Dibuat" value={adminStats.today?.orders_created ?? 0} colorScheme="green" />
+            <StatCard label="Order Diupdate" value={adminStats.today?.orders_updated ?? 0} colorScheme="purple" />
+            <StatCard label="Sesi Aktif" value={adminStats.active_sessions ?? 0} colorScheme="orange" />
+          </SimpleGrid>
+        )}
+
+        {/* Order Stats Cards */}
         <SimpleGrid columns={{ base: 2, md: 4 }} spacing={6} mb={8}>
           <StatCard label="Total Pesanan" value={stats.total} colorScheme="blue" />
           <StatCard label="Menunggu Bayar" value={stats.pending} colorScheme="yellow" />
