@@ -223,6 +223,35 @@ const DeliveryDashboard: React.FC = () => {
     }
   };
 
+  // Unassign current deliveryman from an order (remove from my list)
+  const unassignOrder = async (orderId: string): Promise<void> => {
+    try {
+      const confirm = window.confirm(`Hapus order ${orderId} dari daftar Anda?`);
+      if (!confirm) return;
+
+      const resp = await adminApi.unassignDelivery(orderId);
+      if (!resp.success) throw new Error(resp.error || 'Gagal melepas penugasan');
+
+      // Remove from local list
+      setOrders(prev => prev.filter((o: any) => o.id !== orderId));
+
+      // Optional: refresh overview to keep grouped sections in sync
+      fetchOverview();
+
+      toast({
+        title: 'Berhasil',
+        description: `Order ${orderId} telah dihapus dari daftar Anda`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (err: unknown) {
+      console.error('Error unassigning order:', err);
+      const message = err instanceof Error ? err.message : 'Terjadi kesalahan saat melepas penugasan.';
+      toast({ title: 'Error', description: message, status: 'error', duration: 5000, isClosable: true });
+    }
+  };
+
   const getShippingStatusBadge = (status: string): React.ReactElement => {
     const config = getShippingStatusConfig(status);
     return <Badge colorScheme={config.color}>{config.text}</Badge>;
@@ -419,6 +448,16 @@ const DeliveryDashboard: React.FC = () => {
                               Tandai Diterima
                             </Button>
                           )}
+
+                          {/* Remove from my list (unassign) */}
+                          <Button
+                            size="sm"
+                            colorScheme="red"
+                            variant="outline"
+                            onClick={() => unassignOrder(order.id)}
+                          >
+                            Hapus dari daftar saya
+                          </Button>
                         </HStack>
                       </Td>
                     </Tr>

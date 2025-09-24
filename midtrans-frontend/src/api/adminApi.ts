@@ -800,6 +800,37 @@ export const adminApi = {
     }
   },
 
+  // Unassign delivery from the current deliveryman (courier self-service)
+  unassignDelivery: async (
+    orderId: string,
+    reason?: string
+  ): Promise<ApiResponse> => {
+    try {
+      const payload = reason ? { reason } : {};
+      const response: AxiosResponse = await axios.post(
+        `${API_URL}/api/orders/${orderId}/unassign-delivery`,
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getAdminToken()}`,
+          },
+        }
+      );
+      return { success: true, data: response.data, error: null };
+    } catch (error: any) {
+      console.error('Error unassigning delivery:', error);
+      return {
+        success: false,
+        data: null,
+        error:
+          error.response?.data?.error ||
+          error.message ||
+          'Error saat melepas penugasan kurir',
+      };
+    }
+  },
+
   // User management API endpoints
 
   // Get all users
