@@ -1181,18 +1181,22 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                   </Button>
                 </HStack>
               )}
-              <Button onClick={handleDownloadQris} isLoading={qrisLoading} colorScheme="purple" variant="solid" size="lg">
-                Unduh QRIS + Detail
-              </Button>
-              {qrisUrl && (
-                <Button as="a" href={qrisUrl} target="_blank" rel="noopener noreferrer" variant="outline" size="lg">
-                  Buka Gambar QRIS
-                </Button>
-              )}
-              {order.payment_url && (
-                <Button as="a" href={order.payment_url} target="_blank" colorScheme="teal" size="lg">
-                  Lanjutkan Pembayaran
-                </Button>
+              {!isDeliveryView && (
+                <>
+                  <Button onClick={handleDownloadQris} isLoading={qrisLoading} colorScheme="purple" variant="solid" size="lg">
+                    Unduh QRIS + Detail
+                  </Button>
+                  {qrisUrl && (
+                    <Button as="a" href={qrisUrl} target="_blank" rel="noopener noreferrer" variant="outline" size="lg">
+                      Buka Gambar QRIS
+                    </Button>
+                  )}
+                  {order.payment_url && (
+                    <Button as="a" href={order.payment_url} target="_blank" colorScheme="teal" size="lg">
+                      Lanjutkan Pembayaran
+                    </Button>
+                  )}
+                </>
               )}
               <Button onClick={handleRefreshStatus} isLoading={isRefreshing} variant="outline">
                 Perbarui Status
