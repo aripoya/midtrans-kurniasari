@@ -179,11 +179,10 @@ export async function getUserNotifications(request, env) {
     });
     
   } catch (error) {
-    console.error('Error fetching user notifications:', error);
+    console.error('Error fetching user notifications:', error.message, error.stack);
     return new Response(JSON.stringify({
       success: false,
-      error: 'Failed to fetch notifications',
-      details: error.message
+      error: 'Failed to fetch notifications'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -274,11 +273,10 @@ export async function markNotificationRead(request, env) {
     });
     
   } catch (error) {
-    console.error('Error marking notification as read:', error);
+    console.error('Error marking notification as read:', error.message, error.stack);
     return new Response(JSON.stringify({
       success: false,
-      error: 'Failed to mark notification as read',
-      details: error.message
+      error: 'Failed to mark notification as read'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -330,11 +328,10 @@ export async function markAllNotificationsRead(request, env) {
     });
     
   } catch (error) {
-    console.error('Error marking all notifications as read:', error);
+    console.error('Error marking all notifications as read:', error.message, error.stack);
     return new Response(JSON.stringify({
       success: false,
-      error: 'Failed to mark notifications as read',
-      details: error.message
+      error: 'Failed to mark notifications as read'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

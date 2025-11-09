@@ -34,8 +34,8 @@ export const getProducts = async (request, env) => {
         const { results } = await query.all();
         return jsonResponse({ success: true, products: results }, 200, request.corsHeaders);
     } catch (error) {
-        console.error('Error getting products:', error);
-        return jsonResponse({ success: false, error: 'Failed to fetch products', details: error.message }, 500, request.corsHeaders);
+        console.error('Error getting products:', error.message, error.stack);
+        return jsonResponse({ success: false, error: 'Failed to fetch products' }, 500, request.corsHeaders);
     }
 };
 
@@ -59,11 +59,11 @@ export const createProduct = async (request, env) => {
 
         return jsonResponse({ success: true, product: result }, 201, request.corsHeaders);
     } catch (error) {
-        console.error('Error creating product:', error);
-        if (error.message.includes('UNIQUE constraint failed')) {
+        console.error('Error creating product:', error.message, error.stack);
+        if (error.message && error.message.includes('UNIQUE constraint failed')) {
             return jsonResponse({ success: false, error: 'Product with this name already exists' }, 409, request.corsHeaders);
         }
-        return jsonResponse({ success: false, error: 'Failed to create product', details: error.message }, 500, request.corsHeaders);
+        return jsonResponse({ success: false, error: 'Failed to create product' }, 500, request.corsHeaders);
     }
 };
 
@@ -92,11 +92,11 @@ export const updateProduct = async (request, env) => {
 
         return jsonResponse({ success: true, product: result }, 200, request.corsHeaders);
     } catch (error) {
-        console.error('Error updating product:', error);
-        if (error.message.includes('UNIQUE constraint failed')) {
+        console.error('Error updating product:', error.message, error.stack);
+        if (error.message && error.message.includes('UNIQUE constraint failed')) {
             return jsonResponse({ success: false, error: 'Another product with this name already exists' }, 409, request.corsHeaders);
         }
-        return jsonResponse({ success: false, error: 'Failed to update product', details: error.message }, 500, request.corsHeaders);
+        return jsonResponse({ success: false, error: 'Failed to update product' }, 500, request.corsHeaders);
     }
 };
 
@@ -117,7 +117,7 @@ export const deleteProduct = async (request, env) => {
         // Standard practice is to return 204 No Content on successful deletion.
         return new Response(null, { status: 204, headers: request.corsHeaders });
     } catch (error) {
-        console.error('Error deleting product:', error);
-        return jsonResponse({ success: false, error: 'Failed to delete product', details: error.message }, 500, request.corsHeaders);
+        console.error('Error deleting product:', error.message, error.stack);
+        return jsonResponse({ success: false, error: 'Failed to delete product' }, 500, request.corsHeaders);
     }
 };

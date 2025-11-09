@@ -47,11 +47,10 @@ export async function resetAdminPassword(request, env) {
     }
 
   } catch (error) {
-    console.error('Error resetting admin password:', error);
+    console.error('Error resetting admin password:', error.message, error.stack);
     return new Response(JSON.stringify({
       success: false,
-      error: 'Internal server error',
-      details: error.message
+      error: 'Internal server error'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -114,11 +113,10 @@ export async function getAdminStats(request, env) {
     });
 
   } catch (error) {
-    console.error('Error getting admin stats:', error);
+    console.error('Error getting admin stats:', error.message, error.stack);
     return new Response(JSON.stringify({
       success: false,
-      error: 'Failed to get admin statistics',
-      details: error.message
+      error: 'Failed to get admin statistics'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -170,11 +168,10 @@ export async function getSystemHealth(request, env) {
     });
 
   } catch (error) {
-    console.error('Error checking system health:', error);
+    console.error('Error checking system health:', error.message, error.stack);
     return new Response(JSON.stringify({
       success: false,
-      error: 'Health check failed',
-      details: error.message
+      error: 'Health check failed'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

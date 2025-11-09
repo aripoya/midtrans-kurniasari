@@ -993,11 +993,10 @@ export async function modifyUpdateOrderStatus(request, env) {
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     
   } catch (error) {
-    console.error('Error updating order status:', error);
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: 'Failed to update order status', 
-      details: error.message 
+    console.error('Error updating order status:', error.message, error.stack);
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Failed to update order status'
     }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 }

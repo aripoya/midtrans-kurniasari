@@ -111,13 +111,11 @@ export async function migrateShippingInfoFields(request, env) {
     });
 
   } catch (error) {
-    console.error('❌ Migration failed:', error);
-    
+    console.error('❌ Migration failed:', error.message, error.stack);
+
     return new Response(JSON.stringify({
       success: false,
-      message: 'Shipping info fields migration failed',
-      error: error.message,
-      details: error.stack
+      message: 'Shipping info fields migration failed'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

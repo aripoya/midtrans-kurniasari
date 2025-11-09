@@ -81,7 +81,8 @@ export async function listMigrationBackups(request, env) {
       headers: { 'Content-Type': 'application/json', ...headers },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, message: error.message }), {
+    console.error('Error fetching migration backups:', error.message, error.stack);
+    return new Response(JSON.stringify({ success: false, message: 'Failed to fetch migration backups' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...getCorsHeaders(request) },
     });
@@ -122,7 +123,8 @@ export async function getMigrationBackup(request, env) {
       headers: { 'Content-Type': 'application/json', ...headers },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, message: error.message }), {
+    console.error('Error fetching migration backup:', error.message, error.stack);
+    return new Response(JSON.stringify({ success: false, message: 'Failed to fetch migration backup' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...getCorsHeaders(request) },
     });
@@ -250,7 +252,8 @@ export async function restoreMigrationBackup(request, env) {
       headers: { 'Content-Type': 'application/json', ...headers },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, message: error.message }), {
+    console.error('Error restoring migration backup:', error.message, error.stack);
+    return new Response(JSON.stringify({ success: false, message: 'Failed to restore migration backup' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...headers },
     });

@@ -108,8 +108,8 @@ router.get('/api/admin/users-schema', verifyToken, async (request, env) => {
             headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
         });
     } catch (error) {
-        console.error('Error reading users schema:', error);
-        return new Response(JSON.stringify({ success: false, message: 'Failed to read schema', error: String(error && error.message || error) }), {
+        console.error('Error reading users schema:', error.message, error.stack);
+        return new Response(JSON.stringify({ success: false, message: 'Failed to read schema' }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
         });
@@ -423,8 +423,8 @@ router.post('/api/admin/reset-password', async (request, env) => {
         });
 
     } catch (error) {
-        console.error('Error in /api/admin/reset-password handler:', error);
-        return new Response(JSON.stringify({ success: false, message: 'An unexpected error occurred.', error: error.message }), {
+        console.error('Error in /api/admin/reset-password handler:', error.message, error.stack);
+        return new Response(JSON.stringify({ success: false, message: 'An unexpected error occurred.' }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
         });
@@ -741,9 +741,9 @@ router.post('/api/admin/drop-legacy-password', verifyToken, async (request, env)
             headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
         });
     } catch (error) {
-        console.error('Error dropping legacy password column:', error);
+        console.error('Error dropping legacy password column:', error.message, error.stack);
         try { await env.DB.prepare('PRAGMA foreign_keys = ON').run(); } catch (_) {}
-        return new Response(JSON.stringify({ success: false, message: 'Migration failed', error: String(error && error.message || error) }), {
+        return new Response(JSON.stringify({ success: false, message: 'Migration failed' }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
         });
@@ -901,11 +901,10 @@ router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (requ
         });
         
     } catch (error) {
-        console.error('Error uploading to Cloudflare Images:', error);
+        console.error('Error uploading to Cloudflare Images:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: 'Failed to upload image',
-            details: error.message
+            error: 'Failed to upload image'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -973,14 +972,13 @@ router.get('/api/test-shipping-photos/:orderId', async (request, env) => {
         });
         
     } catch (error) {
-        console.error('🔍 [SHIPPING PHOTOS] Error:', error);
+        console.error('🔍 [SHIPPING PHOTOS] Error:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: 'Failed to get shipping photos',
-            details: error.message
+            error: 'Failed to get shipping photos'
         }), {
             status: 500,
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             }
@@ -1031,11 +1029,10 @@ router.delete('/api/shipping/images/:orderId/:imageType', verifyToken, async (re
         });
         
     } catch (error) {
-        console.error('Error deleting shipping image:', error);
+        console.error('Error deleting shipping image:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: 'Failed to delete image',
-            details: error.message
+            error: 'Failed to delete image'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -1076,11 +1073,9 @@ router.get('/api/debug/midtrans', (request, env) => {
         });
         
     } catch (error) {
-        console.error('Error in /debug/midtrans:', error);
+        console.error('Error in /debug/midtrans:', error.message, error.stack);
         return new Response(JSON.stringify({
-            error: 'Failed to get Midtrans config',
-            details: error.message,
-            stack: error.stack
+            error: 'Failed to get Midtrans config'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -1222,12 +1217,10 @@ router.get('/api/debug/test-login', async (request, env) => {
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
         });
     } catch (error) {
-        console.error('DEBUG LOGIN ERROR:', error);
+        console.error('DEBUG LOGIN ERROR:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message,
-            stack: error.stack,
-            step: 'debug_error'
+            error: 'Login failed'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -1279,11 +1272,10 @@ router.get('/api/debug/reset-outlet-password', async (request, env) => {
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
         });
     } catch (error) {
-        console.error('RESET PASSWORD ERROR:', error);
+        console.error('RESET PASSWORD ERROR:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message,
-            stack: error.stack
+            error: 'Failed to reset password'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -1367,11 +1359,10 @@ router.get('/api/debug/add-photo-columns', async (request, env) => {
         });
         
     } catch (error) {
-        console.error('ADD PHOTO COLUMNS ERROR:', error);
+        console.error('ADD PHOTO COLUMNS ERROR:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message,
-            stack: error.stack
+            error: 'Failed to add photo columns'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -1439,11 +1430,10 @@ router.get('/api/debug/check-shipping-setup', async (request, env) => {
         });
         
     } catch (error) {
-        console.error('SHIPPING SETUP CHECK ERROR:', error);
+        console.error('SHIPPING SETUP CHECK ERROR:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message,
-            stack: error.stack
+            error: 'Failed to check shipping setup'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -1498,11 +1488,10 @@ router.get('/api/debug/create-shipping-table', async (request, env) => {
         });
         
     } catch (error) {
-        console.error('CREATE SHIPPING TABLE ERROR:', error);
+        console.error('CREATE SHIPPING TABLE ERROR:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message,
-            stack: error.stack
+            error: 'Failed to create shipping table'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -1597,11 +1586,10 @@ router.get('/api/debug/test-shipping-upload-api', async (request, env) => {
         });
         
     } catch (error) {
-        console.error('TEST SHIPPING UPLOAD API ERROR:', error);
+        console.error('TEST SHIPPING UPLOAD API ERROR:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: 'Failed to get shipping upload API test results',
-            details: error.message
+            error: 'Failed to get shipping upload API test results'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -1703,11 +1691,10 @@ router.post('/api/debug/test-upload-full', async (request, env) => {
         }
         
     } catch (error) {
-        console.error('FULL UPLOAD TEST ERROR:', error);
+        console.error('FULL UPLOAD TEST ERROR:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message,
-            stack: error.stack
+            error: 'Failed to complete upload test'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -1805,11 +1792,10 @@ router.post('/api/debug/test-formdata', async (request, env) => {
         });
         
     } catch (error) {
-        console.error('FORMDATA TEST ERROR:', error);
+        console.error('FORMDATA TEST ERROR:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message,
-            stack: error.stack
+            error: 'Failed to process form data'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -1861,11 +1847,10 @@ router.get('/api/debug/test-photo-upload', async (request, env) => {
         });
         
     } catch (error) {
-        console.error('TEST PHOTO UPLOAD ERROR:', error);
+        console.error('TEST PHOTO UPLOAD ERROR:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message,
-            stack: error.stack
+            error: 'Failed to test photo upload'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -2229,12 +2214,10 @@ router.post('/api/debug/test-cloudflare-images-upload', async (request, env) => 
         });
         
     } catch (error) {
-        console.error('Error in Cloudflare Images upload test:', error);
+        console.error('Error in Cloudflare Images upload test:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: 'Test failed with exception',
-            details: error.message,
-            stack: error.stack
+            error: 'Test failed with exception'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -2422,11 +2405,10 @@ router.get('/api/sync/last-update', async (request, env) => {
     });
     
   } catch (error) {
-    console.error('Error getting last update:', error);
+    console.error('Error getting last update:', error.message, error.stack);
     return new Response(JSON.stringify({
       success: false,
-      error: 'Failed to get last update',
-      details: error.message
+      error: 'Failed to get last update'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -2475,11 +2457,10 @@ router.get('/api/sync/status/:role', verifyToken, async (request, env) => {
     });
     
   } catch (error) {
-    console.error('Error getting role status:', error);
+    console.error('Error getting role status:', error.message, error.stack);
     return new Response(JSON.stringify({
       success: false,
-      error: 'Failed to get role status',
-      details: error.message
+      error: 'Failed to get role status'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
@@ -2507,11 +2488,10 @@ router.post('/api/admin/migrate-passwords', verifyToken, async (request, env) =>
             headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
         });
     } catch (error) {
-        console.error('Error during password migration:', error);
+        console.error('Error during password migration:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            error: 'Failed to migrate passwords',
-            details: error.message
+            error: 'Failed to migrate passwords'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...request.corsHeaders }

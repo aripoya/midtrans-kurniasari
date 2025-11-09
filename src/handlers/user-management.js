@@ -93,12 +93,10 @@ export async function getUsers(request, env) {
     });
 
   } catch (error) {
-    console.error('[ERROR] Get Users Error:', error);
+    console.error('[ERROR] Get Users Error:', error.message, error.stack);
     return new Response(JSON.stringify({
       success: false,
-      message: 'Failed to fetch users',
-      error: error.message,
-      stack: error.stack
+      message: 'Failed to fetch users'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -624,14 +622,11 @@ export async function deleteUser(request, env) {
     });
 
   } catch (error) {
-    console.error('[ERROR] Delete User Error:', error);
-    console.error('[ERROR] Error stack:', error.stack);
-    
+    console.error('[ERROR] Delete User Error:', error.message, error.stack);
+
     return new Response(JSON.stringify({
       success: false,
-      message: 'Failed to delete user',
-      error: error.message,
-      details: error.toString()
+      message: 'Failed to delete user'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json', ...corsHeaders }

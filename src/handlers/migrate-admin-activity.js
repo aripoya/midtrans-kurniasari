@@ -133,11 +133,10 @@ export async function migrateAdminActivity(request, env) {
     });
     
   } catch (error) {
-    console.error('❌ Admin activity migration failed:', error);
+    console.error('❌ Admin activity migration failed:', error.message, error.stack);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message,
-      details: error.stack
+      error: 'Admin activity migration failed'
     }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }

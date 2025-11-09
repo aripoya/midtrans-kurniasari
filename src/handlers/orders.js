@@ -195,8 +195,8 @@ export async function getDeliveryOverview(request, env) {
       headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
   } catch (error) {
-    console.error('getDeliveryOverview error:', error);
-    return new Response(JSON.stringify({ success: false, error: 'Failed to get delivery overview', details: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    console.error('getDeliveryOverview error:', error.message, error.stack);
+    return new Response(JSON.stringify({ success: false, error: 'Failed to get delivery overview' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 }
 
@@ -626,7 +626,7 @@ export async function createOrder(request, env) {
 
   } catch (e) {
     console.error('Create Order Error:', e.message, e.stack);
-    return new Response(JSON.stringify({ success: false, error: e.message, stack: e.stack }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+    return new Response(JSON.stringify({ success: false, error: 'Failed to create order' }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
   }
 }
 
@@ -1107,13 +1107,12 @@ export async function deleteOrder(request, env) {
 
   } catch (error) {
     console.error('Delete Order Error:', error.message, error.stack);
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: 'Failed to delete order',
-      details: error.message 
-    }), { 
-      status: 500, 
-      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Failed to delete order'
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
   }
 }
@@ -1358,13 +1357,12 @@ export async function getAdminOrders(request, env) {
 
   } catch (error) {
     console.error('Admin Get Orders Error:', error.message, error.stack);
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: 'Failed to fetch admin orders',
-      details: error.message 
-    }), { 
-      status: 500, 
-      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Failed to fetch admin orders'
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
   }
 }
@@ -1654,9 +1652,8 @@ export async function updateOrderStatus(request, env) {
   } catch (error) {
     console.error('Update Order Status Error:', error.message, error.stack);
     return new Response(JSON.stringify({ 
-      success: false, 
-      error: 'Failed to update order status', 
-      details: error.message 
+      success: false,
+      error: 'Failed to update order status'
     }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 }
@@ -2030,21 +2027,18 @@ export async function updateOrderDetails(request, env) {
       console.error(`[updateOrderDetails] Failing Query: ${updateQuery}`);
       console.error(`[updateOrderDetails] Failing Params:`, JSON.stringify(updateParams));
 
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: 'Gagal memperbarui pesanan di database.',
-        details: dbError.message,
-        query: updateQuery, // For debugging
-        params: updateParams // For debugging
-      }), { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Gagal memperbarui pesanan di database.'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
   } catch (error) {
     console.error(`[updateOrderDetails] Unhandled error:`, error.message, error.stack);
-    return new Response(JSON.stringify({ success: false, error: 'Failed to update order details', details: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ success: false, error: 'Failed to update order details' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 }
 

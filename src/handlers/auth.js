@@ -108,11 +108,10 @@ export async function registerUser(request, env) {
             headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
         });
     } catch (error) {
-        console.error('Error in registerUser:', error);
+        console.error('Error in registerUser:', error.message, error.stack);
         return new Response(JSON.stringify({
             success: false,
-            message: 'Server error during registration',
-            error: error.message
+            message: 'Server error during registration'
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
