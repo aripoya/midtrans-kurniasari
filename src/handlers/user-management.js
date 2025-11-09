@@ -1,4 +1,5 @@
 import { generateId } from '../utils/helpers';
+import { rateLimitMiddleware } from './rate-limit.js';
 
 /**
  * Get all users
@@ -124,6 +125,12 @@ export async function createUser(request, env) {
   }
 
   try {
+    // Apply rate limiting for user creation
+    const rateLimitResponse = await rateLimitMiddleware(request, env, 'user_create');
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     // Verify admin role
     if (!request.user || request.user.role !== 'admin') {
       return new Response(JSON.stringify({
@@ -407,6 +414,12 @@ export async function resetUserPassword(request, env) {
   }
 
   try {
+    // Apply rate limiting for password reset
+    const rateLimitResponse = await rateLimitMiddleware(request, env, 'password_reset');
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     // Verify admin role
     if (!request.user || request.user.role !== 'admin') {
       return new Response(JSON.stringify({

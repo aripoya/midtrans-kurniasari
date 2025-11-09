@@ -3,6 +3,7 @@ import { createNotification } from './notifications.js';
 import { determineOutletFromLocation } from './outlet-assignment.js';
 import { AdminActivityLogger, getClientInfo } from '../utils/admin-activity-logger.js';
 import { derivePaymentStatusFromData } from '../utils/payment-status.js';
+import { rateLimitMiddleware } from './rate-limit.js';
 
 // Simple order ID generator
 function generateOrderId() {
@@ -213,6 +214,12 @@ export async function createOrder(request, env) {
   }
 
   try {
+    // Apply rate limiting for order creation
+    const rateLimitResponse = await rateLimitMiddleware(request, env, 'order_create');
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     if (!env.DB) {
       throw new Error("Database binding not found.");
     }

@@ -3,10 +3,17 @@ import { nanoid } from 'nanoid';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { AdminActivityLogger, getClientInfo } from '../utils/admin-activity-logger.js';
+import { rateLimitMiddleware, markFailedAttempt, markSuccessfulAttempt } from './rate-limit.js';
 
 // Register a new user
 export async function registerUser(request, env) {
     try {
+        // Apply rate limiting for registration
+        const rateLimitResponse = await rateLimitMiddleware(request, env, 'auth_register');
+        if (rateLimitResponse) {
+            return rateLimitResponse;
+        }
+
         const body = await request.json();
         const { username, password, name, email, phone, role, outlet_id } = body;
 
@@ -123,7 +130,7 @@ export async function registerUser(request, env) {
 // Login user
 export async function loginUser(request, env) {
     console.log('LOGIN START: Beginning login function execution');
-    
+
     try {
         console.log('LOGIN ENV: Available environment variables:', Object.keys(env));
         console.log('LOGIN DB: Database binding available:', !!env.DB);
@@ -132,6 +139,13 @@ export async function loginUser(request, env) {
         const body = await request.json();
         const { username, password } = body;
         console.log(`LOGIN ATTEMPT: Received login request for username: '${username}'`);
+
+        // Apply rate limiting for login attempts (track by IP + username)
+        const rateLimitResponse = await rateLimitMiddleware(request, env, 'auth_login', { username });
+        if (rateLimitResponse) {
+            console.log(`LOGIN RATE_LIMIT: Request blocked for username: '${username}'`);
+            return rateLimitResponse;
+        }
 
         // Validate required fields
         if (!username || !password) {
@@ -154,6 +168,12 @@ export async function loginUser(request, env) {
 
         if (!user) {
             console.error(`LOGIN FAIL: User not found in database for username: '${username}'`);
+
+            // Mark as failed attempt for rate limiting
+            const { ipAddress } = getClientInfo(request);
+            const identifier = `${ipAddress}:${username}`;
+            await markFailedAttempt(env, identifier, '/api/auth/login', request);
+
             return new Response(JSON.stringify({
                 success: false,
                 message: 'Invalid credentials'
@@ -180,6 +200,11 @@ export async function loginUser(request, env) {
         console.log('LOGIN RESULT: Password comparison result:', isMatch);
 
         if (!isMatch) {
+            // Mark as failed attempt for rate limiting
+            const { ipAddress } = getClientInfo(request);
+            const identifier = `${ipAddress}:${username}`;
+            await markFailedAttempt(env, identifier, '/api/auth/login', request);
+
             return new Response(JSON.stringify({
                 success: false,
                 message: 'Invalid credentials'
@@ -213,7 +238,11 @@ export async function loginUser(request, env) {
         // Initialize activity logger and get client info
         const activityLogger = new AdminActivityLogger(env);
         const { ipAddress, userAgent } = getClientInfo(request);
-        
+
+        // Mark as successful login for rate limiting
+        const identifier = `${ipAddress}:${username}`;
+        await markSuccessfulAttempt(env, identifier, '/api/auth/login', request);
+
         // Create session and log login activity
         const sessionId = await activityLogger.createSession(user, ipAddress, userAgent);
         await activityLogger.logLogin(user, ipAddress, userAgent, sessionId);
