@@ -620,21 +620,22 @@ const PublicOrderDetailPage = () => {
                     <Heading size="sm" mb={2}>Status Foto Pesanan</Heading>
                     <VStack align="stretch" spacing={3}>
                       {photoSlotsToShow.map((type) => {
+                        // Label berbeda untuk luar kota dan dalam kota
                         const labels = {
                           ready_for_pickup: 'Foto Siap Kirim',
-                          picked_up: 'Foto Pengiriman', 
+                          picked_up: isLuarKota ? 'Foto Sudah di Ambil Kurir' : 'Foto Pengiriman',
                           delivered: 'Foto Diterima',
-                          packaged_product: 'Foto Produk Sudah Dikemas'
+                          packaged_product: 'Foto Siap Kirim'
                         };
-                        
-                        const imageUrl = shippingImages?.find(img => 
-                          img.image_type === type || 
+
+                        const imageUrl = shippingImages?.find(img =>
+                          img.image_type === type ||
                           (type === 'ready_for_pickup' && img.image_type === 'ready_for_pickup') ||
                           (type === 'picked_up' && img.image_type === 'picked_up') ||
                           (type === 'delivered' && img.image_type === 'delivered') ||
                           (type === 'packaged_product' && img.image_type === 'packaged_product')
                         )?.image_url;
-                        
+
                         return (
                           <ShippingImageDisplay
                             key={type}

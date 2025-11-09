@@ -17,6 +17,7 @@ type ShippingImages = {
   ready_for_pickup: string | null;
   picked_up: string | null;
   delivered: string | null;
+  packaged_product: string | null;
 };
 
 // Normalize Midtrans/payment statuses to FE canonical values
@@ -60,7 +61,15 @@ const AdminOrderDetailPage: React.FC = () => {
     ready_for_pickup: null,
     picked_up: null,
     delivered: null,
+    packaged_product: null,
   });
+
+  // Photo upload states
+  const [photoFiles, setPhotoFiles] = useState<Record<string, File | null>>({
+    packaged_product: null,
+    picked_up: null,
+  });
+  const [isUploading, setIsUploading] = useState(false);
 
   const transformURL = (url: string): string => {
     if (!url) return url;
@@ -118,8 +127,8 @@ const AdminOrderDetailPage: React.FC = () => {
             if (res.ok) {
               const data = await res.json();
               const images = data.success ? data.data : data;
-              const processed: ShippingImages = { ready_for_pickup: null, picked_up: null, delivered: null };
-              (['ready_for_pickup','picked_up','delivered'] as const).forEach((k) => {
+              const processed: ShippingImages = { ready_for_pickup: null, picked_up: null, delivered: null, packaged_product: null };
+              (['ready_for_pickup','picked_up','delivered','packaged_product'] as const).forEach((k) => {
                 if (images?.[k]?.url) processed[k] = transformURL(images[k].url);
               });
               setShippingImages(processed);
@@ -223,6 +232,78 @@ const AdminOrderDetailPage: React.FC = () => {
       }
       return { ...prev, [name]: value };
     });
+  };
+
+  // Handle photo file selection
+  const handlePhotoFileChange = (type: string, file: File | null) => {
+    if (!file) return;
+    setPhotoFiles(prev => ({ ...prev, [type]: file }));
+  };
+
+  // Upload photo to server
+  const uploadPhoto = async (type: 'packaged_product' | 'picked_up'): Promise<void> => {
+    if (!photoFiles[type] || !id) return;
+
+    setIsUploading(true);
+    try {
+      console.log(`📤 AdminOrderDetail uploading ${type} photo for order ${id}`);
+
+      const response = await adminApi.uploadShippingImage(id, type, photoFiles[type]!);
+
+      console.log('📤 Upload response:', response);
+
+      if (response.success) {
+        const imageUrl = response.data?.imageUrl || '';
+        setShippingImages(prev => ({
+          ...prev,
+          [type]: imageUrl
+        }));
+
+        // Clear the file input
+        setPhotoFiles(prev => ({
+          ...prev,
+          [type]: null
+        }));
+
+        toast({
+          title: 'Foto berhasil diupload',
+          description: `Foto ${type === 'packaged_product' ? 'Siap Kirim' : 'Sudah di Ambil Kurir'} berhasil diupload`,
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+
+        // Refresh images
+        try {
+          const apiUrl = import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev';
+          const res = await fetch(`${apiUrl}/api/test-shipping-photos/${id}`);
+          if (res.ok) {
+            const data = await res.json();
+            const images = data.success ? data.data : data;
+            const processed: ShippingImages = { ready_for_pickup: null, picked_up: null, delivered: null, packaged_product: null };
+            (['ready_for_pickup','picked_up','delivered','packaged_product'] as const).forEach((k) => {
+              if (images?.[k]?.url) processed[k] = transformURL(images[k].url);
+            });
+            setShippingImages(processed);
+          }
+        } catch (e) {
+          console.error('Failed to refresh images', e);
+        }
+      } else {
+        throw new Error(response.error || 'Upload gagal');
+      }
+    } catch (error: any) {
+      console.error('Error uploading photo:', error);
+      toast({
+        title: 'Upload gagal',
+        description: error.message || 'Terjadi kesalahan saat upload foto',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Handle form submission
@@ -862,19 +943,20 @@ const AdminOrderDetailPage: React.FC = () => {
           </CardHeader>
           <CardBody>
             {(() => {
-              // Untuk luar kota: tampilkan 1 foto saja (pengiriman)
+              // Untuk luar kota: tampilkan 2 foto (siap kirim & sudah di ambil kurir)
               // Untuk dalam kota: tampilkan 3 tahapan foto
               const photoSlotsToShow = isLuarKota
-                ? ['picked_up']
+                ? ['packaged_product', 'picked_up']
                 : ['ready_for_pickup', 'picked_up', 'delivered'];
 
               const labels: Record<string, string> = {
                 ready_for_pickup: 'Foto Siap Kirim',
-                picked_up: 'Foto Pengiriman',
+                picked_up: isLuarKota ? 'Foto Sudah di Ambil Kurir' : 'Foto Pengiriman',
                 delivered: 'Foto Diterima',
+                packaged_product: 'Foto Siap Kirim',
               };
 
-              const columns = photoSlotsToShow.length === 1 ? 'repeat(1, 1fr)' : 'repeat(3, 1fr)';
+              const columns = photoSlotsToShow.length === 2 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)';
 
               return (
                 <Grid templateColumns={columns} gap={4}>
@@ -888,6 +970,30 @@ const AdminOrderDetailPage: React.FC = () => {
                         showPlaceholder={true}
                         maxHeight="180px"
                       />
+                      {/* Upload button untuk luar-kota */}
+                      {isLuarKota && (type === 'packaged_product' || type === 'picked_up') && (
+                        <VStack spacing={2} mt={3}>
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              handlePhotoFileChange(type, file);
+                            }}
+                            size="sm"
+                          />
+                          <Button
+                            size="sm"
+                            colorScheme="blue"
+                            onClick={() => uploadPhoto(type as 'packaged_product' | 'picked_up')}
+                            isDisabled={!photoFiles[type] || isUploading}
+                            isLoading={isUploading}
+                            width="full"
+                          >
+                            Upload Foto
+                          </Button>
+                        </VStack>
+                      )}
                     </Box>
                   ))}
                 </Grid>
