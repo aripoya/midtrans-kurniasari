@@ -267,7 +267,7 @@ const PublicOrderDetailPage = () => {
       {
         title: 'Pengiriman',
         description: isReceived ? 'Pengiriman selesai' : (isShipping ? 'Sedang dikirim' : (isProcessing ? 'Siap kirim' : 'Menunggu proses')),
-        status: isReceived ? 'complete' : (isShipping ? 'active' : (isProcessing ? 'active' : (isPaid ? 'incomplete' : 'incomplete')))
+        status: isReceived ? 'complete' : (isShipping ? 'active' : (isProcessing ? 'active' : (isPaid ? 'active' : 'incomplete')))
       },
       {
         title: 'Selesai',
@@ -499,7 +499,11 @@ const PublicOrderDetailPage = () => {
                     <Heading size="sm" mb={2}>Detail Pembayaran</Heading>
                     <Text><strong>Total:</strong> {formatCurrency(order.total_amount)}</Text>
                     <Text><strong>Status:</strong> <Badge colorScheme={isPaid ? 'green' : 'red'}>{isPaid ? 'LUNAS' : 'BELUM BAYAR'}</Badge></Text>
-                    <Text><strong>Metode:</strong> {order.pickup_method === 'deliveryman' ? 'kurir outlet' : (order.pickup_method || 'qris')}</Text>
+                    <Text><strong>Metode Pengiriman:</strong> {
+                      order.tipe_pesanan === 'Pesan Ambil'
+                        ? (order.pickup_method === 'self-pickup' ? 'Di Ambil Sendiri' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-'))
+                        : (order.shipping_area === 'luar-kota' ? 'Paket Expedisi (Paket)' : order.pickup_method === 'deliveryman' ? 'Kurir Toko' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || 'qris'))
+                    }</Text>
                   </Box>
 
                   <Divider />
