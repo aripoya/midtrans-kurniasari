@@ -228,6 +228,20 @@ const AdminOrderDetailPage: React.FC = () => {
   // Handle form submission
   const handleFormSubmit = async () => {
     if (!id) return;
+
+    // Validasi: tracking_number wajib untuk luar-kota
+    const isLuarKotaOrder = formData.shipping_area === 'luar-kota';
+    if (isLuarKotaOrder && !formData.tracking_number?.trim()) {
+      toast({
+        title: 'Nomor Resi Wajib',
+        description: 'Nomor resi wajib diisi untuk pesanan luar kota',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+      return;
+    }
+
     try {
       setUpdateLoading(true);
       // Normalize payload to clear irrelevant lokasi field
@@ -688,8 +702,17 @@ const AdminOrderDetailPage: React.FC = () => {
                 </GridItem>
                 )}
                 <GridItem>
-                  <Text fontWeight="semibold">Nomor Resi</Text>
-                  <Input name="tracking_number" value={formData.tracking_number || ''} onChange={handleFormChange} />
+                  <Text fontWeight="semibold">
+                    Nomor Resi
+                    {isLuarKota && <Text as="span" color="red.500" ml={1}>*</Text>}
+                  </Text>
+                  <Input
+                    name="tracking_number"
+                    value={formData.tracking_number || ''}
+                    onChange={handleFormChange}
+                    placeholder={isLuarKota ? "Wajib diisi untuk luar kota" : "Nomor resi"}
+                    borderColor={isLuarKota && !formData.tracking_number ? 'red.300' : undefined}
+                  />
                 </GridItem>
                 {formData.tipe_pesanan === 'Pesan Antar' && !isLuarKota && (
                   <GridItem>

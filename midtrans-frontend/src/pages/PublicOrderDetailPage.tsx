@@ -553,36 +553,51 @@ const PublicOrderDetailPage = () => {
                           }</Text>
                         )}
                         {order.tracking_number && (
-                          <HStack>
-                            <Text><strong>No. Resi:</strong> {order.tracking_number}</Text>
+                          <Box>
+                            <HStack mb={2}>
+                              <Text><strong>No. Resi:</strong> {order.tracking_number}</Text>
+                              <Button
+                                size="xs"
+                                colorScheme="teal"
+                                variant="outline"
+                                onClick={async () => {
+                                  try {
+                                    await navigator.clipboard.writeText(order.tracking_number || '');
+                                    toast({ title: 'Nomor resi disalin!', status: 'success', duration: 1500, isClosable: true });
+                                  } catch (e) {
+                                    toast({ title: 'Gagal menyalin', status: 'error', duration: 2000, isClosable: true });
+                                  }
+                                }}
+                              >
+                                Copy
+                              </Button>
+                            </HStack>
                             {order.courier_service?.toLowerCase() === 'tiki' ? (
-                              <Badge 
+                              <Button
                                 as="a"
-                                href={`/tiki-tracking?resi=${order.tracking_number}&orderId=${order.id}`}
+                                href="https://tiki.id/id/track"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                colorScheme="blue" 
-                                cursor="pointer"
-                                _hover={{ textDecoration: 'none', opacity: 0.8 }}
+                                colorScheme="blue"
+                                size="sm"
+                                leftIcon={<Text>📦</Text>}
                               >
-                                LACAK RESI
-                              </Badge>
+                                Lacak di TIKI
+                              </Button>
                             ) : order.courier_service?.toLowerCase() === 'jne' ? (
-                              <Badge 
+                              <Button
                                 as="a"
-                                href={`/jne-tracking?resi=${order.tracking_number}&orderId=${order.id}`}
+                                href="https://jne.co.id/tracking-package"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                colorScheme="red" 
-                                cursor="pointer"
-                                _hover={{ textDecoration: 'none', opacity: 0.8 }}
+                                colorScheme="red"
+                                size="sm"
+                                leftIcon={<Text>📦</Text>}
                               >
-                                LACAK RESI
-                              </Badge>
-                            ) : (
-                              <Badge colorScheme="blue" cursor="pointer">Lacak Resi</Badge>
-                            )}
-                          </HStack>
+                                Lacak di JNE
+                              </Button>
+                            ) : null}
+                          </Box>
                         )}
                         {order.courier_name && (
                           <Text><strong>Nama Kurir:</strong> {order.courier_name}</Text>
