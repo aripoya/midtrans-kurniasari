@@ -472,7 +472,7 @@ const AdminOrderDetailPage: React.FC = () => {
                         <Td>
                           {order.tipe_pesanan === 'Pesan Ambil'
                             ? (order.pickup_method === 'self-pickup' ? 'Di Ambil Sendiri' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-'))
-                            : (order.pickup_method === 'deliveryman' ? 'Kurir Toko' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-'))}
+                            : (order.shipping_area === 'luar-kota' ? 'Paket Expedisi (Paket)' : order.pickup_method === 'deliveryman' ? 'Kurir Toko' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-'))}
                         </Td>
                       </Tr>
                       <Tr>

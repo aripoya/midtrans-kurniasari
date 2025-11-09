@@ -136,8 +136,23 @@ const AdminOrdersPage: React.FC = () => {
     };
 
     const statusInfo = statusMap[status?.toLowerCase()] || { color: "gray", text: status || "Menunggu Diproses" };
-    
+
     return <Badge colorScheme={statusInfo.color}>{statusInfo.text}</Badge>;
+  };
+
+  // Get delivery method label
+  const getDeliveryMethodLabel = (order: any): string => {
+    if (order.tipe_pesanan === 'Pesan Ambil') {
+      if (order.pickup_method === 'self-pickup') return 'Di Ambil Sendiri';
+      if (order.pickup_method === 'ojek-online') return 'Ojek Online';
+      return order.pickup_method || '-';
+    } else {
+      // For Pesan Antar
+      if (order.shipping_area === 'luar-kota') return 'Paket Expedisi (Paket)';
+      if (order.pickup_method === 'deliveryman') return 'Kurir Toko';
+      if (order.pickup_method === 'ojek-online') return 'Ojek Online';
+      return order.pickup_method || '-';
+    }
   };
 
   const fetchOrders = useCallback(async (): Promise<void> => {
@@ -419,6 +434,7 @@ const AdminOrdersPage: React.FC = () => {
                         {order.created_by_admin_name}
                       </Badge>
                     ) : '-'}</Text>
+                    <Text><strong>Metode Pengiriman:</strong> {getDeliveryMethodLabel(order)}</Text>
                     <Text><strong>Status Pembayaran:</strong> {getPaymentStatusBadge(order.payment_status)}</Text>
                     <Text><strong>Status Pesanan:</strong> {getShippingStatusBadge(order.shipping_status)}</Text>
                     <Button
@@ -445,6 +461,7 @@ const AdminOrdersPage: React.FC = () => {
                       <Th minW="120px">Pelanggan</Th>
                       <Th minW="90px">Total</Th>
                       <Th minW="100px">Area Pengiriman</Th>
+                      <Th minW="140px">Metode Pengiriman</Th>
                       <Th minW="100px">Dibuat Oleh</Th>
                       <Th minW="140px">Status Pembayaran</Th>
                       <Th minW="120px">Status Pesanan</Th>
@@ -460,6 +477,7 @@ const AdminOrdersPage: React.FC = () => {
                           <Td>{order.customer_name}</Td>
                           <Td>Rp {order.total_amount?.toLocaleString('id-ID')}</Td>
                           <Td>{order.lokasi_pengiriman || order.shipping_area || '-'}</Td>
+                          <Td>{getDeliveryMethodLabel(order)}</Td>
                           <Td>
                             {order.created_by_admin_name ? (
                               <Badge colorScheme="blue" variant="subtle">
@@ -485,7 +503,7 @@ const AdminOrdersPage: React.FC = () => {
                       ))
                     ) : (
                       <Tr>
-                        <Td colSpan={9} textAlign="center">Tidak ada pesanan ditemukan</Td>
+                        <Td colSpan={10} textAlign="center">Tidak ada pesanan ditemukan</Td>
                       </Tr>
                     )}
                   </Tbody>
