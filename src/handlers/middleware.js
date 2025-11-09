@@ -24,8 +24,8 @@ export async function verifyToken(request, env) {
         // Extract token
         const token = authHeader.split(' ')[1];
         
-        // Verify token
-        const decoded = jwt.verify(token, env.JWT_SECRET);
+        // Verify token with explicit algorithm specification to prevent algorithm confusion attacks
+        const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] });
         
         // Add user data to request
         request.user = decoded;
