@@ -20,8 +20,8 @@ export async function debugOutletOrderFiltering(request, env) {
     console.log(`🔍 Debugging outlet order filtering for: ${outletName}`);
     
     // 1. Check outlet setup in database
-    const outletQuery = `SELECT id, name, location_alias as location FROM outlets_unified WHERE LOWER(name) LIKE LOWER('%${outletName}%')`;
-    const outlets = await env.DB.prepare(outletQuery).all();
+    const outletQuery = `SELECT id, name, location_alias as location FROM outlets_unified WHERE LOWER(name) LIKE LOWER(?)`;
+    const outlets = await env.DB.prepare(outletQuery).bind(`%${outletName}%`).all();
     
     // 2. Check users associated with this outlet
     const userQuery = `SELECT id, username, role, outlet_id FROM users WHERE role = 'outlet_manager'`;
@@ -30,14 +30,15 @@ export async function debugOutletOrderFiltering(request, env) {
     // 3. Check orders that should belong to this outlet
     const orderQuery = `
       SELECT id, lokasi_pengiriman, lokasi_pengambilan, outlet_id, shipping_area, area_pengiriman, tipe_pesanan
-      FROM orders 
-      WHERE LOWER(lokasi_pengiriman) LIKE LOWER('%${outletName}%') 
-         OR LOWER(lokasi_pengambilan) LIKE LOWER('%${outletName}%')
-         OR LOWER(shipping_area) LIKE LOWER('%${outletName}%')
+      FROM orders
+      WHERE LOWER(lokasi_pengiriman) LIKE LOWER(?)
+         OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+         OR LOWER(shipping_area) LIKE LOWER(?)
       ORDER BY created_at DESC
       LIMIT 10
     `;
-    const relatedOrders = await env.DB.prepare(orderQuery).all();
+    const outletPattern = `%${outletName}%`;
+    const relatedOrders = await env.DB.prepare(orderQuery).bind(outletPattern, outletPattern, outletPattern).all();
     
     // 4. Check specific order from screenshot (if exists)
     const specificOrderQuery = `
@@ -56,12 +57,13 @@ export async function debugOutletOrderFiltering(request, env) {
           // Simulate the exact filtering logic
           const testQuery = `
             SELECT COUNT(*) as count
-            FROM orders 
-            WHERE LOWER(lokasi_pengiriman) LIKE LOWER('%${outlet.name}%')
-               OR outlet_id = '${outlet.id}'
-               OR LOWER(shipping_area) LIKE LOWER('%${outlet.name}%')
+            FROM orders
+            WHERE LOWER(lokasi_pengiriman) LIKE LOWER(?)
+               OR outlet_id = ?
+               OR LOWER(shipping_area) LIKE LOWER(?)
           `;
-          const testResult = await env.DB.prepare(testQuery).first();
+          const outletNamePattern = `%${outlet.name}%`;
+          const testResult = await env.DB.prepare(testQuery).bind(outletNamePattern, outlet.id, outletNamePattern).first();
           
           simulationResults.push({
             outlet: outlet,
@@ -202,7 +204,7 @@ export async function fixOutletOrderAssignment(request, env) {
     }
     
     // 1. Find or create outlet
-    let outlet = await env.DB.prepare(`SELECT id, name FROM outlets WHERE LOWER(name) LIKE LOWER('%${outletName}%')`).first();
+    let outlet = await env.DB.prepare(`SELECT id, name FROM outlets WHERE LOWER(name) LIKE LOWER(?)`).bind(`%${outletName}%`).first();
     
     if (!outlet) {
       // Create outlet if not exists
@@ -224,12 +226,13 @@ export async function fixOutletOrderAssignment(request, env) {
     
     // 3. Update existing orders to be assigned to this outlet
     const updateQuery = `
-      UPDATE orders 
-      SET outlet_id = ? 
-      WHERE LOWER(lokasi_pengiriman) LIKE LOWER('%${outletName}%')
-         OR LOWER(lokasi_pengambilan) LIKE LOWER('%${outletName}%')
+      UPDATE orders
+      SET outlet_id = ?
+      WHERE LOWER(lokasi_pengiriman) LIKE LOWER(?)
+         OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
     `;
-    const updateResult = await env.DB.prepare(updateQuery).bind(outlet.id).run();
+    const updatePattern = `%${outletName}%`;
+    const updateResult = await env.DB.prepare(updateQuery).bind(outlet.id, updatePattern, updatePattern).run();
     
     return new Response(JSON.stringify({
       success: true,
