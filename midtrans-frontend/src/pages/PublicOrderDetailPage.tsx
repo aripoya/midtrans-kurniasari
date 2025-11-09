@@ -520,14 +520,18 @@ const PublicOrderDetailPage = () => {
                   {(() => {
                     // Check if order is paid and has been processed by admin
                     const isPaidOrder = isPaid;
-                    
+                    const isOrderLuarKota = order.shipping_area === 'luar-kota';
+
                     // More strict check: only show shipping info if admin has actually processed the order
                     const adminProcessedStatuses = ['dikemas', 'siap kirim', 'siap ambil', 'dalam pengiriman', 'diterima', 'sudah di terima', 'sudah di ambil'];
-                    const hasBeenProcessedByAdmin = order.shipping_status && 
+                    const hasBeenProcessedByAdmin = order.shipping_status &&
                       adminProcessedStatuses.includes(order.shipping_status.toLowerCase().trim());
-                    
-                    // Only show shipping information if order is paid AND admin has processed it (not pending)
-                    const shouldShowShippingInfo = isPaidOrder && hasBeenProcessedByAdmin;
+
+                    // For luar-kota orders: show shipping info if paid AND has tracking number
+                    // For dalam-kota orders: show shipping info if paid AND admin has processed
+                    const shouldShowShippingInfo = isPaidOrder && (
+                      (isOrderLuarKota && order.tracking_number) || hasBeenProcessedByAdmin
+                    );
 
                     if (!shouldShowShippingInfo) {
                       return null; // Don't render shipping info section at all
@@ -542,14 +546,15 @@ const PublicOrderDetailPage = () => {
                           <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman}</Text>
                         )}
                         {order.courier_service && (
-                          <Text><strong>Layanan Kurir:</strong> {
-                            order.courier_service === 'deliveryman' ? 'Kurir Toko' :
-                            order.courier_service === 'ojek_online' ? 'Ojek Online' :
-                            order.courier_service === 'gojek' ? 'Gojek' :
-                            order.courier_service === 'grab' ? 'Grab' :
-                            order.courier_service === 'jne' ? 'JNE' :
-                            order.courier_service === 'travel' ? 'Travel' :
-                            order.courier_service
+                          <Text><strong>Jasa Ekspedisi:</strong> {
+                            order.courier_service.toLowerCase() === 'deliveryman' ? 'Kurir Toko' :
+                            order.courier_service.toLowerCase() === 'ojek_online' ? 'Ojek Online' :
+                            order.courier_service.toLowerCase() === 'gojek' ? 'Gojek' :
+                            order.courier_service.toLowerCase() === 'grab' ? 'Grab' :
+                            order.courier_service.toLowerCase() === 'jne' ? 'JNE' :
+                            order.courier_service.toLowerCase() === 'tiki' ? 'TIKI' :
+                            order.courier_service.toLowerCase() === 'travel' ? 'Travel' :
+                            order.courier_service.toUpperCase()
                           }</Text>
                         )}
                         {order.tracking_number && (
