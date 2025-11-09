@@ -88,6 +88,31 @@ const OutletDashboard: React.FC = () => {
   });
   const [isUploading, setIsUploading] = useState<boolean>(false);
 
+  // Cleanup function to revoke all object URLs
+  const cleanupObjectURLs = (): void => {
+    Object.values(uploadedImages).forEach((imageUrl) => {
+      if (imageUrl && imageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(imageUrl);
+      }
+    });
+  };
+
+  // Enhanced modal close handler with cleanup
+  const handleModalClose = (): void => {
+    cleanupObjectURLs();
+    setUploadedImages({
+      readyForPickup: null,
+      pickedUp: null,
+      delivered: null
+    });
+    setPhotoFiles({
+      readyForPickup: null,
+      pickedUp: null,
+      delivered: null
+    });
+    onPhotoModalClose();
+  };
+
   // Real-time sync hooks
   const { syncStatus, manualRefresh } = useRealTimeSync({
     role: 'outlet',
@@ -153,6 +178,18 @@ const OutletDashboard: React.FC = () => {
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  // Cleanup object URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Revoke all object URLs when component unmounts
+      Object.values(uploadedImages).forEach((imageUrl) => {
+        if (imageUrl && imageUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(imageUrl);
+        }
+      });
+    };
+  }, [uploadedImages]);
   
   // Helper function to check if order is eligible for Status Foto
   // Handle photo file selection
@@ -208,13 +245,19 @@ const OutletDashboard: React.FC = () => {
       
       // Check backend success flag only
       if (response.success) {
+        // Revoke old object URL if it exists
+        const oldUrl = uploadedImages[type];
+        if (oldUrl && oldUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(oldUrl);
+        }
+
         // Update uploaded images state with the image URL from API response
         const imageUrl = response.data?.imageUrl || '';
         setUploadedImages(prev => ({
           ...prev,
           [type]: imageUrl
         }));
-        
+
         // Clear the file input
         setPhotoFiles(prev => ({
           ...prev,
@@ -679,7 +722,7 @@ const OutletDashboard: React.FC = () => {
     </Box>
         
         {/* Status Foto Modal */}
-        <Modal isOpen={isPhotoModalOpen} onClose={onPhotoModalClose} size="xl">
+        <Modal isOpen={isPhotoModalOpen} onClose={handleModalClose} size="xl">
           <ModalOverlay />
           <ModalContent>
             <ModalHeader>
@@ -857,7 +900,7 @@ const OutletDashboard: React.FC = () => {
               )}
             </ModalBody>
             <ModalFooter>
-              <Button colorScheme="gray" onClick={onPhotoModalClose}>
+              <Button colorScheme="gray" onClick={handleModalClose}>
                 Tutup
               </Button>
             </ModalFooter>
