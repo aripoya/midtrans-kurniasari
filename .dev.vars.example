@@ -1,0 +1,12 @@
+# Cloudflare Workers Development Variables Template
+# Copy this file to .dev.vars and fill with actual credentials
+# DO NOT commit .dev.vars to git!
+
+# For local development with Wrangler
+# Use Midtrans SANDBOX credentials (not production!)
+# Get sandbox credentials from: https://dashboard.sandbox.midtrans.com
+
+MIDTRANS_MERCHANT_ID=your_sandbox_merchant_id
+MIDTRANS_CLIENT_KEY=your_sandbox_client_key
+MIDTRANS_SERVER_KEY=your_sandbox_server_key
+MIDTRANS_IS_PRODUCTION=false
