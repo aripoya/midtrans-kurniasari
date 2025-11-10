@@ -134,14 +134,20 @@ export async function getDeliveryOverview(request, env) {
     `).all();
     const deliveryUsers = deliveryUsersRes.results || [];
 
-    // Build base query for delivery-related orders
+    // Build base query for delivery-related orders with strict filters:
+    // - shipping_area: dalam kota only (accepts variations 'dalam_kota', 'dalam-kota', 'dalam kota')
+    // - pickup_method: Kurir Toko (stored as 'deliveryman' or variants)
+    // - tipe_pesanan: Pesan Antar (accept 'pesan antar' or 'pesan-antar')
     let ordersQuery = `
       SELECT 
         id, customer_name, shipping_status, pickup_method,
         assigned_deliveryman_id, lokasi_pengambilan AS outlet_name,
         lokasi_pengiriman, delivery_date, delivery_time, created_at
       FROM orders
-      WHERE (pickup_method = 'deliveryman' OR assigned_deliveryman_id IS NOT NULL)
+      WHERE 
+        LOWER(COALESCE(shipping_area, '')) IN ('dalam_kota', 'dalam-kota', 'dalam kota')
+        AND LOWER(COALESCE(pickup_method, '')) IN ('deliveryman', 'kurir toko', 'kurir_toko')
+        AND LOWER(COALESCE(tipe_pesanan, '')) IN ('pesan antar', 'pesan-antar')
     `;
     const params = [];
     if (statusFilter) {
