@@ -778,6 +778,8 @@ export const adminApi = {
     try {
       const params: any = {};
       if (status) params.status = status;
+      // cache-busting to ensure fresh data in dashboards
+      params.t = Date.now();
       const response: AxiosResponse = await axios.get(
         `${API_URL}/api/delivery/overview`,
         {

@@ -48,6 +48,7 @@ const DeliveryDashboard: React.FC = () => {
     completed: 0
   });
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [selectedDriverId, setSelectedDriverId] = useState<string>("");
 
   const toast = useToast();
   const cardBgColor = useColorModeValue('white', 'gray.700');
@@ -119,11 +120,35 @@ const DeliveryDashboard: React.FC = () => {
       const data = response.data || {};
       setOverview(data);
 
-      // Flatten currently assigned orders to keep existing table for "Pengiriman Yang Ditugaskan" to this user
-      const myId = deliverymanId;
-      const myGroup = (data.deliverymen || []).find((g: any) => g?.user?.id === myId);
-      const myOrders = myGroup?.orders || [];
-      setOrders(myOrders);
+      // Determine which driver's orders to show
+      const url = new URL(window.location.href);
+      const driverParam = (url.searchParams.get('driver') || '').toLowerCase();
+
+      let targetDriverId: string | undefined = undefined;
+      const groups = Array.isArray(data.deliverymen) ? data.deliverymen : [];
+
+      if (driverParam) {
+        const match = groups.find((g: any) => {
+          const uname = (g?.user?.username || '').toLowerCase();
+          const name = (g?.user?.name || '').toLowerCase();
+          return uname === driverParam || name === driverParam;
+        });
+        if (match?.user?.id) targetDriverId = match.user.id;
+      }
+
+      // If no URL driver specified, use logged-in deliveryman's id when role=deliveryman
+      if (!targetDriverId && user?.role === 'deliveryman' && deliverymanId) {
+        targetDriverId = deliverymanId;
+      }
+
+      // If still undefined, fallback to keep previous selection or first group
+      if (!targetDriverId) {
+        targetDriverId = selectedDriverId || (groups[0]?.user?.id || '');
+      }
+
+      setSelectedDriverId(targetDriverId || '');
+      const myGroup = groups.find((g: any) => g?.user?.id === targetDriverId);
+      setOrders(myGroup?.orders || []);
 
       // Update stats from summary if available
       if (data.summary) {
@@ -148,7 +173,7 @@ const DeliveryDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast, statusFilter]);
+  }, [toast, statusFilter, user?.role, selectedDriverId]);
 
   // Update shipping status
   const updateShippingStatus = async (orderId: string, newStatus: string): Promise<void> => {
@@ -267,6 +292,14 @@ const DeliveryDashboard: React.FC = () => {
     fetchOverview();
   }, [fetchOverview]);
 
+  // When driver selection changes and we already have overview, update orders view
+  useEffect(() => {
+    if (!overview) return;
+    const groups = Array.isArray(overview.deliverymen) ? overview.deliverymen : [];
+    const myGroup = groups.find((g: any) => g?.user?.id === selectedDriverId);
+    setOrders(myGroup?.orders || []);
+  }, [selectedDriverId, overview]);
+
   if (loading) {
     return (
       <Container maxW="7xl" py={8}>
@@ -310,6 +343,21 @@ const DeliveryDashboard: React.FC = () => {
               <Badge colorScheme="red" variant="solid">
                 {unreadCount} Notifikasi
               </Badge>
+            )}
+            {/* Driver selector (admin can switch between drivers) */}
+            {Array.isArray(overview?.deliverymen) && overview!.deliverymen.length > 0 && (
+              <Select
+                size="sm"
+                width="220px"
+                value={selectedDriverId}
+                onChange={(e) => setSelectedDriverId(e.target.value)}
+              >
+                {overview!.deliverymen.map((g: any) => (
+                  <option key={`opt-${g.user.id}`} value={g.user.id}>
+                    {(g.user.name || g.user.username)} ({g.count || 0})
+                  </option>
+                ))}
+              </Select>
             )}
             <Button size="sm" onClick={manualRefresh}>
               Refresh
