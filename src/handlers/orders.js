@@ -1163,25 +1163,31 @@ export async function getDeliveryOrders(request, env) {
       outletNameForUser = outletRow?.name || null;
     }
 
-    // Build comprehensive query for deliveryman orders
+    // Build comprehensive query for deliveryman orders with strict filters
     let deliveryQuery = `
       SELECT *
       FROM orders
-      WHERE assigned_deliveryman_id = ? 
-         OR pickup_method = 'deliveryman'
+      WHERE 
+        LOWER(COALESCE(shipping_area, '')) IN ('dalam_kota', 'dalam-kota', 'dalam kota')
+        AND LOWER(COALESCE(pickup_method, '')) IN ('deliveryman', 'kurir toko', 'kurir_toko')
+        AND LOWER(COALESCE(tipe_pesanan, '')) IN ('pesan antar', 'pesan-antar')
+        AND (
+          assigned_deliveryman_id = ?
+          OR LOWER(COALESCE(pickup_method, '')) = 'deliveryman'
     `;
-    
+
     let queryParams = [deliverymanId];
-    
+
     // Include outlet orders by lokasi_pengambilan that are ready for delivery if user has outlet assignment
     if (outletNameForUser) {
       deliveryQuery += ` 
-         OR (lokasi_pengambilan = ? AND shipping_status IN ('siap kirim', 'siap ambil', 'shipping'))
+          OR (lokasi_pengambilan = ? AND LOWER(COALESCE(shipping_status, '')) IN ('siap kirim', 'siap ambil', 'shipping'))
       `;
       queryParams.push(outletNameForUser);
     }
-    
-    deliveryQuery += ` ORDER BY created_at DESC`;
+
+    deliveryQuery += `)
+      ORDER BY created_at DESC`;
     
     console.log(`🚚 Delivery query for user ${deliverymanId} (outlet_name: ${outletNameForUser || 'none'}):`, deliveryQuery);
     
