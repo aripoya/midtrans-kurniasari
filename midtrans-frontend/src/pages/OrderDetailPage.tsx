@@ -93,6 +93,40 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       toast({ title: 'Gagal menyalin link', status: 'error', duration: 2000, isClosable: true });
     }
   };
+
+  // Handlers for per-slot "Ganti Foto"
+  const triggerReplaceFile = (type: 'ready_for_pickup' | 'picked_up' | 'delivered'): void => {
+    const input = replaceInputsRef.current[type];
+    if (input) input.click();
+  };
+
+  const handleReplaceFileChange = async (
+    type: 'ready_for_pickup' | 'picked_up' | 'delivered',
+    e: ChangeEvent<HTMLInputElement>
+  ): Promise<void> => {
+    if (!id) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setReplaceLoading((prev) => ({ ...prev, [type]: true }));
+      // show loading placeholder for this slot
+      setShippingImages((prev) => ({ ...prev, [type]: 'loading' as unknown as string }));
+      const result = await adminApi.uploadShippingImage(id, type, file);
+      if (result?.success && result.data?.imageUrl) {
+        setShippingImages((prev) => ({ ...prev, [type]: result.data!.imageUrl }));
+        await fetchOrderDetails();
+        toast({ title: 'Foto diganti', status: 'success', duration: 2000, isClosable: true });
+      } else {
+        throw new Error(result?.error || 'Gagal mengganti foto');
+      }
+    } catch (err: any) {
+      toast({ title: 'Gagal mengganti foto', description: err?.message, status: 'error', duration: 4000, isClosable: true });
+    } finally {
+      setReplaceLoading((prev) => ({ ...prev, [type]: false }));
+      // reset input
+      e.target.value = '';
+    }
+  };
   
   // Real-time sync untuk public order detail page
   useRealTimeSync({
@@ -110,6 +144,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploadLoading, setUploadLoading] = useState<boolean>(false);
+  const [replaceLoading, setReplaceLoading] = useState<Record<string, boolean>>({});
+  const replaceInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
   
   // Fungsi untuk memilih foto
   const handlePhotoChange = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -1032,6 +1068,34 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                           />
                         );
                       })}
+                      {/* Per-slot replace controls */}
+                      {(isDeliveryView || isOutletView) && (
+                        <>
+                          {photoSlotsToShow.map((type) => (
+                            <HStack key={`${type}-actions`} spacing={3}>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                ref={(el) => {
+                                  replaceInputsRef.current[type] = el;
+                                }}
+                                onChange={(e) =>
+                                  handleReplaceFileChange(type as 'ready_for_pickup' | 'picked_up' | 'delivered', e)
+                                }
+                              />
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                onClick={() => triggerReplaceFile(type as 'ready_for_pickup' | 'picked_up' | 'delivered')}
+                                isLoading={!!replaceLoading[type]}
+                              >
+                                Ganti Foto {type === 'ready_for_pickup' ? '(Siap Kirim)' : type === 'picked_up' ? '(Pengiriman)' : '(Diterima)'}
+                              </Button>
+                            </HStack>
+                          ))}
+                        </>
+                      )}
                     </VStack>
                   </Box>
 
