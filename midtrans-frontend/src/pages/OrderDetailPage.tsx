@@ -780,7 +780,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const isPaid = isPaidStatus(order.payment_status);
   const isReceived = order.shipping_status === 'diterima';
   const steps = getPaymentSteps();
-  const currentStep = steps.findIndex(step => step.status === 'active');
+  const currentStep = (() => {
+    const activeIdx = steps.findIndex(step => step.status === 'active');
+    if (activeIdx >= 0) return activeIdx;
+    const allComplete = steps.length > 0 && steps.every((s) => s.status === 'complete');
+    return allComplete ? steps.length : 0;
+  })();
 
   // Debug payment URL visibility condition
   console.log('[OrderDetailPage] Payment URL Visibility Debug:', {
