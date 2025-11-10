@@ -1255,7 +1255,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                       Buka Gambar QRIS
                     </Button>
                   )}
-                  {order.payment_url && (
+                  {!isOutletView && order.payment_url && (
                     <Button as="a" href={order.payment_url} target="_blank" colorScheme="teal" size="lg">
                       Lanjutkan Pembayaran
                     </Button>
