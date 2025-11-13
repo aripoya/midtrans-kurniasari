@@ -496,15 +496,7 @@ const DeliveryDashboard: React.FC = () => {
                       <Td>{order.customer_address}</Td>
                       <Td>{order.lokasi_pengiriman || (order as any).shipping_location || order.outlet_id || 'Tidak tersedia'}</Td>
                       <Td>
-                        {(() => {
-                          // Find driver name from overview data or fallback to courier_service
-                          if (order.assigned_deliveryman_id) {
-                            const driverGroup = overview?.deliverymen?.find((g: any) => g.user.id === order.assigned_deliveryman_id);
-                            return driverGroup ? (driverGroup.user.name || driverGroup.user.username) : order.assigned_deliveryman_id;
-                          }
-                          // Fallback to courier_service if assigned_deliveryman_id is null
-                          return order.courier_service || 'Belum di-assign';
-                        })()}
+                        {order.courier_service || 'Belum di-assign'}
                       </Td>
                       <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
                       <Td>
