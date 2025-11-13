@@ -750,7 +750,7 @@ export const adminApi = {
   getDeliveryOrders: async (): Promise<OrdersResponse> => {
     try {
       const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/orders/delivery`,
+        `${API_URL}/api/orders/delivery?_t=${Date.now()}`,
         {
           headers: {
             "Content-Type": "application/json",
