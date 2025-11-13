@@ -491,6 +491,7 @@ const DeliveryDashboard: React.FC = () => {
                     <Th>Nama Pelanggan</Th>
                     <Th>Alamat</Th>
                     <Th>Lokasi Pengiriman</Th>
+                    <Th>Driver</Th>
                     <Th>Status Pesanan</Th>
                     <Th>Aksi</Th>
                   </Tr>
@@ -502,6 +503,14 @@ const DeliveryDashboard: React.FC = () => {
                       <Td>{order.customer_name}</Td>
                       <Td>{order.customer_address}</Td>
                       <Td>{order.lokasi_pengiriman || (order as any).shipping_location || order.outlet_id || 'Tidak tersedia'}</Td>
+                      <Td>
+                        {(() => {
+                          // Find driver name from overview data
+                          if (!order.assigned_deliveryman_id) return 'Belum di-assign';
+                          const driverGroup = overview?.deliverymen?.find((g: any) => g.user.id === order.assigned_deliveryman_id);
+                          return driverGroup ? (driverGroup.user.name || driverGroup.user.username) : order.assigned_deliveryman_id;
+                        })()}
+                      </Td>
                       <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
                       <Td>
                         <HStack spacing={2}>

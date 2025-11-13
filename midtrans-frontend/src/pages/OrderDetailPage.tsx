@@ -47,6 +47,8 @@ interface LocalOrder {
   tipe_pesanan?: string;
   lokasi_pengambilan?: string;
   picked_up_by?: string;
+  assigned_deliveryman_id?: string;
+  assigned_deliveryman_name?: string;
   items: OrderItem[];
   shipping_images?: ShippingImages;
 }
@@ -344,6 +346,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         tipe_pesanan: apiOrder?.tipe_pesanan || apiOrder?.order_type || undefined,
         lokasi_pengambilan: apiOrder?.lokasi_pengambilan || apiOrder?.pickup_location || undefined,
         picked_up_by: apiOrder?.picked_up_by || apiOrder?.nama_pengambil || undefined,
+        assigned_deliveryman_id: apiOrder?.assigned_deliveryman_id || undefined,
+        assigned_deliveryman_name: apiOrder?.assigned_deliveryman_name || undefined,
         items,
         shipping_images: apiOrder?.shipping_images || undefined,
       };
@@ -1018,6 +1022,9 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                     }</Text>
                     {order.courier_service && order.shipping_area === 'luar_kota' && (
                       <Text><strong>Jasa Kurir:</strong> {order.courier_service}</Text>
+                    )}
+                    {order.pickup_method === 'deliveryman' && (
+                      <Text><strong>Driver:</strong> {order.assigned_deliveryman_name || (order.assigned_deliveryman_id ? order.assigned_deliveryman_id : 'Belum di-assign')}</Text>
                     )}
                     {order.tracking_number && (
                       <Text><strong>Nomor Resi:</strong> {order.tracking_number}</Text>
