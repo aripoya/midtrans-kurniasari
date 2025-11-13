@@ -117,14 +117,14 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     // Initial fetch
     fetchNotifications();
     
-    // Set up polling
-    const pollingInterval = setInterval(() => {
-      fetchNotifications();
-    }, 60000); // 1 minute
+    // Polling disabled to reduce API load
+    // const pollingInterval = setInterval(() => {
+    //   fetchNotifications();
+    // }, 60000); // 1 minute
     
-    return () => {
-      clearInterval(pollingInterval);
-    };
+    // return () => {
+    //   clearInterval(pollingInterval);
+    // };
   }, [isLoggedIn, fetchNotifications]);
 
   const value: NotificationContextType = {
