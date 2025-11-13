@@ -581,6 +581,7 @@ const DeliveryDashboard: React.FC = () => {
                         <Th>Nama Pelanggan</Th>
                         <Th>Alamat</Th>
                         <Th>Lokasi Pengiriman</Th>
+                        <Th>Driver/Kurir</Th>
                         <Th>Status</Th>
                       </Tr>
                     </Thead>
@@ -591,6 +592,7 @@ const DeliveryDashboard: React.FC = () => {
                           <Td>{order.customer_name}</Td>
                           <Td>{order.customer_address || '-'}</Td>
                           <Td>{order.lokasi_pengiriman || '-'}</Td>
+                          <Td>{order.courier_service || 'Belum di-assign'}</Td>
                           <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
                         </Tr>
                       ))}
@@ -616,6 +618,7 @@ const DeliveryDashboard: React.FC = () => {
                             <Th>Nama Pelanggan</Th>
                             <Th>Alamat</Th>
                             <Th>Lokasi Pengiriman</Th>
+                            <Th>Driver/Kurir</Th>
                             <Th>Status</Th>
                           </Tr>
                         </Thead>
@@ -626,6 +629,7 @@ const DeliveryDashboard: React.FC = () => {
                               <Td>{order.customer_name}</Td>
                               <Td>{order.customer_address || '-'}</Td>
                               <Td>{order.lokasi_pengiriman || '-'}</Td>
+                              <Td>{order.courier_service || 'Belum di-assign'}</Td>
                               <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
                             </Tr>
                           ))}
