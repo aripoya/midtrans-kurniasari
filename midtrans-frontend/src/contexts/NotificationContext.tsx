@@ -41,7 +41,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const { isLoggedIn, user } = useAuth();
+  const { isLoggedIn } = useAuth();
 
   // Fetch notifications
   const fetchNotifications = useCallback(async (unreadOnly: boolean = false): Promise<void> => {
@@ -53,9 +53,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       const response = await NotificationService.getNotifications(unreadOnly);
       
       if (response.success) {
-        setNotifications(response.notifications || []);
+        setNotifications(response.notifications as Notification[] || []);
         // Count unread notifications
-        const unreadItems = response.notifications.filter((item: Notification) => item.is_read === 0);
+        const unreadItems = (response.notifications as Notification[] || []).filter((item: Notification) => item.is_read === 0);
         setUnreadCount(unreadItems.length);
       } else {
         setError(response.error || 'Failed to fetch notifications');
