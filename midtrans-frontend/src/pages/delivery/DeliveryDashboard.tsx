@@ -289,7 +289,8 @@ const DeliveryDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchOverview();
-  }, [fetchOverview]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
 
   // When driver selection changes and we already have overview, update orders view
   useEffect(() => {
