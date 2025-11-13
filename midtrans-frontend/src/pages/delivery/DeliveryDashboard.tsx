@@ -128,22 +128,34 @@ const DeliveryDashboard: React.FC = () => {
 
       // If still undefined, fallback to keep previous selection or first group
       if (!targetDriverId) {
-        targetDriverId = selectedDriverId || (groups[0]?.user?.id || '');
+        // Default to "Semua Driver" (empty string) instead of first group
+        targetDriverId = selectedDriverId || '';
       }
 
       setSelectedDriverId(targetDriverId || '');
-      const myGroup = groups.find((g: any) => g?.user?.id === targetDriverId);
-      const filtered = Array.isArray(myGroup?.orders)
-        ? myGroup.orders.filter((o: any) => {
-            const area = String(o.shipping_area || '').toLowerCase();
-            const method = String(o.pickup_method || '').toLowerCase();
-            const tipe = String(o.tipe_pesanan || '').toLowerCase();
-            const areaOk = area === 'dalam_kota' || area === 'dalam-kota' || area === 'dalam kota';
-            const methodOk = method === 'deliveryman' || method === 'kurir toko' || method === 'kurir_toko';
-            const tipeOk = tipe === 'pesan antar' || tipe === 'pesan-antar';
-            return areaOk && methodOk && tipeOk;
-          })
-        : [];
+      // If "Semua Driver" selected (empty), show all orders from all drivers
+      let allOrders: any[] = [];
+      if (targetDriverId === '') {
+        // Aggregate all orders from all drivers
+        groups.forEach((g: any) => {
+          if (Array.isArray(g.orders)) {
+            allOrders = allOrders.concat(g.orders);
+          }
+        });
+      } else {
+        // Show only selected driver's orders
+        const myGroup = groups.find((g: any) => g?.user?.id === targetDriverId);
+        allOrders = Array.isArray(myGroup?.orders) ? myGroup.orders : [];
+      }
+      const filtered = allOrders.filter((o: any) => {
+        const area = String(o.shipping_area || '').toLowerCase();
+        const method = String(o.pickup_method || '').toLowerCase();
+        const tipe = String(o.tipe_pesanan || '').toLowerCase();
+        const areaOk = area === 'dalam_kota' || area === 'dalam-kota' || area === 'dalam kota';
+        const methodOk = method === 'deliveryman' || method === 'kurir toko' || method === 'kurir_toko';
+        const tipeOk = tipe === 'pesan antar' || tipe === 'pesan-antar';
+        return areaOk && methodOk && tipeOk;
+      });
       setOrders(filtered);
 
       // Update stats from summary if available
@@ -292,18 +304,29 @@ const DeliveryDashboard: React.FC = () => {
   useEffect(() => {
     if (!overview) return;
     const groups = Array.isArray(overview.deliverymen) ? overview.deliverymen : [];
-    const myGroup = groups.find((g: any) => g?.user?.id === selectedDriverId);
-    const filtered = Array.isArray(myGroup?.orders)
-      ? myGroup.orders.filter((o: any) => {
-          const area = String(o.shipping_area || '').toLowerCase();
-          const method = String(o.pickup_method || '').toLowerCase();
-          const tipe = String(o.tipe_pesanan || '').toLowerCase();
-          const areaOk = area === 'dalam_kota' || area === 'dalam-kota' || area === 'dalam kota';
-          const methodOk = method === 'deliveryman' || method === 'kurir toko' || method === 'kurir_toko';
-          const tipeOk = tipe === 'pesan antar' || tipe === 'pesan-antar';
-          return areaOk && methodOk && tipeOk;
-        })
-      : [];
+    // If "Semua Driver" selected (empty), show all orders from all drivers
+    let allOrders: any[] = [];
+    if (selectedDriverId === '') {
+      // Aggregate all orders from all drivers
+      groups.forEach((g: any) => {
+        if (Array.isArray(g.orders)) {
+          allOrders = allOrders.concat(g.orders);
+        }
+      });
+    } else {
+      // Show only selected driver's orders
+      const myGroup = groups.find((g: any) => g?.user?.id === selectedDriverId);
+      allOrders = Array.isArray(myGroup?.orders) ? myGroup.orders : [];
+    }
+    const filtered = allOrders.filter((o: any) => {
+      const area = String(o.shipping_area || '').toLowerCase();
+      const method = String(o.pickup_method || '').toLowerCase();
+      const tipe = String(o.tipe_pesanan || '').toLowerCase();
+      const areaOk = area === 'dalam_kota' || area === 'dalam-kota' || area === 'dalam kota';
+      const methodOk = method === 'deliveryman' || method === 'kurir toko' || method === 'kurir_toko';
+      const tipeOk = tipe === 'pesan antar' || tipe === 'pesan-antar';
+      return areaOk && methodOk && tipeOk;
+    });
     setOrders(filtered);
   }, [selectedDriverId, overview]);
 
@@ -357,8 +380,23 @@ const DeliveryDashboard: React.FC = () => {
                 size="sm"
                 width="220px"
                 value={selectedDriverId}
-                onChange={(e) => setSelectedDriverId(e.target.value)}
+                onChange={(e) => {
+                  const newDriverId = e.target.value;
+                  setSelectedDriverId(newDriverId);
+                  // Update URL without page reload
+                  const url = new URL(window.location.href);
+                  if (newDriverId) {
+                    // Find driver name for URL param (optional, for readability)
+                    const driver = overview!.deliverymen.find((g: any) => g.user.id === newDriverId);
+                    const driverName = driver ? (driver.user.name || driver.user.username) : '';
+                    url.searchParams.set('driver', driverName);
+                  } else {
+                    url.searchParams.delete('driver');
+                  }
+                  window.history.replaceState({}, '', url.toString());
+                }}
               >
+                <option value="">Semua Driver</option>
                 {overview!.deliverymen.map((g: any) => (
                   <option key={`opt-${g.user.id}`} value={g.user.id}>
                     {(g.user.name || g.user.username)} ({g.count || 0})
