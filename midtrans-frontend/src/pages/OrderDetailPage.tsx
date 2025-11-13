@@ -1026,7 +1026,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                     {order.pickup_method === 'deliveryman' && (
                       <Text><strong>Driver/Kurir:</strong> {order.courier_service || (order.assigned_deliveryman_name || (order.assigned_deliveryman_id ? order.assigned_deliveryman_id : 'Belum di-assign'))}</Text>
                     )}
-                    {order.tracking_number && !['dalam kota', 'dalam_kota', 'dalam-kota'].includes(String(order.shipping_area || '').toLowerCase()) && (
+                    {order.tracking_number && !['dalam kota', 'dalam_kota', 'dalam-kota'].includes(String(order.shipping_area || '').toLowerCase()) && String(order.shipping_area || '').toLowerCase() !== 'undefined' && (
                       <Text><strong>Nomor Resi:</strong> {order.tracking_number}</Text>
                     )}
                   </Box>
