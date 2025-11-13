@@ -33,7 +33,6 @@ import { useAuth } from '../../auth/AuthContext';
 import { Link } from 'react-router-dom';
 import { getShippingStatusConfig } from '../../utils/orderStatusUtils';
 import { adminApi } from '../../api/adminApi';
-import { useRealTimeSync } from '../../hooks/useRealTimeSync';
 
 const DeliveryDashboard: React.FC = () => {
   const { user } = useAuth();
