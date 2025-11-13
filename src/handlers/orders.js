@@ -1208,16 +1208,16 @@ export async function getDeliveryOrders(request, env) {
 
     let queryParams = [deliverymanId];
 
-    // Include outlet orders by lokasi_pengambilan that are ready for delivery
+    // Include outlet orders by lokasi_pengiriman that are ready for delivery
     if (accessAllOutlets) {
       // All outlets: include any ready-to-deliver orders
       deliveryQuery += ` 
           OR (LOWER(COALESCE(shipping_status, '')) IN ('siap kirim', 'siap ambil', 'shipping'))
       `;
     } else if (outletNameForUser) {
-      // Specific outlet: only that outlet's ready orders
+      // Specific outlet: only orders assigned to this outlet for delivery
       deliveryQuery += ` 
-          OR (lokasi_pengambilan = ? AND LOWER(COALESCE(shipping_status, '')) IN ('siap kirim', 'siap ambil', 'shipping'))
+          OR (lokasi_pengiriman = ? AND LOWER(COALESCE(shipping_status, '')) IN ('siap kirim', 'siap ambil', 'shipping'))
       `;
       queryParams.push(outletNameForUser);
     }
