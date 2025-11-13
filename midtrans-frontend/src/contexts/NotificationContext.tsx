@@ -53,9 +53,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       const response = await NotificationService.getNotifications(unreadOnly);
       
       if (response.success) {
-        setNotifications(response.data || []);
+        setNotifications(response.notifications || []);
         // Count unread notifications
-        const unreadItems = response.data.filter((item: Notification) => item.is_read === 0);
+        const unreadItems = response.notifications.filter((item: Notification) => item.is_read === 0);
         setUnreadCount(unreadItems.length);
       } else {
         setError(response.error || 'Failed to fetch notifications');
@@ -118,14 +118,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     fetchNotifications();
     
     // Polling disabled - users can manually refresh via NotificationBell
-    // const pollingInterval = setInterval(() => {
-    //   fetchNotifications();
-    // }, 300000); // 5 minutes
-    
-    // return () => {
-    //   clearInterval(pollingInterval);
-    // };
-  }, [isLoggedIn, fetchNotifications]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]); // Only depend on isLoggedIn, not fetchNotifications to avoid loop
 
   const value: NotificationContextType = {
     notifications, 
