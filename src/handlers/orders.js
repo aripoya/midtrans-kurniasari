@@ -2198,37 +2198,11 @@ export async function getOutletOrders(request, env) {
           // Build query with conditions for outlet matching by name/location
           let outletCondition = '';
           
-          // Primary: exact match on lokasi_pengambilan (canonical outlet scoping)
+          // Filter orders where:
+          // 1. lokasi_pengambilan = outlet name (orders picked up from this outlet)
+          // 2. OR lokasi_pengiriman = outlet name (orders delivered to this outlet's area)
           if (outletName) {
-            outletCondition += `LOWER(o.lokasi_pengambilan) = LOWER('${outletName}')`;
-          }
-          
-          // Fallback: location/name string matching
-          if (outletName) {
-            if (outletCondition) outletCondition += ' OR ';
-            outletCondition += `(LOWER(o.lokasi_pengiriman) LIKE LOWER('%${outletName}%')`;
-            
-            // Add special matching patterns for common outlet names
-            if (outletName.toLowerCase().includes('bonbin')) {
-              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%bonbin%')`;
-              outletCondition += ` OR LOWER(o.shipping_area) LIKE LOWER('%bonbin%')`;
-            }
-            if (outletName.toLowerCase().includes('malioboro')) {
-              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%malioboro%')`;
-              outletCondition += ` OR LOWER(o.shipping_area) LIKE LOWER('%malioboro%')`;
-            }
-            if (outletName.toLowerCase().includes('jogja')) {
-              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%jogja%')`;
-              outletCondition += ` OR LOWER(o.lokasi_pengambilan) LIKE LOWER('%jogja%')`;
-            }
-            
-            // Include shipping_area and pickup location in fallback matching
-            if (outletLocationPattern) {
-              outletCondition += ` OR LOWER(o.lokasi_pengambilan) LIKE LOWER('%${outletLocationPattern}%')`;
-              outletCondition += ` OR LOWER(o.shipping_area) LIKE LOWER('%${outletLocationPattern}%')`;
-            }
-            
-            outletCondition += '))';
+            outletCondition += `LOWER(o.lokasi_pengambilan) = LOWER('${outletName}') OR LOWER(o.lokasi_pengiriman) = LOWER('${outletName}')`;
           }
           
           // If we couldn't build any conditions, use a fallback to show SOME orders
