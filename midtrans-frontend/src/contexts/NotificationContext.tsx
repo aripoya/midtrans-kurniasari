@@ -110,14 +110,21 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
   };
 
-  // Poll for new notifications - DISABLED to reduce Workers cost
+  // Poll for new notifications every 5 minutes
   useEffect(() => {
     if (!isLoggedIn) return;
     
-    // Initial fetch only, no polling
+    // Initial fetch
     fetchNotifications();
     
-    // Polling disabled - users can manually refresh via NotificationBell
+    // Set up polling every 5 minutes
+    const pollingInterval = setInterval(() => {
+      fetchNotifications();
+    }, 300000); // 5 minutes (300000 ms)
+    
+    return () => {
+      clearInterval(pollingInterval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]); // Only depend on isLoggedIn, not fetchNotifications to avoid loop
 
