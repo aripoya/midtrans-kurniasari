@@ -53,17 +53,9 @@ const DeliveryDashboard: React.FC = () => {
   const toast = useToast();
   const cardBgColor = useColorModeValue('white', 'gray.700');
 
-  // Real-time sync hooks
-  const { syncStatus, manualRefresh } = useRealTimeSync({
-    role: 'deliveryman',
-    onUpdate: (updateInfo: any) => {
-      console.log('DELIVERY SYNC: New updates detected:', updateInfo);
-      // Refresh orders when updates are detected
-      fetchOverview();
-    },
-    pollingInterval: 0, // Disabled: no automatic polling
-    enabled: false // Disable real-time sync to prevent constant refresh
-  });
+  // Real-time sync disabled to prevent constant refresh
+  const syncStatus = { connected: false };
+  const manualRefresh = () => fetchOverview();
 
   const unreadCount = 0; // notifications polling disabled on Delivery Dashboard
 
