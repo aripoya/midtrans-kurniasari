@@ -143,7 +143,8 @@ export async function getDeliveryOverview(request, env) {
     // - tipe_pesanan: Pesan Antar (accept 'pesan antar' or 'pesan-antar')
     let ordersQuery = `
       SELECT 
-        id, customer_name, shipping_status, pickup_method,
+        id, customer_name, customer_address, shipping_status, pickup_method,
+        shipping_area, tipe_pesanan,
         assigned_deliveryman_id, lokasi_pengambilan AS outlet_name,
         lokasi_pengiriman, delivery_date, delivery_time, created_at
       FROM orders

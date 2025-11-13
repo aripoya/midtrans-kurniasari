@@ -33,7 +33,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { Link } from 'react-router-dom';
 import { getShippingStatusConfig } from '../../utils/orderStatusUtils';
 import { adminApi } from '../../api/adminApi';
-import { useRealTimeSync, useNotificationSync } from '../../hooks/useRealTimeSync';
+import { useRealTimeSync } from '../../hooks/useRealTimeSync';
 
 const DeliveryDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -65,22 +65,7 @@ const DeliveryDashboard: React.FC = () => {
     enabled: true
   });
 
-  const { unreadCount } = useNotificationSync({
-    userId: user?.id,
-    onNewNotification: (newNotifications: any[]) => {
-      // Show toast for new notifications
-      newNotifications.forEach(notification => {
-        toast({
-          title: notification.title,
-          description: notification.message,
-          status: 'info',
-          duration: 5000,
-          isClosable: true,
-        });
-      });
-    },
-    pollingInterval: 60000 // Check notifications every 60 seconds (1 minute) - optimized for cost efficiency
-  });
+  const unreadCount = 0; // notifications polling disabled on Delivery Dashboard
 
   // Fetch overview function with useCallback to avoid dependency issues
   const fetchOverview = useCallback(async (): Promise<void> => {
