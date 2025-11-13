@@ -61,8 +61,8 @@ const DeliveryDashboard: React.FC = () => {
       // Refresh orders when updates are detected
       fetchOverview();
     },
-    pollingInterval: 60000, // Poll every 60 seconds (1 minute) - optimized for cost efficiency
-    enabled: true
+    pollingInterval: 0, // Disabled: no automatic polling
+    enabled: false // Disable real-time sync to prevent constant refresh
   });
 
   const unreadCount = 0; // notifications polling disabled on Delivery Dashboard
