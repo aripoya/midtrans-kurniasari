@@ -1201,28 +1201,12 @@ export async function getDeliveryOrders(request, env) {
         LOWER(COALESCE(shipping_area, '')) IN ('dalam_kota', 'dalam-kota', 'dalam kota')
         AND LOWER(COALESCE(pickup_method, '')) IN ('deliveryman', 'kurir toko', 'kurir_toko')
         AND LOWER(COALESCE(tipe_pesanan, '')) IN ('pesan antar', 'pesan-antar')
-        AND (
-          assigned_deliveryman_id = ?
-          OR LOWER(COALESCE(pickup_method, '')) = 'deliveryman'
+        AND assigned_deliveryman_id = ?
     `;
 
     let queryParams = [deliverymanId];
 
-    // Include outlet orders by lokasi_pengiriman that are ready for delivery
-    if (accessAllOutlets) {
-      // All outlets: include any ready-to-deliver orders
-      deliveryQuery += ` 
-          OR (LOWER(COALESCE(shipping_status, '')) IN ('siap kirim', 'siap ambil', 'shipping'))
-      `;
-    } else if (outletNameForUser) {
-      // Specific outlet: only orders assigned to this outlet for delivery
-      deliveryQuery += ` 
-          OR (lokasi_pengiriman = ? AND LOWER(COALESCE(shipping_status, '')) IN ('siap kirim', 'siap ambil', 'shipping'))
-      `;
-      queryParams.push(outletNameForUser);
-    }
-
-    deliveryQuery += `)
+    deliveryQuery += `
       ORDER BY created_at DESC`;
     
     console.log(`🚚 Delivery query for user ${deliverymanId} (outlet_name: ${outletNameForUser || 'none'}):`, deliveryQuery);
