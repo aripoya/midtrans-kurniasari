@@ -707,6 +707,24 @@ export async function getOrderById(request, env) {
       return new Response(JSON.stringify({ success: false, error: 'Order not found' }), { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
     }
 
+    // Restrict deliveryman visibility: must be assigned OR match delivery filters
+    try {
+      const viewer = request.user;
+      if (viewer && viewer.role === 'deliveryman') {
+        const isAssigned = String(order.assigned_deliveryman_id || '') === String(viewer.id || '');
+        const area = String(order.shipping_area || '').toLowerCase();
+        const method = String(order.pickup_method || '').toLowerCase();
+        const tipe = String(order.tipe_pesanan || '').toLowerCase();
+        const areaOk = area === 'dalam_kota' || area === 'dalam-kota' || area === 'dalam kota';
+        const methodOk = method === 'deliveryman' || method === 'kurir toko' || method === 'kurir_toko';
+        const tipeOk = tipe === 'pesan antar' || tipe === 'pesan-antar';
+        const matchesDeliveryFilters = areaOk && methodOk && tipeOk;
+        if (!isAssigned && !matchesDeliveryFilters) {
+          return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+        }
+      }
+    } catch (_) {}
+
     // Step 2: Fetch order items
     failedQuery = 'fetching order items';
     const { results: rawItems } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(orderId).all();
@@ -1162,11 +1180,16 @@ export async function getDeliveryOrders(request, env) {
       SELECT outlet_id FROM users WHERE id = ? AND role = 'deliveryman'
     `).bind(deliverymanId).first();
     let outletNameForUser = null;
+    let accessAllOutlets = false;
     if (deliveryUser?.outlet_id) {
-      const outletRow = await env.DB.prepare(`
-        SELECT name FROM outlets_unified WHERE id = ?
-      `).bind(deliveryUser.outlet_id).first();
-      outletNameForUser = outletRow?.name || null;
+      if (String(deliveryUser.outlet_id).toUpperCase() === 'ALL') {
+        accessAllOutlets = true;
+      } else {
+        const outletRow = await env.DB.prepare(`
+          SELECT name FROM outlets_unified WHERE id = ?
+        `).bind(deliveryUser.outlet_id).first();
+        outletNameForUser = outletRow?.name || null;
+      }
     }
 
     // Build comprehensive query for deliveryman orders with strict filters
@@ -1184,8 +1207,14 @@ export async function getDeliveryOrders(request, env) {
 
     let queryParams = [deliverymanId];
 
-    // Include outlet orders by lokasi_pengambilan that are ready for delivery if user has outlet assignment
-    if (outletNameForUser) {
+    // Include outlet orders by lokasi_pengambilan that are ready for delivery
+    if (accessAllOutlets) {
+      // All outlets: include any ready-to-deliver orders
+      deliveryQuery += ` 
+          OR (LOWER(COALESCE(shipping_status, '')) IN ('siap kirim', 'siap ambil', 'shipping'))
+      `;
+    } else if (outletNameForUser) {
+      // Specific outlet: only that outlet's ready orders
       deliveryQuery += ` 
           OR (lokasi_pengambilan = ? AND LOWER(COALESCE(shipping_status, '')) IN ('siap kirim', 'siap ambil', 'shipping'))
       `;

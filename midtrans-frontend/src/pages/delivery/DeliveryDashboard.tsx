@@ -148,7 +148,18 @@ const DeliveryDashboard: React.FC = () => {
 
       setSelectedDriverId(targetDriverId || '');
       const myGroup = groups.find((g: any) => g?.user?.id === targetDriverId);
-      setOrders(myGroup?.orders || []);
+      const filtered = Array.isArray(myGroup?.orders)
+        ? myGroup.orders.filter((o: any) => {
+            const area = String(o.shipping_area || '').toLowerCase();
+            const method = String(o.pickup_method || '').toLowerCase();
+            const tipe = String(o.tipe_pesanan || '').toLowerCase();
+            const areaOk = area === 'dalam_kota' || area === 'dalam-kota' || area === 'dalam kota';
+            const methodOk = method === 'deliveryman' || method === 'kurir toko' || method === 'kurir_toko';
+            const tipeOk = tipe === 'pesan antar' || tipe === 'pesan-antar';
+            return areaOk && methodOk && tipeOk;
+          })
+        : [];
+      setOrders(filtered);
 
       // Update stats from summary if available
       if (data.summary) {
@@ -297,7 +308,18 @@ const DeliveryDashboard: React.FC = () => {
     if (!overview) return;
     const groups = Array.isArray(overview.deliverymen) ? overview.deliverymen : [];
     const myGroup = groups.find((g: any) => g?.user?.id === selectedDriverId);
-    setOrders(myGroup?.orders || []);
+    const filtered = Array.isArray(myGroup?.orders)
+      ? myGroup.orders.filter((o: any) => {
+          const area = String(o.shipping_area || '').toLowerCase();
+          const method = String(o.pickup_method || '').toLowerCase();
+          const tipe = String(o.tipe_pesanan || '').toLowerCase();
+          const areaOk = area === 'dalam_kota' || area === 'dalam-kota' || area === 'dalam kota';
+          const methodOk = method === 'deliveryman' || method === 'kurir toko' || method === 'kurir_toko';
+          const tipeOk = tipe === 'pesan antar' || tipe === 'pesan-antar';
+          return areaOk && methodOk && tipeOk;
+        })
+      : [];
+    setOrders(filtered);
   }, [selectedDriverId, overview]);
 
   if (loading) {
