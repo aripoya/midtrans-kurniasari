@@ -1848,7 +1848,21 @@ export async function updateOrderDetails(request, env) {
         updateParams.push(normalized); 
       }
       if (tracking_number !== undefined) { updateFields.push('tracking_number = ?'); updateParams.push(tracking_number); }
-      if (courier_service !== undefined) { updateFields.push('courier_service = ?'); updateParams.push(courier_service); }
+      if (courier_service !== undefined) { 
+        updateFields.push('courier_service = ?'); 
+        updateParams.push(courier_service);
+        
+        // Also update assigned_deliveryman_id when courier_service changes
+        // Map courier name to deliveryman ID
+        let deliverymanId = null;
+        if (courier_service && courier_service.toLowerCase() === 'rudi') {
+          deliverymanId = 'usr_1755672750527_49dznt';
+        } else if (courier_service && courier_service.toLowerCase() === 'fendi') {
+          deliverymanId = 'usr_1755672660126_bbil5p';
+        }
+        updateFields.push('assigned_deliveryman_id = ?');
+        updateParams.push(deliverymanId);
+      }
       // Delivery scheduling fields
       if (delivery_date !== undefined) { updateFields.push('delivery_date = ?'); updateParams.push(delivery_date); }
       if (delivery_time !== undefined) { updateFields.push('delivery_time = ?'); updateParams.push(delivery_time); }
