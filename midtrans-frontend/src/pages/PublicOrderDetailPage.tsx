@@ -577,10 +577,16 @@ const PublicOrderDetailPage = () => {
                                     href={`https://wa.me/${driver.phone}?text=${message}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    colorScheme="whatsapp"
+                                    colorScheme="green"
+                                    variant="outline"
                                     size="sm"
                                     leftIcon={<Text>💬</Text>}
                                     mt={2}
+                                    _hover={{
+                                      bg: 'green.500',
+                                      color: 'white',
+                                      borderColor: 'green.500'
+                                    }}
                                   >
                                     Hubungi {driver.name} via WhatsApp
                                   </Button>
