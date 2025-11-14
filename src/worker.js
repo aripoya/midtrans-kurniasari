@@ -872,28 +872,50 @@ router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (requ
         }
         
         // Get image data from upload result
-        const { imageId, publicUrl } = uploadResult.data;
+        const { imageId, publicUrl, variants } = uploadResult.data;
         const imageUrl = publicUrl;
         
         // Remove old image reference if exists
-        await env.DB.prepare(
-            'DELETE FROM shipping_images WHERE order_id = ? AND image_type = ?'
-        ).bind(orderId, imageType).run();
+        try {
+            await env.DB.prepare(
+                'DELETE FROM shipping_images WHERE order_id = ? AND image_type = ?'
+            ).bind(orderId, imageType).run();
+        } catch (dbError) {
+            console.error('Error deleting old shipping image:', dbError);
+            // Continue even if delete fails (record might not exist)
+        }
         
         // Save image reference to database
-        await env.DB.prepare(
-            'INSERT INTO shipping_images (order_id, image_type, image_url, cloudflare_image_id) VALUES (?, ?, ?, ?)'
-        ).bind(orderId, imageType, imageUrl, imageId).run();
+        try {
+            await env.DB.prepare(
+                'INSERT INTO shipping_images (order_id, image_type, image_url, cloudflare_image_id) VALUES (?, ?, ?, ?)'
+            ).bind(orderId, imageType, imageUrl, imageId).run();
+        } catch (dbError) {
+            console.error('Error inserting shipping image to DB:', dbError);
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Failed to save image reference to database',
+                details: dbError.message
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+            });
+        }
+        
+        // Build variants response
+        const responseVariants = imageId 
+            ? getImageVariants(imageId, env.CLOUDFLARE_IMAGES_HASH)
+            : (variants || { public: imageUrl });
         
         return new Response(JSON.stringify({
             success: true,
-            message: 'Image uploaded successfully to Cloudflare Images',
+            message: 'Image uploaded successfully',
             data: {
                 orderId,
                 imageType,
                 imageUrl,
                 imageId: imageId,
-                variants: getImageVariants(imageId, env.CLOUDFLARE_IMAGES_HASH)
+                variants: responseVariants
             }
         }), {
             status: 200,

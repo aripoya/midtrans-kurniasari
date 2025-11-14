@@ -487,6 +487,18 @@ export async function createOrder(request, env) {
       finalAssignedDeliverymanId = null;
     }
 
+    // For luar kota orders, set lokasi_pengiriman to null
+    const shippingArea = (orderData.shipping_area || '').toLowerCase();
+    const isLuarKota = shippingArea.includes('luar') || shippingArea.includes('luar-kota') || shippingArea.includes('luar_kota');
+    const finalLokasiPengiriman = isLuarKota ? null : (orderData.lokasi_pengiriman || null);
+
+    console.log('📦 [CREATE ORDER] Shipping location logic:', {
+      shipping_area: orderData.shipping_area,
+      isLuarKota,
+      original_lokasi_pengiriman: orderData.lokasi_pengiriman,
+      final_lokasi_pengiriman: finalLokasiPengiriman
+    });
+
     // Attempt insert with outlet_id; on FK error retry without it
     let orderInserted = false;
     try {
@@ -512,7 +524,7 @@ export async function createOrder(request, env) {
           safeMidtransResponse,
           'pending', // Initial shipping status
           customer_address || null,
-          orderData.lokasi_pengiriman || null,
+          finalLokasiPengiriman,
           orderData.lokasi_pengambilan || null,
           orderData.shipping_area || null,
           normalizedPickupMethod || null,
@@ -1883,9 +1895,39 @@ export async function updateOrderDetails(request, env) {
       // REDESIGNED SHIPPING INFO LOGIC - REMOVE INVALID VALIDATION
       // lokasi_pengambilan should always be outlet name, lokasi_pengiriman should be customer address
       // No need for locations table validation since these are actual outlet names and customer addresses
+      
+      // For luar kota orders, lokasi_pengiriman should be null
       if (lokasiPengirimanName !== undefined) {
+        // Determine if this is luar kota based on shipping_area (use updated value if provided, else fetch current)
+        let effectiveShippingArea = shipping_area; // Use the updated shipping_area if provided
+        if (effectiveShippingArea === undefined) {
+          // Fetch current shipping_area from DB if not provided in update
+          const currentOrder = await env.DB.prepare('SELECT shipping_area FROM orders WHERE id = ?').bind(orderId).first();
+          effectiveShippingArea = currentOrder?.shipping_area || '';
+        }
+        const isLuarKotaOrder = (effectiveShippingArea || '').toLowerCase().includes('luar');
+        const finalLokasiPengiriman = isLuarKotaOrder ? null : (lokasiPengirimanName || null);
+        
         updateFields.push('lokasi_pengiriman = ?');
-        updateParams.push(lokasiPengirimanName || null);
+        updateParams.push(finalLokasiPengiriman);
+        
+        console.log('📦 [UPDATE ORDER] Shipping location logic:', {
+          orderId,
+          shipping_area: effectiveShippingArea,
+          isLuarKota: isLuarKotaOrder,
+          original_lokasi_pengiriman: lokasiPengirimanName,
+          final_lokasi_pengiriman: finalLokasiPengiriman
+        });
+      }
+
+      // Also handle the case where shipping_area is updated to luar kota but lokasi_pengiriman is not explicitly provided
+      if (shipping_area !== undefined && lokasiPengirimanName === undefined) {
+        const isLuarKotaOrder = (shipping_area || '').toLowerCase().includes('luar');
+        if (isLuarKotaOrder) {
+          updateFields.push('lokasi_pengiriman = ?');
+          updateParams.push(null);
+          console.log('📦 [UPDATE ORDER] Clearing lokasi_pengiriman for luar kota transition:', { orderId, shipping_area });
+        }
       }
 
       if (lokasiPengambilanName !== undefined) {
