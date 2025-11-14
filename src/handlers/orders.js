@@ -1968,7 +1968,8 @@ export async function updateOrderDetails(request, env) {
     }
 
     // Validate and update assigned_deliveryman_id if provided
-    if (typeof rawAssignedDeliverymanId !== 'undefined') {
+    // BUT: Skip if courier_service was already provided (it will auto-map assigned_deliveryman_id)
+    if (typeof rawAssignedDeliverymanId !== 'undefined' && courier_service === undefined) {
       let finalAssignedId = null;
       try {
         if (rawAssignedDeliverymanId) {
