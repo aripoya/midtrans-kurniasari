@@ -1359,6 +1359,14 @@ export async function getAdminOrders(request, env) {
         // Omit deprecated pickup_outlet from response
         const { pickup_outlet, ...restNoPickup } = restOfOrder;
 
+        // Calculate total_amount from items, fallback to database value
+        const calculatedTotal = items.reduce((sum, item) => {
+          const unit = Number(item.price) || 0;
+          const qty = Number(item.quantity) || 0;
+          const sub = item.subtotal != null ? Number(item.subtotal) : (unit * qty);
+          return sum + sub;
+        }, 0);
+        
         return {
           ...restNoPickup,
           lokasi_pengiriman: lokasi_pengiriman_nama, // Use the name from the JOIN
@@ -1366,18 +1374,14 @@ export async function getAdminOrders(request, env) {
           items,
           payment_details: paymentDetails,
           payment_status: derivePaymentStatusFromData(order),
-          total_amount: items.reduce((sum, item) => {
-            const unit = Number(item.price) || 0;
-            const qty = Number(item.quantity) || 0;
-            const sub = item.subtotal != null ? Number(item.subtotal) : (unit * qty);
-            return sum + sub;
-          }, 0)
+          total_amount: calculatedTotal || Number(order.total_amount) || 0
         };
       } catch (itemError) {
         console.error(`Error processing items for order ${order.id}:`, itemError);
         return {
           ...order,
           items: [],
+          total_amount: Number(order.total_amount) || 0,
           error: 'Failed to fetch items for this order'
         };
       }
