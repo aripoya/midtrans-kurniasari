@@ -46,6 +46,8 @@ interface LocalOrder {
   admin_note?: string;
   tipe_pesanan?: string;
   lokasi_pengambilan?: string;
+  delivery_date?: string;
+  delivery_time?: string;
   picked_up_by?: string;
   assigned_deliveryman_id?: string;
   assigned_deliveryman_name?: string;
@@ -1028,6 +1030,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                     )}
                     {order.lokasi_pengambilan && (
                       <Text><strong>Outlet Pengambilan:</strong> {order.lokasi_pengambilan}</Text>
+                    )}
+                    {(order.delivery_date || order.delivery_time) && (
+                      <Text><strong>Jadwal Pengantaran:</strong> {
+                        (() => {
+                          const date = order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                          const time = order.delivery_time || '';
+                          return `${date}${date && time ? ', ' : ''}${time}`;
+                        })()
+                      }</Text>
                     )}
                     {order.tracking_number && String(order.shipping_area || '').toLowerCase() === 'luar_kota' && (
                       <Text><strong>Nomor Resi:</strong> {order.tracking_number}</Text>
