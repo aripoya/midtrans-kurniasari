@@ -33,7 +33,6 @@ import { useAuth } from '../../auth/AuthContext';
 import { Link } from 'react-router-dom';
 import { getShippingStatusConfig } from '../../utils/orderStatusUtils';
 import { adminApi } from '../../api/adminApi';
-import { useRealTimeSync, useNotificationSync } from '../../hooks/useRealTimeSync';
 
 const DeliveryDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -48,38 +47,16 @@ const DeliveryDashboard: React.FC = () => {
     completed: 0
   });
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [selectedDriverId, setSelectedDriverId] = useState<string>("");
 
   const toast = useToast();
   const cardBgColor = useColorModeValue('white', 'gray.700');
 
-  // Real-time sync hooks
-  const { syncStatus, manualRefresh } = useRealTimeSync({
-    role: 'deliveryman',
-    onUpdate: (updateInfo: any) => {
-      console.log('DELIVERY SYNC: New updates detected:', updateInfo);
-      // Refresh orders when updates are detected
-      fetchOverview();
-    },
-    pollingInterval: 60000, // Poll every 60 seconds (1 minute) - optimized for cost efficiency
-    enabled: true
-  });
+  // Real-time sync disabled to prevent constant refresh
+  const syncStatus = { connected: false };
+  const manualRefresh = () => fetchOverview();
 
-  const { unreadCount } = useNotificationSync({
-    userId: user?.id,
-    onNewNotification: (newNotifications: any[]) => {
-      // Show toast for new notifications
-      newNotifications.forEach(notification => {
-        toast({
-          title: notification.title,
-          description: notification.message,
-          status: 'info',
-          duration: 5000,
-          isClosable: true,
-        });
-      });
-    },
-    pollingInterval: 60000 // Check notifications every 60 seconds (1 minute) - optimized for cost efficiency
-  });
+  const unreadCount = 0; // notifications polling disabled on Delivery Dashboard
 
   // Fetch overview function with useCallback to avoid dependency issues
   const fetchOverview = useCallback(async (): Promise<void> => {
@@ -119,11 +96,58 @@ const DeliveryDashboard: React.FC = () => {
       const data = response.data || {};
       setOverview(data);
 
-      // Flatten currently assigned orders to keep existing table for "Pengiriman Yang Ditugaskan" to this user
-      const myId = deliverymanId;
-      const myGroup = (data.deliverymen || []).find((g: any) => g?.user?.id === myId);
-      const myOrders = myGroup?.orders || [];
-      setOrders(myOrders);
+      // Determine which driver's orders to show
+      const url = new URL(window.location.href);
+      const driverParam = (url.searchParams.get('driver') || '').toLowerCase();
+
+      let targetDriverId: string | undefined = undefined;
+      const groups = Array.isArray(data.deliverymen) ? data.deliverymen : [];
+
+      if (driverParam) {
+        const match = groups.find((g: any) => {
+          const uname = (g?.user?.username || '').toLowerCase();
+          const name = (g?.user?.name || '').toLowerCase();
+          return uname === driverParam || name === driverParam;
+        });
+        if (match?.user?.id) targetDriverId = match.user.id;
+      }
+
+      // If no URL driver specified, use logged-in deliveryman's id when role=deliveryman
+      if (!targetDriverId && user?.role === 'deliveryman' && deliverymanId) {
+        targetDriverId = deliverymanId;
+      }
+
+      // If still undefined, fallback to keep previous selection or first group
+      if (!targetDriverId) {
+        // Default to "Semua Driver" (empty string) instead of first group
+        targetDriverId = selectedDriverId || '';
+      }
+
+      setSelectedDriverId(targetDriverId || '');
+      // If "Semua Driver" selected (empty), show all orders from all drivers
+      let allOrders: any[] = [];
+      if (targetDriverId === '') {
+        // Aggregate all orders from all drivers
+        groups.forEach((g: any) => {
+          if (Array.isArray(g.orders)) {
+            allOrders = allOrders.concat(g.orders);
+          }
+        });
+      } else {
+        // Show only selected driver's orders
+        const myGroup = groups.find((g: any) => g?.user?.id === targetDriverId);
+        allOrders = Array.isArray(myGroup?.orders) ? myGroup.orders : [];
+      }
+      const filtered = allOrders.filter((o: any) => {
+        const area = String(o.shipping_area || '').toLowerCase();
+        const method = String(o.pickup_method || '').toLowerCase();
+        const tipe = String(o.tipe_pesanan || '').toLowerCase();
+        const areaOk = area === 'dalam_kota' || area === 'dalam-kota' || area === 'dalam kota';
+        const methodOk = method === 'deliveryman' || method === 'kurir toko' || method === 'kurir_toko';
+        const tipeOk = tipe === 'pesan antar' || tipe === 'pesan-antar';
+        return areaOk && methodOk && tipeOk;
+      });
+      setOrders(filtered);
 
       // Update stats from summary if available
       if (data.summary) {
@@ -148,7 +172,7 @@ const DeliveryDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast, statusFilter]);
+  }, [toast, statusFilter, user?.role, selectedDriverId]);
 
   // Update shipping status
   const updateShippingStatus = async (orderId: string, newStatus: string): Promise<void> => {
@@ -265,7 +289,38 @@ const DeliveryDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchOverview();
-  }, [fetchOverview]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
+
+  // When driver selection changes and we already have overview, update orders view
+  useEffect(() => {
+    if (!overview) return;
+    const groups = Array.isArray(overview.deliverymen) ? overview.deliverymen : [];
+    // If "Semua Driver" selected (empty), show all orders from all drivers
+    let allOrders: any[] = [];
+    if (selectedDriverId === '') {
+      // Aggregate all orders from all drivers
+      groups.forEach((g: any) => {
+        if (Array.isArray(g.orders)) {
+          allOrders = allOrders.concat(g.orders);
+        }
+      });
+    } else {
+      // Show only selected driver's orders
+      const myGroup = groups.find((g: any) => g?.user?.id === selectedDriverId);
+      allOrders = Array.isArray(myGroup?.orders) ? myGroup.orders : [];
+    }
+    const filtered = allOrders.filter((o: any) => {
+      const area = String(o.shipping_area || '').toLowerCase();
+      const method = String(o.pickup_method || '').toLowerCase();
+      const tipe = String(o.tipe_pesanan || '').toLowerCase();
+      const areaOk = area === 'dalam_kota' || area === 'dalam-kota' || area === 'dalam kota';
+      const methodOk = method === 'deliveryman' || method === 'kurir toko' || method === 'kurir_toko';
+      const tipeOk = tipe === 'pesan antar' || tipe === 'pesan-antar';
+      return areaOk && methodOk && tipeOk;
+    });
+    setOrders(filtered);
+  }, [selectedDriverId, overview]);
 
   if (loading) {
     return (
@@ -310,6 +365,36 @@ const DeliveryDashboard: React.FC = () => {
               <Badge colorScheme="red" variant="solid">
                 {unreadCount} Notifikasi
               </Badge>
+            )}
+            {/* Driver selector (admin can switch between drivers) */}
+            {Array.isArray(overview?.deliverymen) && overview!.deliverymen.length > 0 && (
+              <Select
+                size="sm"
+                width="220px"
+                value={selectedDriverId}
+                onChange={(e) => {
+                  const newDriverId = e.target.value;
+                  setSelectedDriverId(newDriverId);
+                  // Update URL without page reload
+                  const url = new URL(window.location.href);
+                  if (newDriverId) {
+                    // Find driver name for URL param (optional, for readability)
+                    const driver = overview!.deliverymen.find((g: any) => g.user.id === newDriverId);
+                    const driverName = driver ? (driver.user.name || driver.user.username) : '';
+                    url.searchParams.set('driver', driverName);
+                  } else {
+                    url.searchParams.delete('driver');
+                  }
+                  window.history.replaceState({}, '', url.toString());
+                }}
+              >
+                <option value="">Semua Driver</option>
+                {overview!.deliverymen.map((g: any) => (
+                  <option key={`opt-${g.user.id}`} value={g.user.id}>
+                    {(g.user.name || g.user.username)} ({g.count || 0})
+                  </option>
+                ))}
+              </Select>
             )}
             <Button size="sm" onClick={manualRefresh}>
               Refresh
@@ -398,6 +483,7 @@ const DeliveryDashboard: React.FC = () => {
                     <Th>Nama Pelanggan</Th>
                     <Th>Alamat</Th>
                     <Th>Lokasi Pengiriman</Th>
+                    <Th>Driver</Th>
                     <Th>Status Pesanan</Th>
                     <Th>Aksi</Th>
                   </Tr>
@@ -409,6 +495,9 @@ const DeliveryDashboard: React.FC = () => {
                       <Td>{order.customer_name}</Td>
                       <Td>{order.customer_address}</Td>
                       <Td>{order.lokasi_pengiriman || (order as any).shipping_location || order.outlet_id || 'Tidak tersedia'}</Td>
+                      <Td>
+                        {order.courier_service || 'Belum di-assign'}
+                      </Td>
                       <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
                       <Td>
                         <HStack spacing={2}>
@@ -492,6 +581,7 @@ const DeliveryDashboard: React.FC = () => {
                         <Th>Nama Pelanggan</Th>
                         <Th>Alamat</Th>
                         <Th>Lokasi Pengiriman</Th>
+                        <Th>Driver/Kurir</Th>
                         <Th>Status</Th>
                       </Tr>
                     </Thead>
@@ -502,6 +592,7 @@ const DeliveryDashboard: React.FC = () => {
                           <Td>{order.customer_name}</Td>
                           <Td>{order.customer_address || '-'}</Td>
                           <Td>{order.lokasi_pengiriman || '-'}</Td>
+                          <Td>{order.courier_service || 'Belum di-assign'}</Td>
                           <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
                         </Tr>
                       ))}
@@ -527,6 +618,7 @@ const DeliveryDashboard: React.FC = () => {
                             <Th>Nama Pelanggan</Th>
                             <Th>Alamat</Th>
                             <Th>Lokasi Pengiriman</Th>
+                            <Th>Driver/Kurir</Th>
                             <Th>Status</Th>
                           </Tr>
                         </Thead>
@@ -537,6 +629,7 @@ const DeliveryDashboard: React.FC = () => {
                               <Td>{order.customer_name}</Td>
                               <Td>{order.customer_address || '-'}</Td>
                               <Td>{order.lokasi_pengiriman || '-'}</Td>
+                              <Td>{order.courier_service || 'Belum di-assign'}</Td>
                               <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
                             </Tr>
                           ))}

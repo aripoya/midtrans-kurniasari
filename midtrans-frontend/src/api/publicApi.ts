@@ -33,6 +33,8 @@ export interface PublicOrder {
   tracking_number?: string;
   lokasi_pengiriman?: string;
   lokasi_pengambilan?: string;
+  delivery_date?: string;
+  delivery_time?: string;
   admin_note?: string;
   courier_name?: string;
   created_at: string;

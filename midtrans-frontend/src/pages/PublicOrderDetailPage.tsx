@@ -442,6 +442,15 @@ const PublicOrderDetailPage = () => {
                     <Text><strong>Nama:</strong> {order.customer_name}</Text>
                     <Text><strong>Email:</strong> {order.customer_email || 'aripoya09@gmail.com'}</Text>
                     <Text><strong>Telepon:</strong> {order.customer_phone}</Text>
+                    {(order.delivery_date || order.delivery_time) && (
+                      <Text><strong>Jadwal Pengantaran:</strong> {
+                        (() => {
+                          const date = order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                          const time = order.delivery_time || '';
+                          return `${date}${date && time ? ', ' : ''}${time}`;
+                        })()
+                      }</Text>
+                    )}
                   </Box>
 
                   <Divider />
@@ -546,16 +555,55 @@ const PublicOrderDetailPage = () => {
                           <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman}</Text>
                         )}
                         {order.courier_service && (
-                          <Text><strong>Jasa Ekspedisi:</strong> {
-                            order.courier_service.toLowerCase() === 'deliveryman' ? 'Kurir Toko' :
-                            order.courier_service.toLowerCase() === 'ojek_online' ? 'Ojek Online' :
-                            order.courier_service.toLowerCase() === 'gojek' ? 'Gojek' :
-                            order.courier_service.toLowerCase() === 'grab' ? 'Grab' :
-                            order.courier_service.toLowerCase() === 'jne' ? 'JNE' :
-                            order.courier_service.toLowerCase() === 'tiki' ? 'TIKI' :
-                            order.courier_service.toLowerCase() === 'travel' ? 'Travel' :
-                            order.courier_service.toUpperCase()
-                          }</Text>
+                          <>
+                            <Text><strong>Jasa Ekspedisi:</strong> {
+                              order.courier_service.toLowerCase() === 'deliveryman' ? 'Kurir Toko' :
+                              order.courier_service.toLowerCase() === 'ojek_online' ? 'Ojek Online' :
+                              order.courier_service.toLowerCase() === 'gojek' ? 'Gojek' :
+                              order.courier_service.toLowerCase() === 'grab' ? 'Grab' :
+                              order.courier_service.toLowerCase() === 'jne' ? 'JNE' :
+                              order.courier_service.toLowerCase() === 'tiki' ? 'TIKI' :
+                              order.courier_service.toLowerCase() === 'travel' ? 'Travel' :
+                              order.courier_service.toUpperCase()
+                            }</Text>
+                            
+                            {/* WhatsApp button for Rudi or Fendi */}
+                            {(() => {
+                              const courierName = order.courier_service?.toLowerCase();
+                              const driverWhatsApp: { [key: string]: { phone: string; name: string } } = {
+                                'rudi': { phone: '6285123323166', name: 'Rudi' },
+                                'fendi': { phone: '6285178108852', name: 'Fendi' }
+                              };
+                              
+                              const driver = driverWhatsApp[courierName];
+                              if (driver) {
+                                const message = encodeURIComponent(
+                                  `Halo ${driver.name}, saya ingin menanyakan pesanan saya dengan ID: ${order.id}`
+                                );
+                                return (
+                                  <Button
+                                    as="a"
+                                    href={`https://wa.me/${driver.phone}?text=${message}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    colorScheme="green"
+                                    variant="outline"
+                                    size="sm"
+                                    leftIcon={<Text>💬</Text>}
+                                    mt={2}
+                                    _hover={{
+                                      bg: 'green.500',
+                                      color: 'white',
+                                      borderColor: 'green.500'
+                                    }}
+                                  >
+                                    Hubungi {driver.name} via WhatsApp
+                                  </Button>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </>
                         )}
                         {order.tracking_number && (
                           <Box>

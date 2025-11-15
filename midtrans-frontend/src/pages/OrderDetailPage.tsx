@@ -46,7 +46,11 @@ interface LocalOrder {
   admin_note?: string;
   tipe_pesanan?: string;
   lokasi_pengambilan?: string;
+  delivery_date?: string;
+  delivery_time?: string;
   picked_up_by?: string;
+  assigned_deliveryman_id?: string;
+  assigned_deliveryman_name?: string;
   items: OrderItem[];
   shipping_images?: ShippingImages;
 }
@@ -93,6 +97,40 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       toast({ title: 'Gagal menyalin link', status: 'error', duration: 2000, isClosable: true });
     }
   };
+
+  // Handlers for per-slot "Ganti Foto"
+  const triggerReplaceFile = (type: 'ready_for_pickup' | 'picked_up' | 'delivered'): void => {
+    const input = replaceInputsRef.current[type];
+    if (input) input.click();
+  };
+
+  const handleReplaceFileChange = async (
+    type: 'ready_for_pickup' | 'picked_up' | 'delivered',
+    e: ChangeEvent<HTMLInputElement>
+  ): Promise<void> => {
+    if (!id) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setReplaceLoading((prev) => ({ ...prev, [type]: true }));
+      // show loading placeholder for this slot
+      setShippingImages((prev) => ({ ...prev, [type]: 'loading' as unknown as string }));
+      const result = await adminApi.uploadShippingImage(id, type, file);
+      if (result?.success && result.data?.imageUrl) {
+        setShippingImages((prev) => ({ ...prev, [type]: result.data!.imageUrl }));
+        await fetchOrderDetails();
+        toast({ title: 'Foto diganti', status: 'success', duration: 2000, isClosable: true });
+      } else {
+        throw new Error(result?.error || 'Gagal mengganti foto');
+      }
+    } catch (err: any) {
+      toast({ title: 'Gagal mengganti foto', description: err?.message, status: 'error', duration: 4000, isClosable: true });
+    } finally {
+      setReplaceLoading((prev) => ({ ...prev, [type]: false }));
+      // reset input
+      e.target.value = '';
+    }
+  };
   
   // Real-time sync untuk public order detail page
   useRealTimeSync({
@@ -110,6 +148,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploadLoading, setUploadLoading] = useState<boolean>(false);
+  const [replaceLoading, setReplaceLoading] = useState<Record<string, boolean>>({});
+  const replaceInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
   
   // Fungsi untuk memilih foto
   const handlePhotoChange = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -307,7 +347,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         admin_note: apiOrder?.admin_note || apiOrder?.adminNote || undefined,
         tipe_pesanan: apiOrder?.tipe_pesanan || apiOrder?.order_type || undefined,
         lokasi_pengambilan: apiOrder?.lokasi_pengambilan || apiOrder?.pickup_location || undefined,
+        delivery_date: apiOrder?.delivery_date || undefined,
+        delivery_time: apiOrder?.delivery_time || undefined,
         picked_up_by: apiOrder?.picked_up_by || apiOrder?.nama_pengambil || undefined,
+        assigned_deliveryman_id: apiOrder?.assigned_deliveryman_id || undefined,
+        assigned_deliveryman_name: apiOrder?.assigned_deliveryman_name || undefined,
         items,
         shipping_images: apiOrder?.shipping_images || undefined,
       };
@@ -744,7 +788,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const isPaid = isPaidStatus(order.payment_status);
   const isReceived = order.shipping_status === 'diterima';
   const steps = getPaymentSteps();
-  const currentStep = steps.findIndex(step => step.status === 'active');
+  const currentStep = (() => {
+    const activeIdx = steps.findIndex(step => step.status === 'active');
+    if (activeIdx >= 0) return activeIdx;
+    const allComplete = steps.length > 0 && steps.every((s) => s.status === 'complete');
+    return allComplete ? steps.length : 0;
+  })();
 
   // Debug payment URL visibility condition
   console.log('[OrderDetailPage] Payment URL Visibility Debug:', {
@@ -978,7 +1027,22 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                     {order.courier_service && order.shipping_area === 'luar_kota' && (
                       <Text><strong>Jasa Kurir:</strong> {order.courier_service}</Text>
                     )}
-                    {order.tracking_number && (
+                    {order.pickup_method === 'deliveryman' && (
+                      <Text><strong>Driver/Kurir:</strong> {order.courier_service || (order.assigned_deliveryman_name || (order.assigned_deliveryman_id ? order.assigned_deliveryman_id : 'Belum di-assign'))}</Text>
+                    )}
+                    {order.lokasi_pengambilan && (
+                      <Text><strong>Outlet Pengambilan:</strong> {order.lokasi_pengambilan}</Text>
+                    )}
+                    {(order.delivery_date || order.delivery_time) && (
+                      <Text><strong>Jadwal Pengantaran:</strong> {
+                        (() => {
+                          const date = order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                          const time = order.delivery_time || '';
+                          return `${date}${date && time ? ', ' : ''}${time}`;
+                        })()
+                      }</Text>
+                    )}
+                    {order.tracking_number && String(order.shipping_area || '').toLowerCase() === 'luar_kota' && (
                       <Text><strong>Nomor Resi:</strong> {order.tracking_number}</Text>
                     )}
                   </Box>
@@ -1032,6 +1096,34 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                           />
                         );
                       })}
+                      {/* Per-slot replace controls */}
+                      {(isDeliveryView || isOutletView) && (
+                        <>
+                          {photoSlotsToShow.map((type) => (
+                            <HStack key={`${type}-actions`} spacing={3}>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                ref={(el) => {
+                                  replaceInputsRef.current[type] = el;
+                                }}
+                                onChange={(e) =>
+                                  handleReplaceFileChange(type as 'ready_for_pickup' | 'picked_up' | 'delivered', e)
+                                }
+                              />
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                onClick={() => triggerReplaceFile(type as 'ready_for_pickup' | 'picked_up' | 'delivered')}
+                                isLoading={!!replaceLoading[type]}
+                              >
+                                Ganti Foto {type === 'ready_for_pickup' ? '(Siap Kirim)' : type === 'picked_up' ? '(Pengiriman)' : '(Diterima)'}
+                              </Button>
+                            </HStack>
+                          ))}
+                        </>
+                      )}
                     </VStack>
                   </Box>
 
@@ -1191,7 +1283,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                       Buka Gambar QRIS
                     </Button>
                   )}
-                  {order.payment_url && (
+                  {!isOutletView && order.payment_url && (
                     <Button as="a" href={order.payment_url} target="_blank" colorScheme="teal" size="lg">
                       Lanjutkan Pembayaran
                     </Button>
