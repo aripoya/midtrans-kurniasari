@@ -442,6 +442,15 @@ const PublicOrderDetailPage = () => {
                     <Text><strong>Nama:</strong> {order.customer_name}</Text>
                     <Text><strong>Email:</strong> {order.customer_email || 'aripoya09@gmail.com'}</Text>
                     <Text><strong>Telepon:</strong> {order.customer_phone}</Text>
+                    {(order.delivery_date || order.delivery_time) && (
+                      <Text><strong>Jadwal Pengantaran:</strong> {
+                        (() => {
+                          const date = order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                          const time = order.delivery_time || '';
+                          return `${date}${date && time ? ', ' : ''}${time}`;
+                        })()
+                      }</Text>
+                    )}
                   </Box>
 
                   <Divider />
@@ -544,15 +553,6 @@ const PublicOrderDetailPage = () => {
                         <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                         {order.lokasi_pengiriman && (
                           <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman}</Text>
-                        )}
-                        {(order.delivery_date || order.delivery_time) && (
-                          <Text><strong>Jadwal Pengantaran:</strong> {
-                            (() => {
-                              const date = order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-                              const time = order.delivery_time || '';
-                              return `${date}${date && time ? ', ' : ''}${time}`;
-                            })()
-                          }</Text>
                         )}
                         {order.courier_service && (
                           <>
