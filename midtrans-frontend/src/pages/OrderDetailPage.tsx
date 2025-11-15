@@ -1026,6 +1026,9 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                     {order.pickup_method === 'deliveryman' && (
                       <Text><strong>Driver/Kurir:</strong> {order.courier_service || (order.assigned_deliveryman_name || (order.assigned_deliveryman_id ? order.assigned_deliveryman_id : 'Belum di-assign'))}</Text>
                     )}
+                    {order.lokasi_pengambilan && (
+                      <Text><strong>Outlet Pengambilan:</strong> {order.lokasi_pengambilan}</Text>
+                    )}
                     {order.tracking_number && String(order.shipping_area || '').toLowerCase() === 'luar_kota' && (
                       <Text><strong>Nomor Resi:</strong> {order.tracking_number}</Text>
                     )}
