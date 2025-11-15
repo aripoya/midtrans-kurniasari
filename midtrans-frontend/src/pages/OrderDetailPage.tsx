@@ -347,6 +347,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         admin_note: apiOrder?.admin_note || apiOrder?.adminNote || undefined,
         tipe_pesanan: apiOrder?.tipe_pesanan || apiOrder?.order_type || undefined,
         lokasi_pengambilan: apiOrder?.lokasi_pengambilan || apiOrder?.pickup_location || undefined,
+        delivery_date: apiOrder?.delivery_date || undefined,
+        delivery_time: apiOrder?.delivery_time || undefined,
         picked_up_by: apiOrder?.picked_up_by || apiOrder?.nama_pengambil || undefined,
         assigned_deliveryman_id: apiOrder?.assigned_deliveryman_id || undefined,
         assigned_deliveryman_name: apiOrder?.assigned_deliveryman_name || undefined,
