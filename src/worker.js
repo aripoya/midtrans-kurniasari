@@ -23,6 +23,7 @@ import { getAdminActivity, getActiveSessions, logoutUser, getAdminStats } from '
 import { listMigrationBackups, getMigrationBackup, restoreMigrationBackup } from './handlers/migration-backups.js';
 import { resetAdminPassword } from '../reset-admin-password.js';
 import { handleGetOutlets } from './handlers/outlets';
+import { handleMidtransWebhook, checkTransactionStatus, updateOrderStatusFromMidtrans } from './handlers/webhook.js';
 
 console.log('Initializing router');
 const router = Router();
@@ -249,6 +250,55 @@ router.post('/api/orders/:id/mark-received', (request, env) => {
 router.delete('/api/orders/:id', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return deleteOrder(request, env);
+});
+
+// Midtrans webhook endpoint (no auth - verified by signature)
+router.post('/api/webhook/midtrans', (request, env) => {
+    return handleMidtransWebhook(request, env);
+});
+
+// Admin endpoint to manually sync payment status from Midtrans
+router.post('/api/admin/orders/:id/sync-payment-status', verifyToken, async (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, error: adminCheck.error }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+        });
+    }
+
+    try {
+        const { id: orderId } = request.params;
+        console.log(`[MANUAL SYNC] Checking payment status for order ${orderId}`);
+
+        // Check transaction status from Midtrans
+        const midtransStatus = await checkTransactionStatus(orderId, env);
+        console.log(`[MANUAL SYNC] Midtrans status for ${orderId}:`, midtransStatus);
+
+        // Update order using the centralized webhook handler
+        const updateResult = await updateOrderStatusFromMidtrans(midtransStatus, env);
+
+        return new Response(JSON.stringify({
+            success: true,
+            message: 'Payment status synced successfully',
+            payment_status: updateResult.payment_status,
+            transaction_status: updateResult.transaction_status,
+            midtrans_response: midtransStatus
+        }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+        });
+    } catch (error) {
+        console.error(`[MANUAL SYNC] Error syncing payment status:`, error);
+        return new Response(JSON.stringify({
+            success: false,
+            error: error.message || 'Failed to sync payment status'
+        }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+        });
+    }
 });
 
 // Photo upload endpoint for outlets (legacy)
@@ -1985,6 +2035,48 @@ router.post('/api/debug/map-orders-to-outlets', (request, env) => {
 router.get('/api/debug/fix-assignment-data', (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return mapOrdersToOutlets(request, env);
+});
+
+// Debug endpoint to sync specific order payment status (temporary - no auth for quick fix)
+router.get('/api/debug/sync-order-payment/:orderId', async (request, env) => {
+    const corsHeadersObj = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    
+    try {
+        const { orderId } = request.params;
+        console.log(`[DEBUG SYNC] Checking payment status for order ${orderId}`);
+
+        // Check transaction status from Midtrans
+        const midtransStatus = await checkTransactionStatus(orderId, env);
+        console.log(`[DEBUG SYNC] Midtrans status for ${orderId}:`, midtransStatus);
+
+        // Update order using the centralized webhook handler
+        const updateResult = await updateOrderStatusFromMidtrans(midtransStatus, env);
+
+        return new Response(JSON.stringify({
+            success: true,
+            message: 'Payment status synced successfully',
+            payment_status: updateResult.payment_status,
+            transaction_status: updateResult.transaction_status,
+            midtrans_response: midtransStatus
+        }, null, 2), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeadersObj }
+        });
+    } catch (error) {
+        console.error(`[DEBUG SYNC] Error syncing payment status:`, error);
+        return new Response(JSON.stringify({
+            success: false,
+            error: error.message || 'Failed to sync payment status',
+            stack: error.stack
+        }, null, 2), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeadersObj }
+        });
+    }
 });
 
 // Direct fix for specific order
