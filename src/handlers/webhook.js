@@ -77,7 +77,10 @@ export async function handleMidtransWebhook(request, env) {
     try {
         console.log('[WEBHOOK] Received webhook notification');
         const notification = await request.json();
-        console.log('[WEBHOOK] Request body:', notification);
+        console.log('[WEBHOOK] Request body:', JSON.stringify(notification, null, 2));
+        console.log('[WEBHOOK] Payment type:', notification.payment_type);
+        console.log('[WEBHOOK] Transaction status:', notification.transaction_status);
+        console.log('[WEBHOOK] Order ID:', notification.order_id);
 
         // Verify webhook signature
         const serverKey = env.MIDTRANS_SERVER_KEY;
