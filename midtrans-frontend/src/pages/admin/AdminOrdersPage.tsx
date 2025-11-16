@@ -72,6 +72,10 @@ const AdminOrdersPage: React.FC = () => {
     shipping: 0,
   });
   const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(20);
+  const [totalOrders, setTotalOrders] = useState<number>(0);
   const toast = useToast();
   const isMobile = useBreakpointValue({ base: true, md: false });
   const { logout } = useAuth();
@@ -159,14 +163,16 @@ const AdminOrdersPage: React.FC = () => {
     console.log('[DEBUG] 🚀 fetchOrders called - starting fetch process...');
     setLoading(true);
     try {
-      console.log('[DEBUG] 📡 Calling adminApi.getAdminOrders()...');
-      const response = await adminApi.getAdminOrders() as any;
+      const offset = (currentPage - 1) * itemsPerPage;
+      console.log('[DEBUG] 📡 Calling adminApi.getAdminOrders with offset:', offset, 'limit:', itemsPerPage);
+      const response = await adminApi.getAdminOrders(offset, itemsPerPage) as any;
       console.log('[DEBUG] 📦 Admin API response received:', response);
       console.log('[DEBUG] 🔍 Response structure check:');
       console.log('[DEBUG]   - response.success:', response.success);
       console.log('[DEBUG]   - response.error:', response.error);
       console.log('[DEBUG]   - response.data:', response.data);
       console.log('[DEBUG]   - response.data?.orders:', response.data?.orders);
+      console.log('[DEBUG]   - response.data?.total:', response.data?.total);
       
       if (response.error) {
         console.error('[DEBUG] ❌ API returned error:', response.error);
@@ -175,15 +181,17 @@ const AdminOrdersPage: React.FC = () => {
       
       if (response.success && (response.data?.orders || response.orders)) {
         const orders = response.data?.orders || response.orders || [];
-        console.log('[DEBUG] ✅ Successfully parsed orders:', orders.length, 'orders');
+        const total = response.data?.total || response.total || orders.length;
+        console.log('[DEBUG] ✅ Successfully parsed orders:', orders.length, 'orders, total:', total);
         console.log('[DEBUG] 📋 Orders data:', orders);
         
         console.log('[DEBUG] 🎯 Setting orders state with:', orders.length, 'orders');
         setOrders(orders);
+        setTotalOrders(total);
         
-        // Calculate stats
+        // Calculate stats from total, not just current page
         const stats = {
-          total: orders.length,
+          total: total,
           pending: orders.filter((o: any) => o.payment_status === 'pending').length,
           paid: orders.filter((o: any) => ['paid', 'settlement', 'capture'].includes(o.payment_status)).length,
           shipping: orders.filter((o: any) => o.shipping_status && !['received'].includes(o.shipping_status)).length,
@@ -198,6 +206,7 @@ const AdminOrdersPage: React.FC = () => {
         console.error('[DEBUG] Expected adminApi format: { success: true, data: { orders: [...] } }');
         console.log('[DEBUG] 🚫 Setting empty orders array');
         setOrders([]);
+        setTotalOrders(0);
       }
     } catch (error: unknown) {
       console.error('[DEBUG] ❌ Error in fetchOrders:', error);
@@ -212,11 +221,12 @@ const AdminOrdersPage: React.FC = () => {
       });
       console.log('[DEBUG] 🚫 Setting empty orders array due to error');
       setOrders([]);
+      setTotalOrders(0);
     } finally {
       console.log('[DEBUG] 🏁 fetchOrders finally block - setting loading to false');
       setLoading(false);
     }
-  }, [toast]); // Only depend on toast which is stable from useToast
+  }, [toast, currentPage, itemsPerPage]); // Add pagination dependencies
 
   useEffect(() => {
     console.log('[DEBUG] 🚀 useEffect called - starting fetch process...');
@@ -407,6 +417,54 @@ const AdminOrdersPage: React.FC = () => {
             <option value="received">Diterima</option>
           </Select>
         </HStack>
+
+        {/* Pagination Controls */}
+        <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={4}>
+          <HStack spacing={2}>
+            <Text fontSize="sm" color="gray.600">
+              Tampilkan:
+            </Text>
+            <Select
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1); // Reset to first page
+              }}
+              size="sm"
+              maxW="100px"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+            </Select>
+            <Text fontSize="sm" color="gray.600">
+              data per halaman
+            </Text>
+          </HStack>
+
+          <HStack spacing={2}>
+            <Button
+              size="sm"
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              isDisabled={currentPage === 1}
+            >
+              Prev
+            </Button>
+            <Text fontSize="sm">
+              Halaman {currentPage} dari {Math.ceil(totalOrders / itemsPerPage) || 1}
+            </Text>
+            <Button
+              size="sm"
+              onClick={() => setCurrentPage(currentPage + 1)}
+              isDisabled={currentPage >= Math.ceil(totalOrders / itemsPerPage)}
+            >
+              Next
+            </Button>
+          </HStack>
+
+          <Text fontSize="sm" color="gray.600">
+            Total: {totalOrders} pesanan
+          </Text>
+        </Flex>
         
         {loading ? (
           <Flex justify="center" align="center" height="200px">

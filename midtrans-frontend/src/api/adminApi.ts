@@ -435,14 +435,16 @@ export const adminApi = {
       // Handle different response structures from the API
       if (response.data?.success && Array.isArray(response.data?.orders)) {
         const orders: Order[] = response.data.orders;
+        const pagination = response.data.pagination || {};
         console.log("[DEBUG] Found orders array with length:", orders.length);
+        console.log("[DEBUG] Pagination data:", pagination);
         return {
           success: true,
           data: {
             orders,
-            total: response.data.total || orders.length,
-            offset: response.data.offset || offset,
-            limit: response.data.limit || limit,
+            total: pagination.total || response.data.total || orders.length,
+            offset: pagination.offset || response.data.offset || offset,
+            limit: pagination.limit || response.data.limit || limit,
           },
           error: null,
         };
