@@ -205,6 +205,30 @@ const PublicOrderDetailPage = () => {
     };
 
     fetchOrder();
+
+    // Auto-refresh setiap 10 detik jika payment_status masih pending
+    const intervalId = setInterval(async () => {
+      if (!id) return;
+      
+      try {
+        const response = await publicApi.getOrderById(id);
+        if (response?.success && response?.data) {
+          const currentOrder = response.data;
+          setOrder(currentOrder);
+          
+          // Stop auto-refresh jika sudah dibayar
+          if (currentOrder.payment_status && 
+              ['settlement', 'capture', 'paid'].includes(currentOrder.payment_status.toLowerCase())) {
+            clearInterval(intervalId);
+          }
+        }
+      } catch (err) {
+        console.error('Error auto-refreshing order:', err);
+      }
+    }, 10000); // Refresh setiap 10 detik
+
+    // Cleanup interval saat component unmount
+    return () => clearInterval(intervalId);
   }, [id]);
 
 
