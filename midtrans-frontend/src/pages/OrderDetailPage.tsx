@@ -915,7 +915,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           {order.payment_method && (
             <div className="kv"><span className="label">Metode Pembayaran</span><span className="value">{order.payment_method}</span></div>
           )}
-          <div className="kv"><span className="label">Area Pengiriman</span><span className="value">{order.shipping_area === 'dalam_kota' ? 'DALAM KOTA' : 'LUAR KOTA'}</span></div>
+          <div className="kv"><span className="label">Area Pengiriman</span><span className="value">{order.shipping_area === 'dalam_kota' || order.shipping_area === 'dalam-kota' ? 'DALAM KOTA' : 'LUAR KOTA'}</span></div>
           {order.lokasi_pengambilan && (
             <div className="kv"><span className="label">Lokasi Pengambilan</span><span className="value">{order.lokasi_pengambilan}</span></div>
           )}
@@ -1017,7 +1017,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                     <Text><strong>Nama:</strong> {order.customer_name}</Text>
                     <Text><strong>Telepon:</strong> {order.customer_phone}</Text>
                     <Text><strong>Alamat:</strong> {order.customer_address}</Text>
-                    <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam_kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
+                    <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam_kota' || order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                     <Text><strong>Metode Pengambilan:</strong> {
                       order.pickup_method === 'self-pickup' ? 'Pickup Sendiri di Outlet' : 
                       order.pickup_method === 'ojek-online' ? 'Ojek Online' :
