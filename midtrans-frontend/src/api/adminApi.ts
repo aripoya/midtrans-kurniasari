@@ -523,9 +523,21 @@ export const adminApi = {
       console.log("📸 Image Type:", imageType);
       console.log("📁 File:", imageFile.name);
 
+      // Backend hanya menerima imageType: siap_kirim, pengiriman, diterima, shipment_proof
+      // Lakukan mapping dari nilai di frontend ke nilai backend yang valid
+      const backendImageTypeMap: Record<string, string> = {
+        ready_for_pickup: "siap_kirim",
+        picked_up: "pengiriman",
+        delivered: "diterima",
+        shipment_proof: "shipment_proof",
+        packaged_product: "siap_kirim",
+      };
+
+      const mappedImageType = backendImageTypeMap[imageType] || imageType;
+
       const formData = new FormData();
       formData.append("image", imageFile);
-      formData.append("imageType", imageType);
+      formData.append("imageType", mappedImageType);
       const response: AxiosResponse<any> = await axios.post(
         `${API_URL}/api/orders/${orderId}/shipping-images`,
         formData,
