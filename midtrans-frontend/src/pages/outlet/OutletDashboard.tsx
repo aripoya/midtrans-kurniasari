@@ -111,9 +111,13 @@ const OutletDashboard: React.FC = () => {
     try {
       setLoading(true);
       // Use relative path in development (proxy) and full URL in production
-    const apiUrl = import.meta.env.DEV 
+      const baseApiUrl = import.meta.env.DEV 
         ? '/api/orders/outlet-relational' 
         : `${import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev'}/api/orders/outlet-relational`;
+
+      // Request a larger perPage from backend so older orders are also returned,
+      // then use client-side pagination (10/20 per page) on the full list.
+      const apiUrl = `${baseApiUrl}?page=1&perPage=200`;
       
       const response = await fetch(apiUrl, {
         headers: {
