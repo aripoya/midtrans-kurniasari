@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useRealTimeSync } from '../hooks/useRealTimeSync';
 import {
   Box, Button, Center, Divider, Flex, Grid, GridItem, Heading, HStack,
-  useToast, Step, StepDescription, StepIcon, StepIndicator, StepNumber, 
+  useToast, Step, StepDescription, StepIcon, StepIndicator, StepNumber,
   StepSeparator, StepStatus, StepTitle, Stepper,
   Container, Image, Radio, RadioGroup, Stack,
   Text, VStack, Badge, Table, Tbody, Tr, Td, Th, Thead, Spinner,
@@ -86,7 +86,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const [qrisLoading, setQrisLoading] = useState<boolean>(false);
   const [qrisUrl, setQrisUrl] = useState<string | null>(null);
   const hasAutoRefreshed = useRef<boolean>(false);
-  
+
   // Copy payment URL helper (inside component scope)
   const copyPaymentUrl = async (url?: string): Promise<void> => {
     if (!url) return;
@@ -131,7 +131,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       e.target.value = '';
     }
   };
-  
+
   // Real-time sync untuk public order detail page
   useRealTimeSync({
     role: 'public',
@@ -143,21 +143,21 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     pollingInterval: 60000, // Poll every 60 seconds (1 minute) - optimized for cost efficiency
     enabled: true
   });
-  
+
   // State untuk fitur upload foto kurir
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploadLoading, setUploadLoading] = useState<boolean>(false);
   const [replaceLoading, setReplaceLoading] = useState<Record<string, boolean>>({});
   const replaceInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
-  
+
   // Fungsi untuk memilih foto
   const handlePhotoChange = (e: ChangeEvent<HTMLInputElement>): void => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       console.log('Selected photo:', file.name, file.type, file.size);
       setPhotoFile(file);
-      
+
       // Tampilkan preview
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -166,51 +166,43 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       reader.readAsDataURL(file);
     }
   };
-  
+
   // Fungsi untuk upload foto
   const handlePhotoUpload = async (): Promise<void> => {
     if (!photoFile || !id) return;
-    
+
     try {
       setUploadLoading(true);
-      
+
       // Upload foto menggunakan adminApi dengan tipe yang dipilih oleh kurir
       const result = await adminApi.uploadShippingImage(id, selectedPhotoType, photoFile);
       console.log('🚚 [PhotoUpload] Upload result:', result);
       console.log('🚚 [PhotoUpload] Result success:', result?.success);
       console.log('🚚 [PhotoUpload] Result data:', result?.data);
-      
+
       // Update status pesanan jika upload berhasil
       if (result && result.success && result.data?.imageUrl) {
-        // Perbarui status pesanan berdasarkan jenis foto yang diupload
-        let newStatus = 'dalam pengiriman';
-        
-        if (selectedPhotoType === 'ready_for_pickup') {
-          newStatus = 'siap kirim';
-        } else if (selectedPhotoType === 'delivered') {
-          newStatus = 'diterima';
-        }
-        
-        await adminApi.updateOrderShippingStatus(id, newStatus);
-        
+        // Backend automatically updates order status based on image type
+        // No need to manually update status here
+
         // Perbarui state shippingImages langsung untuk menampilkan foto yang baru diunggah
         setShippingImages(prev => ({
           ...prev,
           [selectedPhotoType]: result.data.imageUrl
         }));
-        
-        // Refresh order details untuk mendapatkan update terbaru
+
+        // Refresh order details untuk mendapatkan update terbaru dari backend
         await fetchOrderDetails();
-        
+
         toast({
           title: "Foto berhasil diunggah",
-          description: `Foto ${selectedPhotoType === 'ready_for_pickup' ? 'Siap Kirim' : 
-                       selectedPhotoType === 'picked_up' ? 'Pengiriman' : 'Diterima'} telah disimpan.`,
+          description: `Foto ${selectedPhotoType === 'ready_for_pickup' ? 'Siap Kirim' :
+            selectedPhotoType === 'picked_up' ? 'Pengiriman' : 'Diterima'} telah disimpan.`,
           status: "success",
           duration: 3000,
           isClosable: true,
         });
-        
+
         // Reset form
         setPhotoFile(null);
         setPhotoPreview(null);
@@ -287,17 +279,17 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
     try {
       const items = Array.isArray(apiOrder?.items)
         ? apiOrder.items.map((it: any) => ({
-            product_name: it?.product_name || it?.name || '-',
-            quantity: Number(it?.quantity) || 0,
-            product_price: Number(it?.product_price ?? it?.price ?? 0),
-          }))
+          product_name: it?.product_name || it?.name || '-',
+          quantity: Number(it?.quantity) || 0,
+          product_price: Number(it?.product_price ?? it?.price ?? 0),
+        }))
         : [];
-      
+
       const shipping_area: 'dalam_kota' | 'luar_kota' =
         apiOrder?.shipping_area === 'luar_kota' || apiOrder?.shipping_area === 'luar-kota'
           ? 'luar_kota'
           : 'dalam_kota';
-      
+
       // Build payment URL with robust fallbacks
       const snapToken = apiOrder?.snap_token || apiOrder?.token;
       const redirectFromToken = snapToken
@@ -377,29 +369,29 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
 
   const fetchOrderDetails = useCallback(async (): Promise<void> => {
     if (!id) return;
-    
+
     try {
       setLoading(true);
       setError(null);
-      
+
       // Gunakan API umum untuk semua view dan parse response
       const response = await orderService.getOrderById(id);
       const apiOrder: any = (response as any)?.order || (response as any)?.data || response;
-      
+
       if (apiOrder) {
         const mappedOrder: LocalOrder = mapToLocalOrder(apiOrder);
         setOrder(mappedOrder);
-        
+
         // Always try to fetch shipping images for all order types using public API
         try {
           console.log('📸 [OrderDetailPage] Fetching shipping images for order:', id);
           const apiUrl = import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev';
           const imageResponse = await fetch(`${apiUrl}/api/test-shipping-photos/${id}`);
-          
+
           if (imageResponse.ok) {
             const imageData = await imageResponse.json();
             console.log('📸 [OrderDetailPage] Raw API response:', imageData);
-            
+
             // Process images from public API response
             const processedImages: ShippingImages = {
               ready_for_pickup: null,
@@ -410,7 +402,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
             // Backend returns { success: true, data: formattedImages }
             const imagesFromAPI = imageData.success ? imageData.data : imageData;
             console.log('📸 [OrderDetailPage] Images from API:', imagesFromAPI);
-            
+
             // Public API returns object with image types as keys
             Object.keys(processedImages).forEach((key) => {
               const imageKey = key as keyof ShippingImages;
@@ -419,13 +411,13 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                 console.log('📸 [OrderDetailPage] Processed image for', imageKey, ':', processedImages[imageKey]);
               }
             });
-            
+
             setShippingImages(processedImages);
             console.log('📸 [OrderDetailPage] Processed shipping images:', processedImages);
           }
         } catch (imageError) {
           console.error('📸 [OrderDetailPage] Error fetching shipping images:', imageError);
-          
+
           // Fallback: try to process shipping images from order data if available
           if (mappedOrder.shipping_images) {
             processShippingImages(mappedOrder.shipping_images);
@@ -444,16 +436,16 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
 
   const handleRefreshStatus = async (): Promise<void> => {
     if (!id) return;
-    
+
     try {
       setIsRefreshing(true);
-      
+
       // Refresh payment status dari Midtrans
       await refreshOrderStatus(id);
-      
+
       // Fetch ulang data order
       await fetchOrderDetails();
-      
+
       toast({
         title: "Status diperbarui",
         description: "Status pesanan telah diperbarui dari sistem pembayaran",
@@ -477,15 +469,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
 
   const handleMarkAsReceived = async (): Promise<void> => {
     if (!id) return;
-    
+
     try {
       setIsMarkingAsReceived(true);
-      
+
       await markOrderAsReceived(id);
-      
+
       // Fetch ulang data order
       await fetchOrderDetails();
-      
+
       toast({
         title: "Pesanan ditandai sebagai diterima",
         description: "Status pesanan telah diperbarui",
@@ -515,7 +507,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         link.download = `qr-code-order-${order?.id}.png`;
         link.href = canvas.toDataURL();
         link.click();
-        
+
         toast({
           title: "QR Code berhasil diunduh",
           status: "success",
@@ -538,15 +530,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   // Helper function untuk transformasi URL yang konsisten dengan admin page
   const transformURL = (url: string): string => {
     if (!url) return url;
-    
+
     console.log('🔗 [transformURL] Input URL:', url);
-    
+
     // Jika sudah berupa URL Cloudflare Images yang valid, return langsung
     if (url.includes('imagedelivery.net') || url.includes('cloudflareimages.com')) {
       console.log('🔗 [transformURL] Already Cloudflare URL, returning as-is');
       return url;
     }
-    
+
     // Jika berupa format lama dengan path /api/images/, transform ke Cloudflare Images
     if (url.includes('/api/images/')) {
       const filename = url.split('/').pop();
@@ -558,20 +550,20 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         return transformedUrl;
       }
     }
-    
+
     // Handle R2 URLs or other formats - try to extract image ID
     if (url.includes('r2.cloudflarestorage.com') || url.includes('wahwooh.workers.dev')) {
       try {
         // Extract image ID from various URL formats
         let imageId = null;
-        
+
         // Try to extract from path segments
         const urlParts = url.split('/');
         const lastPart = urlParts[urlParts.length - 1];
-        
+
         // Remove query parameters if any
         imageId = lastPart.split('?')[0];
-        
+
         if (imageId && imageId.length > 10) { // Basic validation for image ID
           const baseUrl = 'https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA';
           const transformedUrl = `${baseUrl}/${imageId}/public`;
@@ -582,7 +574,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         console.warn('🔗 [transformURL] Failed to transform R2 URL:', e);
       }
     }
-    
+
     console.log('🔗 [transformURL] No transformation needed, returning original URL');
     return url;
   };
@@ -627,11 +619,11 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   const getShippingStatusBadge = (order: LocalOrder): JSX.Element => {
     const status = normalizeShippingStatus(order.shipping_status);
     const config = getShippingStatusConfig(status);
-    
+
     return <Badge colorScheme={config.color}>{config.text}</Badge>;
   };
 
-  const getPaymentSteps = (): Array<{title: string, description: string, status: 'complete' | 'active' | 'incomplete'}> => {
+  const getPaymentSteps = (): Array<{ title: string, description: string, status: 'complete' | 'active' | 'incomplete' }> => {
     if (!order) return [];
 
     const isPaid = isPaidStatus(order.payment_status);
@@ -656,8 +648,8 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         title: 'Pengiriman',
         description: isShipped
           ? (normalizedStatus === 'siap kirim'
-              ? 'Pesanan siap kirim'
-              : 'Pesanan dalam pengiriman')
+            ? 'Pesanan siap kirim'
+            : 'Pesanan dalam pengiriman')
           : 'Belum dikirim',
         status: isShipped ? (isReceived ? 'complete' : 'active') : 'incomplete'
       },
@@ -1012,297 +1004,297 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
               <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={6}>
                 <GridItem>
                   <VStack align="stretch" spacing={4}>
-                  <Box>
-                    <Heading size="sm" mb={2}>Informasi Pelanggan</Heading>
-                    <Text><strong>Nama:</strong> {order.customer_name}</Text>
-                    <Text><strong>Telepon:</strong> {order.customer_phone}</Text>
-                    <Text><strong>Alamat:</strong> {order.customer_address}</Text>
-                    <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam_kota' || order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
-                    <Text><strong>Metode Pengambilan:</strong> {
-                      order.pickup_method === 'self-pickup' ? 'Pickup Sendiri di Outlet' : 
-                      order.pickup_method === 'ojek-online' ? 'Ojek Online' :
-                      order.pickup_method === 'deliveryman' ? 'Kurir Outlet' :
-                      (order.pickup_method || '-')
-                    }</Text>
-                    {order.courier_service && order.shipping_area === 'luar_kota' && (
-                      <Text><strong>Jasa Kurir:</strong> {order.courier_service}</Text>
-                    )}
-                    {order.pickup_method === 'deliveryman' && (
-                      <Text><strong>Driver/Kurir:</strong> {order.courier_service || (order.assigned_deliveryman_name || (order.assigned_deliveryman_id ? order.assigned_deliveryman_id : 'Belum di-assign'))}</Text>
-                    )}
-                    {order.lokasi_pengambilan && (
-                      <Text><strong>Outlet Pengambilan:</strong> {order.lokasi_pengambilan}</Text>
-                    )}
-                    {(order.delivery_date || order.delivery_time) && (
-                      <Text><strong>Jadwal Pengantaran:</strong> {
-                        (() => {
-                          const date = order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-                          const time = order.delivery_time || '';
-                          return `${date}${date && time ? ', ' : ''}${time}`;
-                        })()
-                      }</Text>
-                    )}
-                    {order.tracking_number && String(order.shipping_area || '').toLowerCase() === 'luar_kota' && (
-                      <Text><strong>Nomor Resi:</strong> {order.tracking_number}</Text>
-                    )}
-                  </Box>
-
-                  <Divider />
-
-                  <Box>
-                    <Heading size="sm" mb={4}>Progress Pesanan</Heading>
-                    <Stepper index={currentStep} orientation="vertical" height="200px" gap="0">
-                      {steps.map((step, index) => (
-                        <Step key={index}>
-                          <StepIndicator>
-                            <StepStatus
-                              complete={<StepIcon />}
-                              incomplete={<StepNumber />}
-                              active={<StepNumber />}
-                            />
-                          </StepIndicator>
-                          <Box flexShrink="0">
-                            <StepTitle>{step.title}</StepTitle>
-                            <StepDescription>{step.description}</StepDescription>
-                          </Box>
-                          <StepSeparator />
-                        </Step>
-                      ))}
-                    </Stepper>
-                  </Box>
-                </VStack>
-              </GridItem>
-
-              <GridItem>
-                <VStack align="stretch" spacing={4}>
-                  <Box>
-                    <Heading size="sm" mb={2}>Status Foto Pesanan</Heading>
-                    <VStack align="stretch" spacing={3}>
-                      {photoSlotsToShow.map((type) => {
-                        const labels = {
-                          ready_for_pickup: 'Foto Siap Kirim',
-                          picked_up: 'Foto Pengiriman', 
-                          delivered: 'Foto Diterima'
-                        };
-                        
-                        return (
-                          <ShippingImageDisplay
-                            key={type}
-                            imageUrl={shippingImages[type as keyof ShippingImages] ?? undefined}
-                            type={type}
-                            label={labels[type as keyof typeof labels]}
-                            showPlaceholder={true}
-                            maxHeight="150px"
-                          />
-                        );
-                      })}
-                      {/* Per-slot replace controls */}
-                      {(isDeliveryView || isOutletView) && (
-                        <>
-                          {photoSlotsToShow.map((type) => (
-                            <HStack key={`${type}-actions`} spacing={3}>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                style={{ display: 'none' }}
-                                ref={(el) => {
-                                  replaceInputsRef.current[type] = el;
-                                }}
-                                onChange={(e) =>
-                                  handleReplaceFileChange(type as 'ready_for_pickup' | 'picked_up' | 'delivered', e)
-                                }
-                              />
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => triggerReplaceFile(type as 'ready_for_pickup' | 'picked_up' | 'delivered')}
-                                isLoading={!!replaceLoading[type]}
-                              >
-                                Ganti Foto {type === 'ready_for_pickup' ? '(Siap Kirim)' : type === 'picked_up' ? '(Pengiriman)' : '(Diterima)'}
-                              </Button>
-                            </HStack>
-                          ))}
-                        </>
-                      )}
-                    </VStack>
-                  </Box>
-
-                  {/* Upload foto untuk kurir */}
-                  {(isDeliveryView || isOutletView) && (
                     <Box>
-                      <Heading size="sm" mb={4}>Upload Foto Status</Heading>
-                      <VStack spacing={3}>
-                        <FormControl>
-                          <FormLabel fontSize="sm">Pilih Jenis Foto</FormLabel>
-                          <RadioGroup 
-                            value={selectedPhotoType} 
-                            onChange={(value) => setSelectedPhotoType(value as 'ready_for_pickup' | 'picked_up' | 'delivered')}
-                          >
-                            <Stack>
-                              {!isLuarKota && (
-                                <>
-                                  <Radio value="ready_for_pickup" size="sm">Foto Siap Kirim</Radio>
-                                  <Radio value="picked_up" size="sm">Foto Pengiriman</Radio>
-                                </>
-                              )}
-                              <Radio value="delivered" size="sm">Foto Diterima</Radio>
-                            </Stack>
-                          </RadioGroup>
-                        </FormControl>
+                      <Heading size="sm" mb={2}>Informasi Pelanggan</Heading>
+                      <Text><strong>Nama:</strong> {order.customer_name}</Text>
+                      <Text><strong>Telepon:</strong> {order.customer_phone}</Text>
+                      <Text><strong>Alamat:</strong> {order.customer_address}</Text>
+                      <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam_kota' || order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
+                      <Text><strong>Metode Pengambilan:</strong> {
+                        order.pickup_method === 'self-pickup' ? 'Pickup Sendiri di Outlet' :
+                          order.pickup_method === 'ojek-online' ? 'Ojek Online' :
+                            order.pickup_method === 'deliveryman' ? 'Kurir Outlet' :
+                              (order.pickup_method || '-')
+                      }</Text>
+                      {order.courier_service && order.shipping_area === 'luar_kota' && (
+                        <Text><strong>Jasa Kurir:</strong> {order.courier_service}</Text>
+                      )}
+                      {order.pickup_method === 'deliveryman' && (
+                        <Text><strong>Driver/Kurir:</strong> {order.courier_service || (order.assigned_deliveryman_name || (order.assigned_deliveryman_id ? order.assigned_deliveryman_id : 'Belum di-assign'))}</Text>
+                      )}
+                      {order.lokasi_pengambilan && (
+                        <Text><strong>Outlet Pengambilan:</strong> {order.lokasi_pengambilan}</Text>
+                      )}
+                      {(order.delivery_date || order.delivery_time) && (
+                        <Text><strong>Jadwal Pengantaran:</strong> {
+                          (() => {
+                            const date = order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                            const time = order.delivery_time || '';
+                            return `${date}${date && time ? ', ' : ''}${time}`;
+                          })()
+                        }</Text>
+                      )}
+                      {order.tracking_number && String(order.shipping_area || '').toLowerCase() === 'luar_kota' && (
+                        <Text><strong>Nomor Resi:</strong> {order.tracking_number}</Text>
+                      )}
+                    </Box>
 
-                        <FormControl>
-                          <FormLabel fontSize="sm">Pilih Foto</FormLabel>
-                          <Input 
-                            type="file" 
-                            accept="image/*" 
-                            onChange={handlePhotoChange}
-                            size="sm"
-                          />
-                        </FormControl>
+                    <Divider />
 
-                        {photoPreview && (
-                          <Image 
-                            src={photoPreview || ''}
-                            alt="Preview"
-                            maxH="200px"
-                            objectFit="cover"
-                            border="1px solid"
-                            borderColor="gray.200"
-                            borderRadius="md"
-                          />
+                    <Box>
+                      <Heading size="sm" mb={4}>Progress Pesanan</Heading>
+                      <Stepper index={currentStep} orientation="vertical" height="200px" gap="0">
+                        {steps.map((step, index) => (
+                          <Step key={index}>
+                            <StepIndicator>
+                              <StepStatus
+                                complete={<StepIcon />}
+                                incomplete={<StepNumber />}
+                                active={<StepNumber />}
+                              />
+                            </StepIndicator>
+                            <Box flexShrink="0">
+                              <StepTitle>{step.title}</StepTitle>
+                              <StepDescription>{step.description}</StepDescription>
+                            </Box>
+                            <StepSeparator />
+                          </Step>
+                        ))}
+                      </Stepper>
+                    </Box>
+                  </VStack>
+                </GridItem>
+
+                <GridItem>
+                  <VStack align="stretch" spacing={4}>
+                    <Box>
+                      <Heading size="sm" mb={2}>Status Foto Pesanan</Heading>
+                      <VStack align="stretch" spacing={3}>
+                        {photoSlotsToShow.map((type) => {
+                          const labels = {
+                            ready_for_pickup: 'Foto Siap Kirim',
+                            picked_up: 'Foto Pengiriman',
+                            delivered: 'Foto Diterima'
+                          };
+
+                          return (
+                            <ShippingImageDisplay
+                              key={type}
+                              imageUrl={shippingImages[type as keyof ShippingImages] ?? undefined}
+                              type={type}
+                              label={labels[type as keyof typeof labels]}
+                              showPlaceholder={true}
+                              maxHeight="150px"
+                            />
+                          );
+                        })}
+                        {/* Per-slot replace controls */}
+                        {(isDeliveryView || isOutletView) && (
+                          <>
+                            {photoSlotsToShow.map((type) => (
+                              <HStack key={`${type}-actions`} spacing={3}>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  style={{ display: 'none' }}
+                                  ref={(el) => {
+                                    replaceInputsRef.current[type] = el;
+                                  }}
+                                  onChange={(e) =>
+                                    handleReplaceFileChange(type as 'ready_for_pickup' | 'picked_up' | 'delivered', e)
+                                  }
+                                />
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  onClick={() => triggerReplaceFile(type as 'ready_for_pickup' | 'picked_up' | 'delivered')}
+                                  isLoading={!!replaceLoading[type]}
+                                >
+                                  Ganti Foto {type === 'ready_for_pickup' ? '(Siap Kirim)' : type === 'picked_up' ? '(Pengiriman)' : '(Diterima)'}
+                                </Button>
+                              </HStack>
+                            ))}
+                          </>
                         )}
-
-                        <Button 
-                          onClick={handlePhotoUpload}
-                          isLoading={uploadLoading}
-                          isDisabled={!photoFile}
-                          colorScheme="blue"
-                          size="sm"
-                          width="full"
-                        >
-                          Upload Foto
-                        </Button>
                       </VStack>
                     </Box>
-                  )}
 
-                  {/* QR Code untuk akses publik */}
-                  {!isDeliveryView && !isOutletView && (
-                    <Box>
-                      <Button
-                        onClick={() => setShowQRCode(!showQRCode)}
-                        variant="outline"
-                        size="sm"
-                        width="full"
-                        mb={3}
-                      >
-                        {showQRCode ? 'Sembunyikan' : 'Tampilkan'} QR Code
-                      </Button>
-                      
-                      {showQRCode && (
+                    {/* Upload foto untuk kurir */}
+                    {(isDeliveryView || isOutletView) && (
+                      <Box>
+                        <Heading size="sm" mb={4}>Upload Foto Status</Heading>
                         <VStack spacing={3}>
-                          <Flex justify="center" p={4} bg="gray.50" borderRadius="md">
-                            <Box
-                              p={4}
-                              borderWidth="1px"
-                              borderRadius="lg"
-                              bg="white"
-                              ref={qrCodeRef}
-                              id="qrcode-container"
+                          <FormControl>
+                            <FormLabel fontSize="sm">Pilih Jenis Foto</FormLabel>
+                            <RadioGroup
+                              value={selectedPhotoType}
+                              onChange={(value) => setSelectedPhotoType(value as 'ready_for_pickup' | 'picked_up' | 'delivered')}
                             >
-                              {order && order.id ? (
-                                <VStack>
-                                  <QRCodeSVG 
-                                    value={`https://order-management-app-production.wahwooh.workers.dev/api/orders/${order.id}`}
-                                    size={220}
-                                    level="H"
-                                    includeMargin={true}
-                                  />
-                                  <Text pt={2} fontSize="sm" fontWeight="bold">Order #{order.id}</Text>
-                                </VStack>
-                              ) : (
-                                <Text>Order ID tidak tersedia.</Text>
-                              )}
-                            </Box>
-                          </Flex>
+                              <Stack>
+                                {!isLuarKota && (
+                                  <>
+                                    <Radio value="ready_for_pickup" size="sm">Foto Siap Kirim</Radio>
+                                    <Radio value="picked_up" size="sm">Foto Pengiriman</Radio>
+                                  </>
+                                )}
+                                <Radio value="delivered" size="sm">Foto Diterima</Radio>
+                              </Stack>
+                            </RadioGroup>
+                          </FormControl>
+
+                          <FormControl>
+                            <FormLabel fontSize="sm">Pilih Foto</FormLabel>
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              onChange={handlePhotoChange}
+                              size="sm"
+                            />
+                          </FormControl>
+
+                          {photoPreview && (
+                            <Image
+                              src={photoPreview || ''}
+                              alt="Preview"
+                              maxH="200px"
+                              objectFit="cover"
+                              border="1px solid"
+                              borderColor="gray.200"
+                              borderRadius="md"
+                            />
+                          )}
+
                           <Button
-                            onClick={handleDownloadQRCode}
+                            onClick={handlePhotoUpload}
+                            isLoading={uploadLoading}
+                            isDisabled={!photoFile}
                             colorScheme="blue"
                             size="sm"
+                            width="full"
                           >
-                            Download QR Code
+                            Upload Foto
                           </Button>
                         </VStack>
-                      )}
-                    </Box>
-                  )}
-                </VStack>
-              </GridItem>
-            </Grid>
+                      </Box>
+                    )}
 
-            <Divider my={6} />
+                    {/* QR Code untuk akses publik */}
+                    {!isDeliveryView && !isOutletView && (
+                      <Box>
+                        <Button
+                          onClick={() => setShowQRCode(!showQRCode)}
+                          variant="outline"
+                          size="sm"
+                          width="full"
+                          mb={3}
+                        >
+                          {showQRCode ? 'Sembunyikan' : 'Tampilkan'} QR Code
+                        </Button>
+
+                        {showQRCode && (
+                          <VStack spacing={3}>
+                            <Flex justify="center" p={4} bg="gray.50" borderRadius="md">
+                              <Box
+                                p={4}
+                                borderWidth="1px"
+                                borderRadius="lg"
+                                bg="white"
+                                ref={qrCodeRef}
+                                id="qrcode-container"
+                              >
+                                {order && order.id ? (
+                                  <VStack>
+                                    <QRCodeSVG
+                                      value={`https://order-management-app-production.wahwooh.workers.dev/api/orders/${order.id}`}
+                                      size={220}
+                                      level="H"
+                                      includeMargin={true}
+                                    />
+                                    <Text pt={2} fontSize="sm" fontWeight="bold">Order #{order.id}</Text>
+                                  </VStack>
+                                ) : (
+                                  <Text>Order ID tidak tersedia.</Text>
+                                )}
+                              </Box>
+                            </Flex>
+                            <Button
+                              onClick={handleDownloadQRCode}
+                              colorScheme="blue"
+                              size="sm"
+                            >
+                              Download QR Code
+                            </Button>
+                          </VStack>
+                        )}
+                      </Box>
+                    )}
+                  </VStack>
+                </GridItem>
+              </Grid>
+
+              <Divider my={6} />
 
 
-            <Heading size="sm" mb={4}>Barang Pesanan</Heading>
-            <Table variant="simple">
-              <Thead>
-                <Tr>
-                  <Th>Produk</Th>
-                  <Th isNumeric>Jumlah</Th>
-                  <Th isNumeric>Harga</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {order.items && order.items.map((item: OrderItem, index: number) => (
-                  <Tr key={index}>
-                    <Td>{item.product_name}</Td>
-                    <Td isNumeric>{item.quantity}</Td>
-                    <Td isNumeric>Rp {item.product_price?.toLocaleString('id-ID')}</Td>
+              <Heading size="sm" mb={4}>Barang Pesanan</Heading>
+              <Table variant="simple">
+                <Thead>
+                  <Tr>
+                    <Th>Produk</Th>
+                    <Th isNumeric>Jumlah</Th>
+                    <Th isNumeric>Harga</Th>
                   </Tr>
-                ))}
-              </Tbody>
-            </Table>
+                </Thead>
+                <Tbody>
+                  {order.items && order.items.map((item: OrderItem, index: number) => (
+                    <Tr key={index}>
+                      <Td>{item.product_name}</Td>
+                      <Td isNumeric>{item.quantity}</Td>
+                      <Td isNumeric>Rp {item.product_price?.toLocaleString('id-ID')}</Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
 
-            <Divider my={6} />
-            
-            <HStack spacing={4} justify="center" wrap="wrap">
-              {isOutletView && (
-                <HStack>
-                  <Button onClick={handleDownloadReceiptImage} variant="outline" size="lg">
-                    Unduh PNG 56mm
-                  </Button>
-                </HStack>
-              )}
-              {!isDeliveryView && (
-                <>
-                  <Button onClick={handleDownloadQris} isLoading={qrisLoading} colorScheme="purple" variant="solid" size="lg">
-                    Unduh QRIS + Detail
-                  </Button>
-                  {qrisUrl && (
-                    <Button as="a" href={qrisUrl} target="_blank" rel="noopener noreferrer" variant="outline" size="lg">
-                      Buka Gambar QRIS
+              <Divider my={6} />
+
+              <HStack spacing={4} justify="center" wrap="wrap">
+                {isOutletView && (
+                  <HStack>
+                    <Button onClick={handleDownloadReceiptImage} variant="outline" size="lg">
+                      Unduh PNG 56mm
                     </Button>
-                  )}
-                  {!isOutletView && order.payment_url && (
-                    <Button as="a" href={order.payment_url} target="_blank" colorScheme="teal" size="lg">
-                      Lanjutkan Pembayaran
+                  </HStack>
+                )}
+                {!isDeliveryView && (
+                  <>
+                    <Button onClick={handleDownloadQris} isLoading={qrisLoading} colorScheme="purple" variant="solid" size="lg">
+                      Unduh QRIS + Detail
                     </Button>
-                  )}
-                </>
-              )}
-              <Button onClick={handleRefreshStatus} isLoading={isRefreshing} variant="outline">
-                Perbarui Status
-              </Button>
-              {isPaid && !isReceived && (
-                <Button onClick={handleMarkAsReceived} isLoading={isMarkingAsReceived} colorScheme="green">
-                  Pesanan Sudah Diterima
+                    {qrisUrl && (
+                      <Button as="a" href={qrisUrl} target="_blank" rel="noopener noreferrer" variant="outline" size="lg">
+                        Buka Gambar QRIS
+                      </Button>
+                    )}
+                    {!isOutletView && order.payment_url && (
+                      <Button as="a" href={order.payment_url} target="_blank" colorScheme="teal" size="lg">
+                        Lanjutkan Pembayaran
+                      </Button>
+                    )}
+                  </>
+                )}
+                <Button onClick={handleRefreshStatus} isLoading={isRefreshing} variant="outline">
+                  Perbarui Status
                 </Button>
-              )}
-            </HStack>
-          </CardBody>
-        </Card>
-      </VStack>
-    </Container>
+                {isPaid && !isReceived && (
+                  <Button onClick={handleMarkAsReceived} isLoading={isMarkingAsReceived} colorScheme="green">
+                    Pesanan Sudah Diterima
+                  </Button>
+                )}
+              </HStack>
+            </CardBody>
+          </Card>
+        </VStack>
+      </Container>
     </>
   );
 };

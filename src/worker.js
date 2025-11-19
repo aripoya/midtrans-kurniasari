@@ -33,11 +33,11 @@ console.log('Router initialized successfully');
 const corsHeaders = (request) => {
     // Define allowed origins
     const allowedOrigins = [
-        'https://kurniasari.co.id', 
-        'https://www.kurniasari.co.id', 
-        'https://tagihan.kurniasari.co.id', 
+        'https://kurniasari.co.id',
+        'https://www.kurniasari.co.id',
+        'https://tagihan.kurniasari.co.id',
         'https://nota.kurniasari.co.id',
-        'http://localhost:5173', 
+        'http://localhost:5173',
         'http://172.16.1.5:5173',
         'https://order-management-app-production.wahwooh.workers.dev', // Production frontend
         'http://localhost:5174',
@@ -51,7 +51,7 @@ const corsHeaders = (request) => {
         'http://127.0.0.1:5176',
         'http://127.0.0.1:5177'
     ];
-    
+
     const origin = request.headers.get('Origin');
 
     // Enhanced CORS for development and production
@@ -63,7 +63,7 @@ const corsHeaders = (request) => {
     } else {
         allowedOrigin = '*'; // Fallback to allow all for testing
     }
-        
+
     return {
         'Access-Control-Allow-Origin': allowedOrigin,
         'Vary': 'Origin',
@@ -82,7 +82,7 @@ router.options('*', (request) => {
         status: 200,
         headers: headers
     });
- });
+});
 
 // Admin: Inspect users table schema
 router.get('/api/admin/users-schema', verifyToken, async (request, env) => {
@@ -646,18 +646,18 @@ router.post('/api/admin/migrate-admin-activity', verifyToken, (request, env) => 
 
 // Simple ping to validate router wiring and auth decoding
 router.get('/api/ping', async (request) => {
-  try {
-    const now = new Date().toISOString();
-    return new Response(JSON.stringify({ ok: true, now }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
-    });
-  } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: String(e) }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
-    });
-  }
+    try {
+        const now = new Date().toISOString();
+        return new Response(JSON.stringify({ ok: true, now }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+        });
+    } catch (e) {
+        return new Response(JSON.stringify({ ok: false, error: String(e) }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+        });
+    }
 });
 
 // Admin: Drop legacy users.password column safely (recreate table)
@@ -685,7 +685,7 @@ router.post('/api/admin/drop-legacy-password', verifyToken, async (request, env)
         try {
             const body = await request.json();
             debug = !!body?.debug;
-        } catch (_) {}
+        } catch (_) { }
         console.log('[DROP-LEGACY-PASSWORD] Inspecting users schema via PRAGMA');
         // Inspect users schema
         const pragma = await env.DB.prepare("PRAGMA table_info('users')").all();
@@ -792,7 +792,7 @@ router.post('/api/admin/drop-legacy-password', verifyToken, async (request, env)
         });
     } catch (error) {
         console.error('Error dropping legacy password column:', error);
-        try { await env.DB.prepare('PRAGMA foreign_keys = ON').run(); } catch (_) {}
+        try { await env.DB.prepare('PRAGMA foreign_keys = ON').run(); } catch (_) { }
         return new Response(JSON.stringify({ success: false, message: 'Migration failed', error: String(error && error.message || error) }), {
             status: 500,
             headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
@@ -802,38 +802,38 @@ router.post('/api/admin/drop-legacy-password', verifyToken, async (request, env)
 
 // Admin outlets endpoint - Get all outlets from outlets_unified table
 router.get('/api/admin/outlets', verifyToken, async (request, env) => {
-  request.corsHeaders = corsHeaders(request);
-  
-  try {
-    const outlets = await env.DB.prepare(`
+    request.corsHeaders = corsHeaders(request);
+
+    try {
+        const outlets = await env.DB.prepare(`
       SELECT id, name, location_alias, address, status
       FROM outlets_unified 
       WHERE status = 'active'
       ORDER BY name
     `).all();
 
-    return new Response(JSON.stringify({
-      success: true,
-      data: outlets.results || []
-    }), {
-      headers: { 
-        'Content-Type': 'application/json',
-        ...request.corsHeaders 
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching outlets:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Failed to fetch outlets'
-    }), {
-      status: 500,
-      headers: { 
-        'Content-Type': 'application/json',
-        ...request.corsHeaders 
-      }
-    });
-  }
+        return new Response(JSON.stringify({
+            success: true,
+            data: outlets.results || []
+        }), {
+            headers: {
+                'Content-Type': 'application/json',
+                ...request.corsHeaders
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching outlets:', error);
+        return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to fetch outlets'
+        }), {
+            status: 500,
+            headers: {
+                'Content-Type': 'application/json',
+                ...request.corsHeaders
+            }
+        });
+    }
 });
 
 // Fallback admin outlets endpoint if above doesn't exist
@@ -864,7 +864,7 @@ import { uploadToCloudflareImages, deleteFromCloudflareImages, getImageVariants 
 router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (request, env) => {
     try {
         const { orderId, imageType } = request.params;
-        
+
         // Validate image type
         const validTypes = ['ready_for_pickup', 'picked_up', 'delivered', 'shipment_proof', 'packaged_product'];
         if (!validTypes.includes(imageType)) {
@@ -877,12 +877,12 @@ router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (requ
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Validate order exists
         const orderExists = await env.DB.prepare(
             'SELECT id FROM orders WHERE id = ?'
         ).bind(orderId).first();
-        
+
         if (!orderExists) {
             return new Response(JSON.stringify({
                 success: false,
@@ -892,11 +892,11 @@ router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (requ
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Handle multipart/form-data
         const formData = await request.formData();
         const file = formData.get('image');
-        
+
         if (!file || !(file instanceof File)) {
             return new Response(JSON.stringify({
                 success: false,
@@ -906,10 +906,10 @@ router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (requ
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Upload to Cloudflare Images
         const uploadResult = await uploadToCloudflareImages(file, env);
-        
+
         if (!uploadResult.success) {
             return new Response(JSON.stringify({
                 success: false,
@@ -920,11 +920,11 @@ router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (requ
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Get image data from upload result
         const { imageId, publicUrl, variants } = uploadResult.data;
         const imageUrl = publicUrl;
-        
+
         // Remove old image reference if exists
         try {
             await env.DB.prepare(
@@ -934,7 +934,7 @@ router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (requ
             console.error('Error deleting old shipping image:', dbError);
             // Continue even if delete fails (record might not exist)
         }
-        
+
         // Save image reference to database
         try {
             await env.DB.prepare(
@@ -951,12 +951,12 @@ router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (requ
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Build variants response
-        const responseVariants = imageId 
+        const responseVariants = imageId
             ? getImageVariants(imageId, env.CLOUDFLARE_IMAGES_HASH)
             : (variants || { public: imageUrl });
-        
+
         return new Response(JSON.stringify({
             success: true,
             message: 'Image uploaded successfully',
@@ -971,7 +971,7 @@ router.post('/api/shipping/images/:orderId/:imageType', verifyToken, async (requ
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
         });
-        
+
     } catch (error) {
         console.error('Error uploading to Cloudflare Images:', error);
         return new Response(JSON.stringify({
@@ -996,24 +996,24 @@ router.options('/api/shipping/images/:orderId', async (request, env) => {
 // WORKING SHIPPING IMAGES ENDPOINT - bypasses route conflicts  
 router.get('/api/test-shipping-photos/:orderId', async (request, env) => {
     console.log('🔍 [SHIPPING PHOTOS] Request for orderId:', request.params?.orderId);
-    
+
     try {
         const { orderId } = request.params;
-        
+
         // Get all images for this order
         console.log('🔍 [SHIPPING PHOTOS] Querying database for orderId:', orderId);
         const images = await env.DB.prepare(
             'SELECT image_type, image_url, cloudflare_image_id, created_at FROM shipping_images WHERE order_id = ?'
         ).bind(orderId).all();
-        
+
         console.log('🔍 [SHIPPING PHOTOS] Found', images.results?.length || 0, 'images');
-        
+
         // Format response with variants
         const formattedImages = {};
-        
+
         for (const img of images.results || []) {
             console.log('🔍 [SHIPPING PHOTOS] Processing image:', img.image_type);
-            
+
             if (img.cloudflare_image_id && env.CLOUDFLARE_IMAGES_HASH) {
                 formattedImages[img.image_type] = {
                     url: img.image_url,
@@ -1028,22 +1028,22 @@ router.get('/api/test-shipping-photos/:orderId', async (request, env) => {
                 };
             }
         }
-        
+
         console.log('🔍 [SHIPPING PHOTOS] Returning', Object.keys(formattedImages).length, 'formatted images');
-        
+
         return new Response(JSON.stringify({
             success: true,
             data: formattedImages
         }), {
             status: 200,
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type, Authorization'
             }
         });
-        
+
     } catch (error) {
         console.error('🔍 [SHIPPING PHOTOS] Error:', error);
         return new Response(JSON.stringify({
@@ -1052,7 +1052,7 @@ router.get('/api/test-shipping-photos/:orderId', async (request, env) => {
             details: error.message
         }), {
             status: 500,
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             }
@@ -1064,12 +1064,12 @@ router.get('/api/test-shipping-photos/:orderId', async (request, env) => {
 router.delete('/api/shipping/images/:orderId/:imageType', verifyToken, async (request, env) => {
     try {
         const { orderId, imageType } = request.params;
-        
+
         // Get image info from database
         const imageInfo = await env.DB.prepare(
             'SELECT cloudflare_image_id FROM shipping_images WHERE order_id = ? AND image_type = ?'
         ).bind(orderId, imageType).first();
-        
+
         if (!imageInfo) {
             return new Response(JSON.stringify({
                 success: false,
@@ -1079,7 +1079,7 @@ router.delete('/api/shipping/images/:orderId/:imageType', verifyToken, async (re
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Delete from Cloudflare Images if we have the image ID
         if (imageInfo.cloudflare_image_id) {
             const deleteResult = await deleteFromCloudflareImages(imageInfo.cloudflare_image_id, env);
@@ -1088,12 +1088,12 @@ router.delete('/api/shipping/images/:orderId/:imageType', verifyToken, async (re
                 // Continue with database deletion even if Cloudflare deletion fails
             }
         }
-        
+
         // Delete from database
         await env.DB.prepare(
             'DELETE FROM shipping_images WHERE order_id = ? AND image_type = ?'
         ).bind(orderId, imageType).run();
-        
+
         return new Response(JSON.stringify({
             success: true,
             message: 'Image deleted successfully'
@@ -1101,7 +1101,7 @@ router.delete('/api/shipping/images/:orderId/:imageType', verifyToken, async (re
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
         });
-        
+
     } catch (error) {
         console.error('Error deleting shipping image:', error);
         return new Response(JSON.stringify({
@@ -1123,10 +1123,10 @@ router.get('/api/debug/midtrans', (request, env) => {
         const serverKey = env.MIDTRANS_SERVER_KEY;
         const clientKey = env.MIDTRANS_CLIENT_KEY;
         const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
-        
+
         // Create a test auth header
         const testAuth = btoa(`${serverKey}:`);
-        
+
         const config = {
             serverKey: serverKey ? `${serverKey.substring(0, 10)}...${serverKey.substring(serverKey.length - 5)}` : 'Not set',
             clientKey: clientKey ? `${clientKey.substring(0, 10)}...${clientKey.substring(clientKey.length - 5)}` : 'Not set',
@@ -1139,14 +1139,14 @@ router.get('/api/debug/midtrans', (request, env) => {
             },
             timestamp: new Date().toISOString()
         };
-        
+
         console.log('Midtrans Debug Info:', JSON.stringify(config, null, 2));
-        
+
         return new Response(JSON.stringify(config, null, 2), {
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
         });
-        
+
     } catch (error) {
         console.error('Error in /debug/midtrans:', error);
         return new Response(JSON.stringify({
@@ -1177,7 +1177,7 @@ router.get('/api/config', (request, env) => {
             CLIENT_KEY_PREFIX: env.MIDTRANS_CLIENT_KEY ? env.MIDTRANS_CLIENT_KEY.substring(0, 4) : null,
             CLIENT_KEY_SUFFIX: env.MIDTRANS_CLIENT_KEY ? env.MIDTRANS_CLIENT_KEY.slice(-4) : null
         });
-        
+
         return new Response(JSON.stringify({
             environment: env.MIDTRANS_IS_PRODUCTION === 'true' ? 'production' : 'development',
             app_name: env.APP_NAME || 'Order Management System',
@@ -1189,12 +1189,12 @@ router.get('/api/config', (request, env) => {
             timestamp: new Date().toISOString()
         }), {
             status: 200,
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 ...corsHeaders(request)
             }
         });
-        
+
     } catch (error) {
         console.error('Error in /api/config endpoint:', error);
         throw error;
@@ -1205,7 +1205,7 @@ router.get('/api/config', (request, env) => {
 router.get('/api/debug/test-login', async (request, env) => {
     try {
         console.log('DEBUG LOGIN: Starting debug test');
-        
+
         if (!env.DB) {
             return new Response(JSON.stringify({
                 success: false,
@@ -1215,15 +1215,15 @@ router.get('/api/debug/test-login', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Test 1: Query user from database
         console.log('DEBUG LOGIN: Testing database query');
         const user = await env.DB.prepare('SELECT id, username, password, role, outlet_id FROM users WHERE username = ?')
             .bind('outlet')
             .first();
-        
+
         console.log('DEBUG LOGIN: User query result:', user);
-        
+
         if (!user) {
             return new Response(JSON.stringify({
                 success: false,
@@ -1234,7 +1234,7 @@ router.get('/api/debug/test-login', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Test 2: Check bcrypt availability
         console.log('DEBUG LOGIN: Testing bcrypt import');
         const bcrypt = require('bcryptjs');
@@ -1248,13 +1248,13 @@ router.get('/api/debug/test-login', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Test 3: Test password comparison
         console.log('DEBUG LOGIN: Testing password comparison');
         const testPassword = 'outlet123';
         const isMatch = await bcrypt.compare(testPassword, user.password);
         console.log('DEBUG LOGIN: Password match result:', isMatch);
-        
+
         // Test 4: Check JWT availability
         console.log('DEBUG LOGIN: Testing JWT');
         const jwt = require('jsonwebtoken');
@@ -1270,7 +1270,7 @@ router.get('/api/debug/test-login', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         return new Response(JSON.stringify({
             success: true,
             message: 'All login components working',
@@ -1323,7 +1323,7 @@ router.get('/api/debug/reset-outlet-password', async (request, env) => {
 
         // Import bcryptjs
         const bcrypt = require('bcryptjs');
-        
+
         // Generate a new password hash
         console.log('RESET PASSWORD: Generating password hash');
         const username = 'outlet'; // Correct username from DB
@@ -1332,15 +1332,15 @@ router.get('/api/debug/reset-outlet-password', async (request, env) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
         console.log('RESET PASSWORD: New hash generated for user:', username, hashedPassword);
-        
+
         // Update the outlet user
         console.log('RESET PASSWORD: Updating user with new hash');
         const result = await env.DB.prepare(
             'UPDATE users SET password = ? WHERE username = ?'
         ).bind(hashedPassword, username).run();
-        
+
         console.log('RESET PASSWORD: Update result:', JSON.stringify(result));
-        
+
         return new Response(JSON.stringify({
             success: true,
             message: 'Outlet password reset successfully',
@@ -1381,7 +1381,7 @@ router.post('/api/debug/add-updated-at-column', async (request, env) => {
 router.get('/api/debug/add-photo-columns', async (request, env) => {
     try {
         console.log('ADD PHOTO COLUMNS: Starting database schema migration');
-        
+
         if (!env.DB) {
             return new Response(JSON.stringify({
                 success: false,
@@ -1391,28 +1391,28 @@ router.get('/api/debug/add-photo-columns', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Add photo columns to orders table
         const columns = [
             'readyForPickup_photo_url',
-            'pickedUp_photo_url', 
+            'pickedUp_photo_url',
             'delivered_photo_url'
         ];
-        
+
         const results = [];
-        
+
         for (const column of columns) {
             try {
                 const result = await env.DB.prepare(
                     `ALTER TABLE orders ADD COLUMN ${column} TEXT`
                 ).run();
-                
+
                 results.push({
                     column: column,
                     success: true,
                     result: result
                 });
-                
+
                 console.log(`ADD PHOTO COLUMNS: Successfully added column ${column}`);
             } catch (columnError) {
                 console.log(`ADD PHOTO COLUMNS: Column ${column} might already exist or error:`, columnError.message);
@@ -1424,10 +1424,10 @@ router.get('/api/debug/add-photo-columns', async (request, env) => {
                 });
             }
         }
-        
+
         // Verify columns were added by checking schema
         const schemaResult = await env.DB.prepare('PRAGMA table_info(orders)').all();
-        
+
         return new Response(JSON.stringify({
             success: true,
             message: 'Photo columns migration completed',
@@ -1437,7 +1437,7 @@ router.get('/api/debug/add-photo-columns', async (request, env) => {
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
         });
-        
+
     } catch (error) {
         console.error('ADD PHOTO COLUMNS ERROR:', error);
         return new Response(JSON.stringify({
@@ -1455,7 +1455,7 @@ router.get('/api/debug/add-photo-columns', async (request, env) => {
 router.get('/api/debug/check-shipping-setup', async (request, env) => {
     try {
         console.log('SHIPPING SETUP CHECK: Starting checks');
-        
+
         if (!env.DB) {
             return new Response(JSON.stringify({
                 success: false,
@@ -1465,7 +1465,7 @@ router.get('/api/debug/check-shipping-setup', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Check if shipping_images table exists
         console.log('SHIPPING SETUP CHECK: Checking shipping_images table');
         let shippingTableExists = false;
@@ -1478,7 +1478,7 @@ router.get('/api/debug/check-shipping-setup', async (request, env) => {
         } catch (tableError) {
             console.error('SHIPPING SETUP CHECK: Error checking table:', tableError);
         }
-        
+
         // Check R2 binding
         let r2Available = false;
         try {
@@ -1487,12 +1487,12 @@ router.get('/api/debug/check-shipping-setup', async (request, env) => {
         } catch (r2Error) {
             console.error('SHIPPING SETUP CHECK: R2 error:', r2Error);
         }
-        
+
         // Get sample order for testing
         const sampleOrder = await env.DB.prepare(
             'SELECT id FROM orders LIMIT 1'
         ).first();
-        
+
         return new Response(JSON.stringify({
             success: true,
             message: 'Shipping setup check completed',
@@ -1502,14 +1502,14 @@ router.get('/api/debug/check-shipping-setup', async (request, env) => {
                 r2_binding_available: r2Available,
                 sample_order_id: sampleOrder?.id || null
             },
-            next_steps: shippingTableExists ? 
-                'Table exists - check upload API directly' : 
+            next_steps: shippingTableExists ?
+                'Table exists - check upload API directly' :
                 'Create shipping_images table first'
         }), {
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
         });
-        
+
     } catch (error) {
         console.error('SHIPPING SETUP CHECK ERROR:', error);
         return new Response(JSON.stringify({
@@ -1527,7 +1527,7 @@ router.get('/api/debug/check-shipping-setup', async (request, env) => {
 router.get('/api/debug/create-shipping-table', async (request, env) => {
     try {
         console.log('CREATE SHIPPING TABLE: Starting table creation');
-        
+
         if (!env.DB) {
             return new Response(JSON.stringify({
                 success: false,
@@ -1537,7 +1537,7 @@ router.get('/api/debug/create-shipping-table', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Create shipping_images table
         const createTableSQL = `
             CREATE TABLE IF NOT EXISTS shipping_images (
@@ -1550,15 +1550,15 @@ router.get('/api/debug/create-shipping-table', async (request, env) => {
                 UNIQUE(order_id, image_type)
             )
         `;
-        
+
         const result = await env.DB.prepare(createTableSQL).run();
         console.log('CREATE SHIPPING TABLE: Table creation result:', result);
-        
+
         // Verify table was created
         const verifyTable = await env.DB.prepare(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='shipping_images'"
         ).first();
-        
+
         return new Response(JSON.stringify({
             success: true,
             message: 'shipping_images table created successfully',
@@ -1568,7 +1568,7 @@ router.get('/api/debug/create-shipping-table', async (request, env) => {
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
         });
-        
+
     } catch (error) {
         console.error('CREATE SHIPPING TABLE ERROR:', error);
         return new Response(JSON.stringify({
@@ -1586,7 +1586,7 @@ router.get('/api/debug/create-shipping-table', async (request, env) => {
 router.get('/api/debug/test-shipping-upload-api', async (request, env) => {
     try {
         console.log('TEST SHIPPING UPLOAD API: Starting test');
-        
+
         if (!env.DB) {
             return new Response(JSON.stringify({
                 success: false,
@@ -1596,12 +1596,12 @@ router.get('/api/debug/test-shipping-upload-api', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Get a test order ID
         const testOrder = await env.DB.prepare(
             'SELECT id FROM orders LIMIT 1'
         ).first();
-        
+
         if (!testOrder) {
             return new Response(JSON.stringify({
                 success: false,
@@ -1611,19 +1611,19 @@ router.get('/api/debug/test-shipping-upload-api', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Test different upload URL formats to debug routing
         const testUrls = [
             `/api/shipping/images/${testOrder.id}/ready_for_pickup`,
             `/api/shipping/images/${testOrder.id}/shipment_proof`,
             `/api/shipping/images/${testOrder.id}/delivered`
         ];
-        
+
         const testResults = [];
-        
+
         for (const testUrl of testUrls) {
             console.log(`TEST SHIPPING UPLOAD API: Testing URL: ${testUrl}`);
-            
+
             // Test with GET first to see if routing works
             try {
                 const testRequestUrl = new URL(`https://example.com${testUrl}`);
@@ -1633,7 +1633,7 @@ router.get('/api/debug/test-shipping-upload-api', async (request, env) => {
                         'Content-Type': 'application/json'
                     }
                 });
-                
+
                 // Legacy shipping handler test removed - using direct Cloudflare Images endpoints now
                 testResults.push({
                     url: testUrl,
@@ -1641,7 +1641,7 @@ router.get('/api/debug/test-shipping-upload-api', async (request, env) => {
                     status: 'SKIPPED',
                     response: 'Legacy handler removed - using direct endpoints'
                 });
-                
+
             } catch (testError) {
                 console.error(`TEST SHIPPING UPLOAD API: Error testing ${testUrl}:`, testError);
                 testResults.push({
@@ -1651,7 +1651,7 @@ router.get('/api/debug/test-shipping-upload-api', async (request, env) => {
                 });
             }
         }
-        
+
         return new Response(JSON.stringify({
             success: true,
             message: 'Shipping upload API test completed',
@@ -1667,7 +1667,7 @@ router.get('/api/debug/test-shipping-upload-api', async (request, env) => {
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
         });
-        
+
     } catch (error) {
         console.error('TEST SHIPPING UPLOAD API ERROR:', error);
         return new Response(JSON.stringify({
@@ -1685,7 +1685,7 @@ router.get('/api/debug/test-shipping-upload-api', async (request, env) => {
 router.post('/api/debug/test-upload-full', async (request, env) => {
     try {
         console.log('FULL UPLOAD TEST: Starting comprehensive test');
-        
+
         if (!env.DB) {
             return new Response(JSON.stringify({
                 success: false,
@@ -1695,16 +1695,16 @@ router.post('/api/debug/test-upload-full', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Check authentication
         const authHeader = request.headers.get('Authorization');
         console.log('FULL UPLOAD TEST: Auth header:', authHeader ? 'Present' : 'Missing');
-        
+
         // Get test order
         const testOrder = await env.DB.prepare(
             'SELECT id FROM orders LIMIT 1'
         ).first();
-        
+
         if (!testOrder) {
             return new Response(JSON.stringify({
                 success: false,
@@ -1714,7 +1714,7 @@ router.post('/api/debug/test-upload-full', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Create a test FormData with dummy image
         const testImageUrl = new URL(`https://example.com/api/shipping/images/${testOrder.id}/ready_for_pickup`);
         const testUploadRequest = new Request(testImageUrl, {
@@ -1725,7 +1725,7 @@ router.post('/api/debug/test-upload-full', async (request, env) => {
             },
             body: request.body // Forward the actual FormData from frontend
         });
-        
+
         // Test actual upload handler
         console.log('FULL UPLOAD TEST: Testing upload handler with:', {
             url: testImageUrl.toString(),
@@ -1733,11 +1733,11 @@ router.post('/api/debug/test-upload-full', async (request, env) => {
             hasAuth: !!authHeader,
             hasBody: !!request.body
         });
-        
+
         try {
             // Legacy handler removed - testing direct Cloudflare Images endpoint instead
             const uploadResponse = 'Legacy handler removed - use direct /api/shipping/images endpoints';
-            
+
             return new Response(JSON.stringify({
                 success: true,
                 message: 'Full upload test completed',
@@ -1759,7 +1759,7 @@ router.post('/api/debug/test-upload-full', async (request, env) => {
                 status: 200,
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
-            
+
         } catch (uploadError) {
             console.error('FULL UPLOAD TEST: Upload handler error:', uploadError);
             return new Response(JSON.stringify({
@@ -1773,7 +1773,7 @@ router.post('/api/debug/test-upload-full', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
     } catch (error) {
         console.error('FULL UPLOAD TEST ERROR:', error);
         return new Response(JSON.stringify({
@@ -1791,19 +1791,19 @@ router.post('/api/debug/test-upload-full', async (request, env) => {
 router.post('/api/debug/test-formdata', async (request, env) => {
     try {
         console.log('FORMDATA TEST: Starting FormData parsing test');
-        
+
         // Check request method and content type
         const method = request.method;
         const contentType = request.headers.get('content-type');
         const authHeader = request.headers.get('authorization');
-        
+
         console.log('FORMDATA TEST: Request details:', {
             method,
             contentType,
             hasAuth: !!authHeader,
             hasBody: !!request.body
         });
-        
+
         if (method !== 'POST') {
             return new Response(JSON.stringify({
                 success: false,
@@ -1813,12 +1813,12 @@ router.post('/api/debug/test-formdata', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Test FormData parsing
         let formData;
         let file;
         let parseError = null;
-        
+
         try {
             formData = await request.formData();
             file = formData.get('image');
@@ -1834,7 +1834,7 @@ router.post('/api/debug/test-formdata', async (request, env) => {
             parseError = formError.message;
             console.error('FORMDATA TEST: FormData parse error:', formError);
         }
-        
+
         // Test file validation
         let validationResults = {};
         if (file && file instanceof File) {
@@ -1845,11 +1845,11 @@ router.post('/api/debug/test-formdata', async (request, env) => {
                 hasName: !!file.name
             };
         }
-        
+
         // Test R2 availability (without actual upload)
         const r2Available = !!env.SHIPPING_IMAGES;
         const dbAvailable = !!env.DB;
-        
+
         return new Response(JSON.stringify({
             success: true,
             message: 'FormData test completed',
@@ -1875,7 +1875,7 @@ router.post('/api/debug/test-formdata', async (request, env) => {
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
         });
-        
+
     } catch (error) {
         console.error('FORMDATA TEST ERROR:', error);
         return new Response(JSON.stringify({
@@ -1893,7 +1893,7 @@ router.post('/api/debug/test-formdata', async (request, env) => {
 router.get('/api/debug/test-photo-upload', async (request, env) => {
     try {
         console.log('TEST PHOTO UPLOAD: Starting test');
-        
+
         if (!env.DB) {
             return new Response(JSON.stringify({
                 success: false,
@@ -1903,23 +1903,23 @@ router.get('/api/debug/test-photo-upload', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Check if photo columns exist
         const schemaResult = await env.DB.prepare('PRAGMA table_info(orders)').all();
-        const photoColumns = schemaResult.results.filter(col => 
+        const photoColumns = schemaResult.results.filter(col =>
             col.name.includes('photo_url')
         );
-        
+
         // Check if there are any orders with photo URLs
         const ordersWithPhotos = await env.DB.prepare(
             'SELECT id, readyForPickup_photo_url, pickedUp_photo_url, delivered_photo_url FROM orders WHERE readyForPickup_photo_url IS NOT NULL OR pickedUp_photo_url IS NOT NULL OR delivered_photo_url IS NOT NULL'
         ).all();
-        
+
         // Get sample order for testing
         const sampleOrder = await env.DB.prepare(
             'SELECT * FROM orders LIMIT 1'
         ).first();
-        
+
         return new Response(JSON.stringify({
             success: true,
             message: 'Photo upload test completed',
@@ -1931,7 +1931,7 @@ router.get('/api/debug/test-photo-upload', async (request, env) => {
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
         });
-        
+
     } catch (error) {
         console.error('TEST PHOTO UPLOAD ERROR:', error);
         return new Response(JSON.stringify({
@@ -1957,7 +1957,7 @@ router.get('/api/debug/database', async (request, env) => {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
             });
         }
-        
+
         // Test if database is accessible
         let dbStatus = "Unknown";
         try {
@@ -1967,7 +1967,7 @@ router.get('/api/debug/database', async (request, env) => {
         } catch (dbError) {
             dbStatus = "Error: " + dbError.message;
         }
-        
+
         return new Response(JSON.stringify({
             success: true,
             database_status: dbStatus,
@@ -2044,7 +2044,7 @@ router.get('/api/debug/sync-order-payment/:orderId', async (request, env) => {
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
     };
-    
+
     try {
         const { orderId } = request.params;
         console.log(`[DEBUG SYNC] Checking payment status for order ${orderId}`);
@@ -2086,25 +2086,25 @@ router.get('/api/debug/fix-specific-order', async (request, env) => {
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
     };
-    
+
     try {
         const orderId = 'ORDER-1752037059362-FLO3E';
-        
+
         // Check current state
         const before = await env.DB.prepare(
             'SELECT id, lokasi_pengiriman, outlet_id FROM orders WHERE id = ?'
         ).bind(orderId).first();
-        
+
         // Force update to correct outlet
         const updateResult = await env.DB.prepare(
             'UPDATE orders SET outlet_id = ? WHERE id = ?'
         ).bind('outlet_bonbin', orderId).run();
-        
+
         // Check after state
         const after = await env.DB.prepare(
             'SELECT id, lokasi_pengiriman, outlet_id FROM orders WHERE id = ?'
         ).bind(orderId).first();
-        
+
         return new Response(JSON.stringify({
             success: true,
             orderId: orderId,
@@ -2150,7 +2150,7 @@ router.get('/api/debug/check-shipping-images/:orderId', async (request, env) => 
     try {
         const { orderId } = request.params;
         console.log('DEBUG SHIPPING IMAGES: Checking for order:', orderId);
-        
+
         if (!env.DB) {
             return new Response(JSON.stringify({
                 success: false,
@@ -2160,24 +2160,24 @@ router.get('/api/debug/check-shipping-images/:orderId', async (request, env) => 
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
             });
         }
-        
+
         // Get images for this specific order
         const images = await env.DB.prepare(
             'SELECT order_id, image_type, image_url, cloudflare_image_id, created_at FROM shipping_images WHERE order_id = ?'
         ).bind(orderId).all();
-        
+
         console.log('DEBUG SHIPPING IMAGES: Found images:', images.results?.length || 0);
-        
+
         // Get total count of images in table
         const totalCount = await env.DB.prepare(
             'SELECT COUNT(*) as total FROM shipping_images'
         ).first();
-        
+
         // Get sample of all image types in database for debugging
         const allImageTypes = await env.DB.prepare(
             'SELECT DISTINCT image_type, COUNT(*) as count FROM shipping_images GROUP BY image_type'
         ).all();
-        
+
         return new Response(JSON.stringify({
             success: true,
             data: {
@@ -2194,7 +2194,7 @@ router.get('/api/debug/check-shipping-images/:orderId', async (request, env) => 
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
-        
+
     } catch (error) {
         console.error('DEBUG SHIPPING IMAGES: Error:', error);
         return new Response(JSON.stringify({
@@ -2221,7 +2221,7 @@ router.post('/api/debug/test-cloudflare-images-upload', async (request, env) => 
 
     try {
         console.log('TEST CLOUDFLARE IMAGES UPLOAD: Starting comprehensive test');
-        
+
         if (!env.DB) {
             return new Response(JSON.stringify({
                 success: false,
@@ -2231,10 +2231,10 @@ router.post('/api/debug/test-cloudflare-images-upload', async (request, env) => 
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
             });
         }
-        
+
         // Check Cloudflare Images environment variables
         const { CLOUDFLARE_ACCOUNT_ID, CF_IMAGES_TOKEN, CLOUDFLARE_IMAGES_HASH } = env;
-        
+
         if (!CLOUDFLARE_ACCOUNT_ID || !CF_IMAGES_TOKEN || !CLOUDFLARE_IMAGES_HASH) {
             return new Response(JSON.stringify({
                 success: false,
@@ -2249,14 +2249,14 @@ router.post('/api/debug/test-cloudflare-images-upload', async (request, env) => 
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
             });
         }
-        
+
         console.log('Cloudflare Images credentials found');
-        
+
         // Get a test order ID
         const testOrder = await env.DB.prepare(
             'SELECT id FROM orders LIMIT 1'
         ).first();
-        
+
         if (!testOrder) {
             return new Response(JSON.stringify({
                 success: false,
@@ -2266,9 +2266,9 @@ router.post('/api/debug/test-cloudflare-images-upload', async (request, env) => 
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
             });
         }
-        
+
         console.log('Test order found:', testOrder.id);
-        
+
         // Create a test image (1x1 PNG)
         const testImageData = new Uint8Array([
             0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
@@ -2278,13 +2278,13 @@ router.post('/api/debug/test-cloudflare-images-upload', async (request, env) => 
             0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x37, 0x6E, 0xF9, 0x24, 0x00, 0x00,
             0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
         ]);
-        
+
         const testFile = new File([testImageData], 'test-image.png', { type: 'image/png' });
         console.log('Test image created:', testFile.name, 'Size:', testFile.size, 'bytes');
-        
+
         // Test upload using the new endpoint logic
         const uploadResult = await uploadToCloudflareImages(testFile, env);
-        
+
         if (!uploadResult.success) {
             return new Response(JSON.stringify({
                 success: false,
@@ -2295,30 +2295,30 @@ router.post('/api/debug/test-cloudflare-images-upload', async (request, env) => 
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
             });
         }
-        
+
         console.log('Cloudflare Images upload successful:', JSON.stringify(uploadResult, null, 2));
-        
+
         // Get image data from upload result
         const { imageId, publicUrl } = uploadResult.data;
         const imageType = 'test_upload';
-        
+
         // Save to database
         await env.DB.prepare(
             'INSERT OR REPLACE INTO shipping_images (order_id, image_type, image_url, cloudflare_image_id) VALUES (?, ?, ?, ?)'
         ).bind(testOrder.id, imageType, publicUrl, imageId).run();
-        
+
         console.log('Image saved to database');
-        
+
         // Test retrieval
         const retrievedImages = await env.DB.prepare(
             'SELECT * FROM shipping_images WHERE order_id = ? AND image_type = ?'
         ).bind(testOrder.id, imageType).first();
-        
+
         console.log('Retrieved from database:', JSON.stringify(retrievedImages, null, 2));
-        
+
         // Generate variants
         const variants = getImageVariants(imageId, CLOUDFLARE_IMAGES_HASH);
-        
+
         return new Response(JSON.stringify({
             success: true,
             message: 'Cloudflare Images upload test completed successfully',
@@ -2341,7 +2341,7 @@ router.post('/api/debug/test-cloudflare-images-upload', async (request, env) => 
             status: 200,
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
-        
+
     } catch (error) {
         console.error('Error in Cloudflare Images upload test:', error);
         return new Response(JSON.stringify({
@@ -2358,18 +2358,18 @@ router.post('/api/debug/test-cloudflare-images-upload', async (request, env) => 
 
 // Debug endpoint untuk memeriksa sinkronisasi outlet
 router.get('/api/debug/outlet-sync', async (request, env) => {
-  try {
-    return await debugOutletSync(request, env);
-  } catch (error) {
-    console.error('Debug Outlet Sync Router Error:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: error.message
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
-    });
-  }
+    try {
+        return await debugOutletSync(request, env);
+    } catch (error) {
+        console.error('Debug Outlet Sync Router Error:', error);
+        return new Response(JSON.stringify({
+            success: false,
+            error: error.message
+        }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+        });
+    }
 });
 
 // Debug delivery synchronization issues
@@ -2392,213 +2392,213 @@ router.get('/api/assignment-options', verifyToken, (request, env) => {
 
 // Debug endpoint untuk memeriksa order yang tidak muncul
 router.get('/api/debug/order-details', async (request, env) => {
-  try {
-    console.log('DEBUG ORDER: Starting order debug analysis');
-    
-    if (!env.DB) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Database binding not available'
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
-      });
-    }
+    try {
+        console.log('DEBUG ORDER: Starting order debug analysis');
 
-    const orderId = 'ORDER-1752037059362-FLO3E';
-    
-    // Cari detail order
-    const orderQuery = `SELECT * FROM orders WHERE id = ?`;
-    const order = await env.DB.prepare(orderQuery).bind(orderId).first();
-    
-    if (!order) {
-      return new Response(JSON.stringify({
-        success: false,
-        message: `Order dengan ID ${orderId} tidak ditemukan`
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 404
-      });
+        if (!env.DB) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Database binding not available'
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+            });
+        }
+
+        const orderId = 'ORDER-1752037059362-FLO3E';
+
+        // Cari detail order
+        const orderQuery = `SELECT * FROM orders WHERE id = ?`;
+        const order = await env.DB.prepare(orderQuery).bind(orderId).first();
+
+        if (!order) {
+            return new Response(JSON.stringify({
+                success: false,
+                message: `Order dengan ID ${orderId} tidak ditemukan`
+            }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 404
+            });
+        }
+
+        // Cari semua outlet untuk perbandingan - first check schema
+        let outletsQuery = `SELECT * FROM outlets LIMIT 1`;
+        let outletsSchema = await env.DB.prepare(outletsQuery).first();
+
+        // Now get all outlets with available columns
+        outletsQuery = `SELECT * FROM outlets`;
+        const outlets = await env.DB.prepare(outletsQuery).all();
+
+        // Cek kecocokan dengan outlet
+        const matches = [];
+
+        // Format nilai untuk pencarian
+        const lokasi_pengiriman = (order.lokasi_pengiriman || '').toLowerCase();
+        const shipping_area = (order.shipping_area || '').toLowerCase();
+
+        outlets.results.forEach(outlet => {
+            const outletName = (outlet.name || '').toLowerCase();
+            // Use available columns (check for location, address, alamat, etc.)
+            const outletLocation = (outlet.location || outlet.address || outlet.alamat || '').toLowerCase();
+
+            const matched =
+                (order.outlet_id === outlet.id) ||
+                lokasi_pengiriman.includes(outletName) ||
+                shipping_area.includes(outletName) ||
+                (outletLocation && lokasi_pengiriman.includes(outletLocation)) ||
+                (outletLocation && shipping_area.includes(outletLocation)) ||
+                lokasi_pengiriman.includes('bonbin') ||
+                shipping_area.includes('bonbin');
+
+            matches.push({
+                outlet_id: outlet.id,
+                outlet_name: outlet.name,
+                outlet_all_data: outlet, // Include all outlet data for debugging
+                matched: matched,
+                match_reason: matched ? [
+                    order.outlet_id === outlet.id ? 'outlet_id match' : null,
+                    lokasi_pengiriman.includes(outletName) ? 'lokasi_pengiriman contains outlet name' : null,
+                    shipping_area.includes(outletName) ? 'shipping_area contains outlet name' : null,
+                    (outletLocation && lokasi_pengiriman.includes(outletLocation)) ? 'lokasi_pengiriman contains outlet location' : null,
+                    (outletLocation && shipping_area.includes(outletLocation)) ? 'shipping_area contains outlet location' : null,
+                    lokasi_pengiriman.includes('bonbin') ? 'lokasi_pengiriman contains bonbin' : null,
+                    shipping_area.includes('bonbin') ? 'shipping_area contains bonbin' : null
+                ].filter(Boolean) : []
+            });
+        });
+
+        // Include schema info for debugging
+        const debugInfo = {
+            outlets_schema_sample: outletsSchema,
+            total_outlets: outlets.results.length
+        };
+
+        return new Response(JSON.stringify({
+            success: true,
+            order: {
+                id: order.id,
+                customer_name: order.customer_name,
+                lokasi_pengiriman: order.lokasi_pengiriman,
+                shipping_area: order.shipping_area,
+                outlet_id: order.outlet_id
+            },
+            outlets_match_analysis: matches,
+            debug_info: debugInfo,
+            all_order_props: order
+        }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        return new Response(JSON.stringify({
+            success: false,
+            message: 'Error saat debug order',
+            error: error.message
+        }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500
+        });
     }
-    
-    // Cari semua outlet untuk perbandingan - first check schema
-    let outletsQuery = `SELECT * FROM outlets LIMIT 1`;
-    let outletsSchema = await env.DB.prepare(outletsQuery).first();
-    
-    // Now get all outlets with available columns
-    outletsQuery = `SELECT * FROM outlets`;
-    const outlets = await env.DB.prepare(outletsQuery).all();
-    
-    // Cek kecocokan dengan outlet
-    const matches = [];
-    
-    // Format nilai untuk pencarian
-    const lokasi_pengiriman = (order.lokasi_pengiriman || '').toLowerCase();
-    const shipping_area = (order.shipping_area || '').toLowerCase();
-    
-    outlets.results.forEach(outlet => {
-      const outletName = (outlet.name || '').toLowerCase();
-      // Use available columns (check for location, address, alamat, etc.)
-      const outletLocation = (outlet.location || outlet.address || outlet.alamat || '').toLowerCase();
-      
-      const matched = 
-        (order.outlet_id === outlet.id) || 
-        lokasi_pengiriman.includes(outletName) || 
-        shipping_area.includes(outletName) ||
-        (outletLocation && lokasi_pengiriman.includes(outletLocation)) || 
-        (outletLocation && shipping_area.includes(outletLocation)) ||
-        lokasi_pengiriman.includes('bonbin') || 
-        shipping_area.includes('bonbin');
-      
-      matches.push({
-        outlet_id: outlet.id,
-        outlet_name: outlet.name,
-        outlet_all_data: outlet, // Include all outlet data for debugging
-        matched: matched,
-        match_reason: matched ? [
-          order.outlet_id === outlet.id ? 'outlet_id match' : null,
-          lokasi_pengiriman.includes(outletName) ? 'lokasi_pengiriman contains outlet name' : null,
-          shipping_area.includes(outletName) ? 'shipping_area contains outlet name' : null,
-          (outletLocation && lokasi_pengiriman.includes(outletLocation)) ? 'lokasi_pengiriman contains outlet location' : null,
-          (outletLocation && shipping_area.includes(outletLocation)) ? 'shipping_area contains outlet location' : null,
-          lokasi_pengiriman.includes('bonbin') ? 'lokasi_pengiriman contains bonbin' : null,
-          shipping_area.includes('bonbin') ? 'shipping_area contains bonbin' : null
-        ].filter(Boolean) : []
-      });
-    });
-    
-    // Include schema info for debugging
-    const debugInfo = {
-      outlets_schema_sample: outletsSchema,
-      total_outlets: outlets.results.length
-    };
-    
-    return new Response(JSON.stringify({
-      success: true,
-      order: {
-        id: order.id,
-        customer_name: order.customer_name,
-        lokasi_pengiriman: order.lokasi_pengiriman,
-        shipping_area: order.shipping_area,
-        outlet_id: order.outlet_id
-      },
-      outlets_match_analysis: matches,
-      debug_info: debugInfo,
-      all_order_props: order
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({
-      success: false,
-      message: 'Error saat debug order',
-      error: error.message
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500
-    });
-  }
 });
 
 // Real-time synchronization endpoints
 router.get('/api/sync/last-update', async (request, env) => {
-  try {
-    console.log('SYNC: Getting last update timestamp');
-    
-    // Get the most recent update from multiple tables
-    const ordersUpdate = await env.DB.prepare(
-      'SELECT MAX(updated_at) as last_update FROM orders'
-    ).first();
-    
-    const notificationsUpdate = await env.DB.prepare(
-      'SELECT MAX(created_at) as last_update FROM notifications'
-    ).first();
-    
-    const usersUpdate = await env.DB.prepare(
-      'SELECT MAX(updated_at) as last_update FROM users'
-    ).first();
-    
-    // Find the most recent timestamp
-    const timestamps = [
-      ordersUpdate?.last_update,
-      notificationsUpdate?.last_update, 
-      usersUpdate?.last_update
-    ].filter(Boolean);
-    
-    const lastUpdate = timestamps.length > 0 ? Math.max(...timestamps.map(t => new Date(t).getTime())) : Date.now();
-    
-    return new Response(JSON.stringify({
-      success: true,
-      lastUpdate: lastUpdate,
-      timestamp: new Date(lastUpdate).toISOString()
-    }), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
-    });
-    
-  } catch (error) {
-    console.error('Error getting last update:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Failed to get last update',
-      details: error.message
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
-    });
-  }
+    try {
+        console.log('SYNC: Getting last update timestamp');
+
+        // Get the most recent update from multiple tables
+        const ordersUpdate = await env.DB.prepare(
+            'SELECT MAX(updated_at) as last_update FROM orders'
+        ).first();
+
+        const notificationsUpdate = await env.DB.prepare(
+            'SELECT MAX(created_at) as last_update FROM notifications'
+        ).first();
+
+        const usersUpdate = await env.DB.prepare(
+            'SELECT MAX(updated_at) as last_update FROM users'
+        ).first();
+
+        // Find the most recent timestamp
+        const timestamps = [
+            ordersUpdate?.last_update,
+            notificationsUpdate?.last_update,
+            usersUpdate?.last_update
+        ].filter(Boolean);
+
+        const lastUpdate = timestamps.length > 0 ? Math.max(...timestamps.map(t => new Date(t).getTime())) : Date.now();
+
+        return new Response(JSON.stringify({
+            success: true,
+            lastUpdate: lastUpdate,
+            timestamp: new Date(lastUpdate).toISOString()
+        }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+        });
+
+    } catch (error) {
+        console.error('Error getting last update:', error);
+        return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to get last update',
+            details: error.message
+        }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+        });
+    }
 });
 
 // Quick status check for specific role
 router.get('/api/sync/status/:role', verifyToken, async (request, env) => {
-  try {
-    const url = new URL(request.url);
-    const role = url.pathname.split('/').pop();
-    
-    let query = '';
-    let bindings = [];
-    
-    // Role-specific queries for quick status check
-    switch(role) {
-      case 'admin':
-        query = 'SELECT COUNT(*) as total_orders, COUNT(CASE WHEN status = "pending" THEN 1 END) as pending_orders FROM orders';
-        break;
-      case 'outlet':
-        if (!request.user.outlet_id) {
-          throw new Error('Outlet ID not found for user');
+    try {
+        const url = new URL(request.url);
+        const role = url.pathname.split('/').pop();
+
+        let query = '';
+        let bindings = [];
+
+        // Role-specific queries for quick status check
+        switch (role) {
+            case 'admin':
+                query = 'SELECT COUNT(*) as total_orders, COUNT(CASE WHEN status = "pending" THEN 1 END) as pending_orders FROM orders';
+                break;
+            case 'outlet':
+                if (!request.user.outlet_id) {
+                    throw new Error('Outlet ID not found for user');
+                }
+                query = 'SELECT COUNT(*) as total_orders, COUNT(CASE WHEN shipping_status = "pending" THEN 1 END) as pending_orders FROM orders WHERE outlet_id = ?';
+                bindings = [request.user.outlet_id];
+                break;
+            case 'deliveryman':
+                query = 'SELECT COUNT(*) as total_orders, COUNT(CASE WHEN shipping_status = "dalam_pengiriman" THEN 1 END) as in_delivery FROM orders WHERE assigned_deliveryman_id = ?';
+                bindings = [request.user.id];
+                break;
+            default:
+                throw new Error('Invalid role specified');
         }
-        query = 'SELECT COUNT(*) as total_orders, COUNT(CASE WHEN shipping_status = "pending" THEN 1 END) as pending_orders FROM orders WHERE outlet_id = ?';
-        bindings = [request.user.outlet_id];
-        break;
-      case 'deliveryman':
-        query = 'SELECT COUNT(*) as total_orders, COUNT(CASE WHEN shipping_status = "dalam_pengiriman" THEN 1 END) as in_delivery FROM orders WHERE assigned_deliveryman_id = ?';
-        bindings = [request.user.id];
-        break;
-      default:
-        throw new Error('Invalid role specified');
+
+        const result = await env.DB.prepare(query).bind(...bindings).first();
+
+        return new Response(JSON.stringify({
+            success: true,
+            role: role,
+            status: result,
+            timestamp: new Date().toISOString()
+        }), {
+            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+        });
+
+    } catch (error) {
+        console.error('Error getting role status:', error);
+        return new Response(JSON.stringify({
+            success: false,
+            error: 'Failed to get role status',
+            details: error.message
+        }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+        });
     }
-    
-    const result = await env.DB.prepare(query).bind(...bindings).first();
-    
-    return new Response(JSON.stringify({
-      success: true,
-      role: role,
-      status: result,
-      timestamp: new Date().toISOString()
-    }), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
-    });
-    
-  } catch (error) {
-    console.error('Error getting role status:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Failed to get role status',
-      details: error.message
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
-    });
-  }
 });
 
 // Temporary admin endpoint to trigger password hashing
@@ -2636,7 +2636,7 @@ router.post('/api/admin/migrate-passwords', verifyToken, async (request, env) =>
 // Static assets and SPA routing handler
 router.all('*', (request) => {
     const url = new URL(request.url);
-    
+
     // If it's an API route and not handled above, return 404 JSON
     if (url.pathname.startsWith('/api/')) {
         return new Response(JSON.stringify({
@@ -2644,30 +2644,30 @@ router.all('*', (request) => {
             message: 'The requested endpoint does not exist'
         }), {
             status: 404,
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 ...corsHeaders(request)
             }
         });
     }
-    
+
     // Handle static assets - return 404 for now (will be handled by CDN/assets)
-    if (url.pathname.startsWith('/assets/') || 
-        url.pathname.endsWith('.js') || 
-        url.pathname.endsWith('.css') || 
-        url.pathname.endsWith('.svg') || 
-        url.pathname.endsWith('.png') || 
-        url.pathname.endsWith('.jpg') || 
+    if (url.pathname.startsWith('/assets/') ||
+        url.pathname.endsWith('.js') ||
+        url.pathname.endsWith('.css') ||
+        url.pathname.endsWith('.svg') ||
+        url.pathname.endsWith('.png') ||
+        url.pathname.endsWith('.jpg') ||
         url.pathname.endsWith('.ico')) {
         return new Response('Static asset not found', {
             status: 404,
-            headers: { 
+            headers: {
                 'Content-Type': 'text/plain',
                 ...corsHeaders(request)
             }
         });
     }
-    
+
     // For SPA routes (login, dashboard, etc), serve index.html
     // This enables React Router to handle client-side routing
     const indexHTML = `<!DOCTYPE html>
@@ -2684,7 +2684,7 @@ router.all('*', (request) => {
     <div id="root"></div>
   </body>
 </html>`;
-    
+
     return new Response(indexHTML, {
         headers: {
             'Content-Type': 'text/html',
@@ -2706,13 +2706,13 @@ export default {
                 has_JWT_SECRET: !!env.JWT_SECRET, // Check for JWT_SECRET
                 jwt_secret_preview: env.JWT_SECRET ? env.JWT_SECRET.substring(0, 3) + '...' : 'NOT SET' // Preview, don't log the whole secret
             });
-            
+
             console.log('About to call router.handle');
             // Add timeout protection to the router.handle call
             const timeoutPromise = new Promise((_, reject) => {
                 setTimeout(() => reject(new Error('Router handling timeout after 5s')), 5000);
             });
-            
+
             try {
                 const routerPromise = router.handle(request, env, ctx);
                 // Race between router handling and timeout
@@ -2725,19 +2725,19 @@ export default {
             console.error('Worker error:', error.message);
             console.error('Error stack:', error.stack);
             // Ensure corsHeaders is defined in the error handler
-                                    const errorCorsHeaders = request ? corsHeaders(request) : {
+            const errorCorsHeaders = request ? corsHeaders(request) : {
                 'Access-Control-Allow-Origin': 'https://tagihan.kurniasari.co.id',
                 'Vary': 'Origin',
                 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type, Authorization',
             };
-            
+
             return new Response(JSON.stringify({
                 error: 'Internal Server Error',
                 message: 'An unexpected error occurred: ' + error.message
             }), {
                 status: 500,
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     ...errorCorsHeaders
                 }
@@ -2750,13 +2750,13 @@ export default {
 async function uploadOrderPhoto(request, env) {
     try {
         console.log('PHOTO UPLOAD: Starting photo upload process');
-        
+
         // Parse form data from multipart/form-data request
         const formData = await request.formData();
         const photo = formData.get('photo');
         const orderId = formData.get('order_id');
         const photoType = formData.get('photo_type');
-        
+
         console.log('PHOTO UPLOAD: Form data received:', {
             hasPhoto: !!photo,
             photoName: photo ? photo.name : 'none',
@@ -2765,7 +2765,7 @@ async function uploadOrderPhoto(request, env) {
             orderId: orderId,
             photoTypeParam: photoType
         });
-        
+
         if (!photo || !orderId || !photoType) {
             return new Response(JSON.stringify({
                 success: false,
@@ -2778,7 +2778,7 @@ async function uploadOrderPhoto(request, env) {
                 }
             });
         }
-        
+
         // Validate photo type
         const validPhotoTypes = ['readyForPickup', 'pickedUp', 'delivered'];
         if (!validPhotoTypes.includes(photoType)) {
@@ -2793,17 +2793,17 @@ async function uploadOrderPhoto(request, env) {
                 }
             });
         }
-        
+
         // Create a unique filename for the photo using order ID, photo type and timestamp
         const timestamp = Date.now();
         const fileExtension = photo.name.split('.').pop() || 'jpeg';
         const fileName = `ORDER-${orderId}_${photoType}_${timestamp}.${fileExtension}`;
-        
+
         // Determine which storage system to use
         // Set to 'proses' for proses.kurniasari.co.id or 'r2' for Cloudflare R2
         const storageType = env.PHOTO_STORAGE_TYPE || 'r2';
         let photoUrl;
-        
+
         // Upload photo based on selected storage type
         if (storageType === 'proses') {
             // For proses.kurniasari.co.id
@@ -2814,27 +2814,27 @@ async function uploadOrderPhoto(request, env) {
         } else {
             // Default: Upload to R2 Storage
             console.log('PHOTO UPLOAD: Uploading to R2 Storage:', fileName);
-            
+
             try {
                 await env.SHIPPING_IMAGES.put(fileName, photo.stream(), {
                     httpMetadata: {
                         contentType: photo.type,
                     },
                 });
-                
+
                 // Generate the public URL for the uploaded photo using the R2 bucket public URL
                 photoUrl = `https://13b5c18f23aa268941269ea0db1d1e5a.r2.cloudflarestorage.com/kurniasari-shipping-images/${fileName}`;
-                
+
                 console.log('PHOTO UPLOAD: File uploaded successfully to R2:', photoUrl);
             } catch (r2Error) {
                 console.error('Error uploading to R2:', r2Error);
                 throw new Error(`R2 upload failed: ${r2Error.message}`);
             }
         }
-        
+
         // Get current timestamp for DB update
         const dbTimestamp = new Date().toISOString();
-        
+
         // Update order with photo URL in database
         const columnName = `${photoType}_photo_url`;
         console.log('PHOTO UPLOAD: Attempting database update with R2 URL:', {
@@ -2843,25 +2843,25 @@ async function uploadOrderPhoto(request, env) {
             photoUrl: photoUrl,
             timestamp: dbTimestamp
         });
-        
+
         const updateResult = await env.DB.prepare(
             `UPDATE orders SET ${columnName} = ?, updated_at = ? WHERE id = ?`
         ).bind(photoUrl, dbTimestamp, orderId).run();
-        
+
         console.log('PHOTO UPLOAD: Database update result:', updateResult);
-        
+
         if (!updateResult.success) {
             console.error('PHOTO UPLOAD: Database update failed:', updateResult);
             throw new Error('Failed to update order with photo URL');
         }
-        
+
         // Verify the update by selecting the order
         const verifyResult = await env.DB.prepare(
             `SELECT id, ${columnName}, updated_at FROM orders WHERE id = ?`
         ).bind(orderId).first();
-        
+
         console.log('PHOTO UPLOAD: Verification query result:', verifyResult);
-        
+
         return new Response(JSON.stringify({
             success: true,
             message: 'Photo uploaded successfully',
@@ -2878,7 +2878,7 @@ async function uploadOrderPhoto(request, env) {
                 ...request.corsHeaders
             }
         });
-        
+
     } catch (error) {
         console.error('Error uploading photo:', error);
         return new Response(JSON.stringify({
@@ -2898,12 +2898,12 @@ async function uploadOrderPhoto(request, env) {
 async function uploadShippingImageModern(request, env) {
     try {
         console.log('MODERN UPLOAD: Starting modern shipping image upload');
-        
+
         // Extract order ID from URL path
         const url = new URL(request.url);
         const pathSegments = url.pathname.split('/');
         const orderId = pathSegments[3]; // /api/orders/:id/shipping-images
-        
+
         if (!orderId) {
             return new Response(JSON.stringify({
                 success: false,
@@ -2916,12 +2916,12 @@ async function uploadShippingImageModern(request, env) {
                 }
             });
         }
-        
+
         // Parse form data
         const formData = await request.formData();
         const imageFile = formData.get('image');
         const imageType = formData.get('imageType');
-        
+
         console.log('MODERN UPLOAD: Request data:', {
             orderId,
             imageType,
@@ -2929,7 +2929,7 @@ async function uploadShippingImageModern(request, env) {
             imageName: imageFile ? imageFile.name : 'none',
             imageSize: imageFile ? imageFile.size : 0
         });
-        
+
         if (!imageFile || !imageType) {
             return new Response(JSON.stringify({
                 success: false,
@@ -2942,7 +2942,7 @@ async function uploadShippingImageModern(request, env) {
                 }
             });
         }
-        
+
         // Validate image type
         const validTypes = ['siap_kirim', 'pengiriman', 'diterima', 'shipment_proof'];
         if (!validTypes.includes(imageType)) {
@@ -2957,25 +2957,25 @@ async function uploadShippingImageModern(request, env) {
                 }
             });
         }
-        
+
         // Create unique filename
         const timestamp = Date.now();
         const fileExtension = imageFile.name.split('.').pop() || 'jpeg';
         const fileName = `ORDER-${orderId}_${imageType}_${timestamp}.${fileExtension}`;
-        
+
         // Upload to R2/Cloudflare Images based on configuration
         let imageUrl;
-        
+
         try {
             // Use Cloudflare Images if available, otherwise fall back to R2
             if (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_IMAGES_API_TOKEN) {
                 console.log('MODERN UPLOAD: Using Cloudflare Images');
-                
+
                 // Create FormData for Cloudflare Images API
                 const cfFormData = new FormData();
                 cfFormData.append('file', imageFile);
                 cfFormData.append('id', fileName.replace(/\./g, '_')); // Replace dots for Cloudflare Images ID
-                
+
                 const cfResponse = await fetch(
                     `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/images/v1`,
                     {
@@ -2986,9 +2986,9 @@ async function uploadShippingImageModern(request, env) {
                         body: cfFormData
                     }
                 );
-                
+
                 const cfResult = await cfResponse.json();
-                
+
                 if (cfResult.success && cfResult.result) {
                     imageUrl = cfResult.result.variants.find(v => v.includes('/public')) || cfResult.result.variants[0];
                     console.log('MODERN UPLOAD: Cloudflare Images upload successful:', imageUrl);
@@ -2997,14 +2997,14 @@ async function uploadShippingImageModern(request, env) {
                 }
             } else {
                 console.log('MODERN UPLOAD: Using R2 Storage');
-                
+
                 // Upload to R2 Storage
                 await env.SHIPPING_IMAGES.put(fileName, imageFile.stream(), {
                     httpMetadata: {
                         contentType: imageFile.type,
                     },
                 });
-                
+
                 imageUrl = `https://13b5c18f23aa268941269ea0db1d1e5a.r2.cloudflarestorage.com/kurniasari-shipping-images/${fileName}`;
                 console.log('MODERN UPLOAD: R2 upload successful:', imageUrl);
             }
@@ -3012,30 +3012,52 @@ async function uploadShippingImageModern(request, env) {
             console.error('MODERN UPLOAD: Upload failed:', uploadError);
             throw new Error(`Upload failed: ${uploadError.message}`);
         }
-        
+
         // Update database with image URL
         const timestamp_iso = new Date().toISOString();
-        
+
         // Delete existing image of same type for this order
         await env.DB.prepare(
             'DELETE FROM shipping_images WHERE order_id = ? AND image_type = ?'
         ).bind(orderId, imageType).run();
-        
+
         // Insert new image record
         await env.DB.prepare(
             'INSERT INTO shipping_images (order_id, image_type, image_url, created_at) VALUES (?, ?, ?, ?)'
         ).bind(orderId, imageType, imageUrl, timestamp_iso).run();
-        
+
         console.log('MODERN UPLOAD: Database updated successfully');
-        
+
+        // Update order status based on image type
+        if (imageType === 'diterima') {
+            // When delivered photo is uploaded, mark order as complete
+            console.log('MODERN UPLOAD: Updating order status to completed for delivered image');
+            await env.DB.prepare(
+                'UPDATE orders SET shipping_status = ?, order_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+            ).bind('diterima', 'selesai', orderId).run();
+            console.log('MODERN UPLOAD: Order status updated to shipping_status=diterima, order_status=selesai');
+        } else if (imageType === 'siap_kirim') {
+            // When ready for pickup photo is uploaded
+            await env.DB.prepare(
+                'UPDATE orders SET shipping_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+            ).bind('siap kirim', orderId).run();
+            console.log('MODERN UPLOAD: Order status updated to shipping_status=siap kirim');
+        } else if (imageType === 'pengiriman') {
+            // When in-transit photo is uploaded
+            await env.DB.prepare(
+                'UPDATE orders SET shipping_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+            ).bind('dalam pengiriman', orderId).run();
+            console.log('MODERN UPLOAD: Order status updated to shipping_status=dalam pengiriman');
+        }
+
         // Debug: Verify imageUrl before returning response
         console.log('MODERN UPLOAD: Final imageUrl before response:', imageUrl);
-        
+
         if (!imageUrl) {
             console.error('MODERN UPLOAD: Critical Error - imageUrl is null/undefined!');
             throw new Error('Image upload completed but imageUrl is null');
         }
-        
+
         // Return response in format expected by frontend
         return new Response(JSON.stringify({
             success: true,
@@ -3053,7 +3075,7 @@ async function uploadShippingImageModern(request, env) {
                 ...request.corsHeaders
             }
         });
-        
+
     } catch (error) {
         console.error('MODERN UPLOAD: Error:', error);
         return new Response(JSON.stringify({
@@ -3156,12 +3178,12 @@ async function deleteShippingImageModern(request, env) {
 async function getShippingImagesModern(request, env) {
     try {
         console.log('MODERN GET: Getting shipping images');
-        
+
         // Extract order ID from URL path
         const url = new URL(request.url);
         const pathSegments = url.pathname.split('/');
         const orderId = pathSegments[3]; // /api/orders/:id/shipping-images
-        
+
         if (!orderId) {
             return new Response(JSON.stringify({
                 success: false,
@@ -3174,31 +3196,31 @@ async function getShippingImagesModern(request, env) {
                 }
             });
         }
-        
+
         // Get all shipping images for this order
         console.log('MODERN GET: Querying database for order_id:', orderId);
         console.log('MODERN GET: Query: SELECT * FROM shipping_images WHERE order_id = ? ORDER BY created_at DESC');
-        
+
         const images = await env.DB.prepare(
             'SELECT * FROM shipping_images WHERE order_id = ? ORDER BY created_at DESC'
         ).bind(orderId).all();
-        
+
         console.log('MODERN GET: Raw query result:', images);
         console.log('MODERN GET: Found images:', images.results?.length || 0);
         console.log('MODERN GET: Images data:', images.results);
-        
+
         // Also check if there are ANY images in the table for debugging
         const allImages = await env.DB.prepare(
             'SELECT COUNT(*) as total FROM shipping_images'
         ).first();
         console.log('MODERN GET: Total images in shipping_images table:', allImages?.total || 0);
-        
+
         // Check if there are images for similar order IDs
         const similarImages = await env.DB.prepare(
             'SELECT order_id, image_type, created_at FROM shipping_images WHERE order_id LIKE ? LIMIT 5'
         ).bind(`%${orderId.substring(-10)}%`).all();
         console.log('MODERN GET: Similar order IDs in database:', similarImages.results);
-        
+
         return new Response(JSON.stringify({
             success: true,
             data: {
@@ -3212,7 +3234,7 @@ async function getShippingImagesModern(request, env) {
                 ...request.corsHeaders
             }
         });
-        
+
     } catch (error) {
         console.error('MODERN GET: Error:', error);
         return new Response(JSON.stringify({
