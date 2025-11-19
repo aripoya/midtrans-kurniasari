@@ -237,6 +237,16 @@ const OutletDashboard: React.FC = () => {
         
         // Refresh orders to get updated data
         await fetchOrders();
+
+        // Jika ini adalah foto tahap akhir (diterima) dari modal Status Foto,
+        // otomatis ubah status pesanan menjadi 'diterima'
+        if (type === 'delivered') {
+          try {
+            await updateOrderStatus(selectedOrder.id, 'diterima' as ShippingStatus);
+          } catch (e) {
+            console.error('Error auto-updating order status to diterima after final photo upload:', e);
+          }
+        }
       } else {
         throw new Error(response.error || 'Upload gagal dari server');
       }
@@ -316,6 +326,15 @@ const OutletDashboard: React.FC = () => {
         
         // Refresh orders to get updated data
         await fetchOrders();
+
+        // Jika quick upload ini adalah foto tahap akhir, otomatis set status pengiriman menjadi 'diterima'
+        if (photoType === 'delivered') {
+          try {
+            await updateOrderStatus(orderId, 'diterima' as ShippingStatus);
+          } catch (e) {
+            console.error('Error auto-updating order status to diterima after quick final photo upload:', e);
+          }
+        }
       } else {
         throw new Error(response.error || 'Upload gagal dari server');
       }
