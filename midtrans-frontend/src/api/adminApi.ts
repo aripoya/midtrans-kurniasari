@@ -527,7 +527,7 @@ export const adminApi = {
       formData.append("image", imageFile);
       formData.append("imageType", imageType);
       const response: AxiosResponse<any> = await axios.post(
-        `${API_URL}/api/shipping/images/${orderId}/${imageType}`,
+        `${API_URL}/api/orders/${orderId}/shipping-images`,
         formData,
         {
           headers: {
@@ -582,7 +582,7 @@ export const adminApi = {
       console.log(`🔍 [adminApi.getShippingImages] Fetching images for order: ${orderId}`);
       
       const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/shipping/images/${orderId}`,
+        `${API_URL}/api/orders/${orderId}/shipping-images`,
         {
           headers: {
             Authorization: `Bearer ${getAdminToken()}`,
