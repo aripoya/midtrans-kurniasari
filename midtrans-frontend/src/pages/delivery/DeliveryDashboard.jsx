@@ -56,6 +56,8 @@ function DeliveryDashboard() {
     shipping: 0,
     delivered: 0
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
 
   const toast = useToast();
@@ -185,6 +187,19 @@ function DeliveryDashboard() {
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [orders]);
+
+  const totalOrders = orders.length;
+  const totalPages = totalOrders === 0 ? 1 : Math.ceil(totalOrders / itemsPerPage);
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedOrders = orders.slice(startIndex, endIndex);
+  const pageStart = totalOrders === 0 ? 0 : startIndex + 1;
+  const pageEnd = Math.min(totalOrders, endIndex);
 
 
 
@@ -334,7 +349,7 @@ function DeliveryDashboard() {
             <Text textAlign="center">Tidak ada pengiriman yang ditugaskan</Text>
           ) : isMobile ? (
             <Accordion allowToggle>
-              {orders.map((order) => (
+              {paginatedOrders.map((order) => (
                 <AccordionItem key={order.id}>
                   <AccordionButton _hover={{ bg: 'transparent' }} _focus={{ boxShadow: 'none' }}>
                     <Box flex="1" textAlign="left">
@@ -381,7 +396,7 @@ function DeliveryDashboard() {
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {orders.map((order) => (
+                  {paginatedOrders.map((order) => (
                     <Tr key={order.id}>
                       <Td>{order.id}</Td>
                       <Td>{order.customer_name}</Td>
@@ -412,6 +427,50 @@ function DeliveryDashboard() {
             </Box>
           )}
         </Box>
+        {orders.length > 0 && (
+          <Flex mt={4} justifyContent="space-between" alignItems="center">
+            <Text fontSize="sm" color="gray.600">
+              Menampilkan {pageStart}-{pageEnd} dari {totalOrders} pengiriman
+            </Text>
+            <HStack spacing={3}>
+              <HStack spacing={1}>
+                <Text fontSize="sm">Baris per halaman:</Text>
+                <Select
+                  size="sm"
+                  width="80px"
+                  value={itemsPerPage.toString()}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value, 10) || 10;
+                    setItemsPerPage(value);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                </Select>
+              </HStack>
+              <HStack spacing={2}>
+                <Button
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  isDisabled={safeCurrentPage <= 1}
+                >
+                  Sebelumnya
+                </Button>
+                <Text fontSize="sm">
+                  Halaman {safeCurrentPage} dari {totalPages}
+                </Text>
+                <Button
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  isDisabled={safeCurrentPage >= totalPages}
+                >
+                  Berikutnya
+                </Button>
+              </HStack>
+            </HStack>
+          </Flex>
+        )}
       </VStack>
 
 
