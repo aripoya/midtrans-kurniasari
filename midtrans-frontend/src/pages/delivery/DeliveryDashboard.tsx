@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { 
+import type {
   OrderStats
 } from '../../types/index';
 import {
@@ -63,14 +63,14 @@ const DeliveryDashboard: React.FC = () => {
     try {
       console.log('📡 Fetching delivery overview...');
       console.log('🔑 Auth Token:', sessionStorage.getItem('token'));
-      
+
       // Get user info from token
       const token = sessionStorage.getItem('token');
       let deliverymanId: string | null = null;
-      
+
       console.log('🔍 DEBUGGING TOKEN ISSUES:');
       console.log('- Token dari localStorage:', token ? 'Ada (panjang: ' + token.length + ')' : 'Tidak ada');
-      
+
       if (token) {
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
@@ -81,10 +81,10 @@ const DeliveryDashboard: React.FC = () => {
           console.error('Error parsing token:', e);
         }
       }
-      
+
       setLoading(true);
       setError(null);
-      
+
       const response = await adminApi.getDeliveryOverview(statusFilter || undefined);
 
       console.log('✅ Overview response:', response);
@@ -161,7 +161,7 @@ const DeliveryDashboard: React.FC = () => {
       console.error('Error fetching delivery overview:', err);
       const errorMessage = err instanceof Error ? err.message : 'Terjadi kesalahan saat memuat daftar pengiriman.';
       setError(errorMessage);
-      
+
       toast({
         title: 'Error',
         description: errorMessage,
@@ -178,51 +178,51 @@ const DeliveryDashboard: React.FC = () => {
   const updateShippingStatus = async (orderId: string, newStatus: string): Promise<void> => {
     try {
       console.log(`🔄 Updating shipping status for order ${orderId} to ${newStatus}`);
-      
+
       const response = await adminApi.updateOrderShippingStatus(orderId, newStatus);
-      
+
       if (response.success) {
         console.log('✅ Status updated successfully');
-        
+
         // Update local state - using any type to avoid strict typing issues during migration
-        setOrders(prevOrders => 
-          prevOrders.map((order: any) => 
-            order.id === orderId 
+        setOrders(prevOrders =>
+          prevOrders.map((order: any) =>
+            order.id === orderId
               ? { ...order, shipping_status: newStatus }
               : order
           )
         );
-        
+
         // Update stats
-        const updatedOrders = orders.map((order: any) => 
-          order.id === orderId 
+        const updatedOrders = orders.map((order: any) =>
+          order.id === orderId
             ? { ...order, shipping_status: newStatus }
             : order
         );
-        
+
         const totalOrders = updatedOrders.length;
         const pendingOrders = updatedOrders.filter((order: any) => {
           const status = (order.shipping_status || '').toLowerCase();
           return status === 'menunggu pengiriman' || status === 'pending' || status === '';
         }).length;
-        
+
         const inProgressOrders = updatedOrders.filter((order: any) => {
           const status = (order.shipping_status || '').toLowerCase();
           return status === 'dalam pengiriman' || status === 'shipping';
         }).length;
-        
+
         const completedOrders = updatedOrders.filter((order: any) => {
           const status = (order.shipping_status || '').toLowerCase();
           return status === 'diterima' || status === 'delivered';
         }).length;
-        
+
         setStats({
           total: totalOrders,
           pending: pendingOrders,
           inProgress: inProgressOrders,
           completed: completedOrders
         });
-        
+
         toast({
           title: 'Status Updated',
           description: `Order ${orderId} status updated to ${newStatus}`,
@@ -236,7 +236,7 @@ const DeliveryDashboard: React.FC = () => {
     } catch (err: unknown) {
       console.error('Error updating shipping status:', err);
       const errorMessage = err instanceof Error ? err.message : 'Terjadi kesalahan saat memperbarui status pesanan.';
-      
+
       toast({
         title: 'Error',
         description: errorMessage,
@@ -399,6 +399,15 @@ const DeliveryDashboard: React.FC = () => {
             <Button size="sm" onClick={manualRefresh}>
               Refresh
             </Button>
+            <Button
+              size="sm"
+              colorScheme="teal"
+              as={Link}
+              to="/delivery/calendar"
+              leftIcon={<Icon as={FaTruck} />}
+            >
+              📅 Kalender
+            </Button>
           </HStack>
         </Flex>
 
@@ -415,7 +424,7 @@ const DeliveryDashboard: React.FC = () => {
               </Flex>
             </Stat>
           </Box>
-          
+
           <Box p={5} shadow="md" borderWidth="1px" borderRadius="lg" bg={cardBgColor}>
             <Stat>
               <Flex align="center">
@@ -427,7 +436,7 @@ const DeliveryDashboard: React.FC = () => {
               </Flex>
             </Stat>
           </Box>
-          
+
           <Box p={5} shadow="md" borderWidth="1px" borderRadius="lg" bg={cardBgColor}>
             <Stat>
               <Flex align="center">
@@ -439,7 +448,7 @@ const DeliveryDashboard: React.FC = () => {
               </Flex>
             </Stat>
           </Box>
-          
+
           <Box p={5} shadow="md" borderWidth="1px" borderRadius="lg" bg={cardBgColor}>
             <Stat>
               <Flex align="center">
@@ -456,24 +465,24 @@ const DeliveryDashboard: React.FC = () => {
         {/* Orders Table */}
         <Box borderWidth="1px" borderRadius="lg" overflow="hidden" bg="white">
           <Flex p={4} justifyContent="space-between" alignItems="center" borderBottomWidth="1px">
-          <Heading size="md">Pengiriman Yang Ditugaskan</Heading>
-          <HStack>
-            <Select
-              placeholder="Filter Status (opsional)"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              size="sm"
-              width="250px"
-            >
-              <option value="menunggu diproses">Menunggu Diproses</option>
-              <option value="dikemas">Dikemas</option>
-              <option value="siap kirim">Siap Kirim</option>
-              <option value="dalam_pengiriman">Dalam Pengiriman</option>
-              <option value="diterima">Diterima</option>
-            </Select>
-          </HStack>
-        </Flex>
-          
+            <Heading size="md">Pengiriman Yang Ditugaskan</Heading>
+            <HStack>
+              <Select
+                placeholder="Filter Status (opsional)"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                size="sm"
+                width="250px"
+              >
+                <option value="menunggu diproses">Menunggu Diproses</option>
+                <option value="dikemas">Dikemas</option>
+                <option value="siap kirim">Siap Kirim</option>
+                <option value="dalam_pengiriman">Dalam Pengiriman</option>
+                <option value="diterima">Diterima</option>
+              </Select>
+            </HStack>
+          </Flex>
+
           {orders.length > 0 ? (
             <Box overflowX="auto">
               <Table variant="simple">
@@ -502,19 +511,19 @@ const DeliveryDashboard: React.FC = () => {
                       <Td>
                         <HStack spacing={2}>
                           {/* Order details button */}
-                          <Button 
-                            as={Link} 
-                            to={`/delivery/orders/${order.id}`} 
-                            size="sm" 
-                            colorScheme="blue" 
+                          <Button
+                            as={Link}
+                            to={`/delivery/orders/${order.id}`}
+                            size="sm"
+                            colorScheme="blue"
                             variant="outline"
                           >
                             Detail
                           </Button>
-                          
+
                           {/* Status Update Dropdown - TDD Compliance */}
-                          <Select 
-                            size="sm" 
+                          <Select
+                            size="sm"
                             width="200px"
                             value={order.shipping_status}
                             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateShippingStatus(order.id, e.target.value)}
@@ -526,10 +535,10 @@ const DeliveryDashboard: React.FC = () => {
                             <option value="dalam_pengiriman">Dalam Pengiriman</option>
                             <option value="diterima">Diterima</option>
                           </Select>
-                          
+
                           {order.shipping_status === 'dalam_pengiriman' && (
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               colorScheme="green"
                               onClick={() => updateShippingStatus(order.id, 'diterima')}
                               leftIcon={<FaCheckCircle />}

@@ -27,6 +27,7 @@ import SafeMigrationPage from './pages/admin/SafeMigrationPage';
 import OutletDashboard from './pages/outlet/OutletDashboard';
 import OutletAdminView from './pages/outlet/OutletAdminView';
 import DeliveryDashboard from './pages/delivery/DeliveryDashboard';
+import DeliveryCalendar from './pages/delivery/DeliveryCalendar';
 import DebugNotificationPage from './pages/DebugNotificationPage';
 import TIKITrackingPage from './components/TIKITrackingPage';
 import JNETrackingPage from './components/JNETrackingPage';
@@ -46,7 +47,7 @@ const App: React.FC = () => {
                 {/* Login Routes */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/admin/login" element={<LoginPage />} />
-                
+
                 {/* Root redirection */}
                 <Route path="/" element={<Navigate to="/login" replace />} />
 
@@ -77,12 +78,13 @@ const App: React.FC = () => {
 
                 {/* Deliveryman Routes */}
                 <Route path="/delivery/dashboard" element={<RoleProtectedRoute allowedRoles={['deliveryman']}><Layout><DeliveryDashboard /></Layout></RoleProtectedRoute>} />
+                <Route path="/delivery/calendar" element={<RoleProtectedRoute allowedRoles={['deliveryman']}><Layout><DeliveryCalendar /></Layout></RoleProtectedRoute>} />
                 <Route path="/delivery/orders/:id" element={<RoleProtectedRoute allowedRoles={['deliveryman']}><Layout><OrderDetailPage isDeliveryView={true} /></Layout></RoleProtectedRoute>} />
 
                 {/* Shared/Protected Routes */}
                 <Route path="/orders/new" element={<RoleProtectedRoute allowedRoles={['admin', 'outlet_manager']}><Layout><NewOrderPage /></Layout></RoleProtectedRoute>} />
                 <Route path="/products" element={<RoleProtectedRoute allowedRoles={['admin', 'outlet_manager']}><Layout><ProductsPage /></Layout></RoleProtectedRoute>} />
-                
+
                 {/* Debug Routes */}
                 <Route path="/debug" element={<RoleProtectedRoute allowedRoles={['admin']}><Layout><DebugPage /></Layout></RoleProtectedRoute>} />
                 <Route path="/debug-notifications" element={<RoleProtectedRoute allowedRoles={['admin']}><Layout><DebugNotificationPage /></Layout></RoleProtectedRoute>} />
