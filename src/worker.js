@@ -3221,12 +3221,29 @@ async function getShippingImagesModern(request, env) {
         ).bind(`%${orderId.substring(-10)}%`).all();
         console.log('MODERN GET: Similar order IDs in database:', similarImages.results);
 
+        // Transform array to object format expected by frontend
+        // Map backend image types to frontend keys
+        const imageTypeMap = {
+            'siap_kirim': 'ready_for_pickup',
+            'pengiriman': 'picked_up',
+            'diterima': 'delivered'
+        };
+
+        const formattedImages = {};
+        (images.results || []).forEach(img => {
+            const frontendKey = imageTypeMap[img.image_type] || img.image_type;
+            formattedImages[frontendKey] = {
+                url: img.image_url,
+                imageId: img.cloudflare_image_id,
+                createdAt: img.created_at
+            };
+        });
+
+        console.log('MODERN GET: Formatted images for frontend:', formattedImages);
+
         return new Response(JSON.stringify({
             success: true,
-            data: {
-                images: images.results || [],
-                orderId: orderId
-            }
+            data: formattedImages // Return object with image types as keys
         }), {
             status: 200,
             headers: {
