@@ -90,7 +90,8 @@ const DeliveryCalendar: React.FC = () => {
                         orderId: order.id,
                         customerName: order.customer_name,
                         customerAddress: order.customer_address || order.lokasi_pengiriman || '',
-                        deliveryDate: order.delivery_date,
+                        // Normalisasi ke string tanggal lokal YYYY-MM-DD untuk hindari geser hari karena timezone
+                        deliveryDate: String(order.delivery_date).split('T')[0],
                         deliveryTime: order.delivery_time,
                         courierName: order.assigned_deliveryman_name || order.courier_service || 'Tidak Ditentukan',
                         courierId: order.assigned_deliveryman_id || '',
@@ -125,9 +126,14 @@ const DeliveryCalendar: React.FC = () => {
     }, []);
 
     const getSchedulesForDateTime = (date: Date, time: string) => {
-        const dateStr = date.toISOString().split('T')[0];
+        // Gunakan tanggal lokal (bukan UTC) supaya tidak bergeser hari
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`; // YYYY-MM-DD
+
         return schedules.filter(schedule => {
-            const scheduleDate = new Date(schedule.deliveryDate).toISOString().split('T')[0];
+            const scheduleDate = String(schedule.deliveryDate).split('T')[0];
             const scheduleTime = schedule.deliveryTime.substring(0, 5); // Get HH:MM
 
             const matchesDate = scheduleDate === dateStr;
