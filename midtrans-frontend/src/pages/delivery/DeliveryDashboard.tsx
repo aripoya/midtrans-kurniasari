@@ -48,6 +48,8 @@ const DeliveryDashboard: React.FC = () => {
   });
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [selectedDriverId, setSelectedDriverId] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   const toast = useToast();
   const cardBgColor = useColorModeValue('white', 'gray.700');
@@ -322,6 +324,19 @@ const DeliveryDashboard: React.FC = () => {
     setOrders(filtered);
   }, [selectedDriverId, overview]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, selectedDriverId]);
+
+  const totalOrders = orders.length;
+  const totalPages = totalOrders === 0 ? 1 : Math.ceil(totalOrders / itemsPerPage);
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedOrders = orders.slice(startIndex, endIndex);
+  const pageStart = totalOrders === 0 ? 0 : startIndex + 1;
+  const pageEnd = Math.min(totalOrders, endIndex);
+
   if (loading) {
     return (
       <Container maxW="7xl" py={8}>
@@ -498,7 +513,7 @@ const DeliveryDashboard: React.FC = () => {
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {orders.map((order: any) => (
+                  {paginatedOrders.map((order: any) => (
                     <Tr key={order.id}>
                       <Td fontWeight="medium">{order.id}</Td>
                       <Td>{order.customer_name}</Td>
@@ -567,6 +582,50 @@ const DeliveryDashboard: React.FC = () => {
             <Box p={8} textAlign="center">
               <Text>Tidak ada pengiriman yang ditugaskan</Text>
             </Box>
+          )}
+          {orders.length > 0 && (
+            <Flex p={4} justifyContent="space-between" alignItems="center" borderTopWidth="1px">
+              <Text fontSize="sm" color="gray.600">
+                Menampilkan {pageStart}-{pageEnd} dari {totalOrders} pengiriman
+              </Text>
+              <HStack spacing={3}>
+                <HStack spacing={1}>
+                  <Text fontSize="sm">Baris per halaman:</Text>
+                  <Select
+                    size="sm"
+                    width="80px"
+                    value={itemsPerPage.toString()}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value, 10) || 10;
+                      setItemsPerPage(value);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                  </Select>
+                </HStack>
+                <HStack spacing={2}>
+                  <Button
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    isDisabled={safeCurrentPage <= 1}
+                  >
+                    Sebelumnya
+                  </Button>
+                  <Text fontSize="sm">
+                    Halaman {safeCurrentPage} dari {totalPages}
+                  </Text>
+                  <Button
+                    size="sm"
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    isDisabled={safeCurrentPage >= totalPages}
+                  >
+                    Berikutnya
+                  </Button>
+                </HStack>
+              </HStack>
+            </Flex>
           )}
         </Box>
 
