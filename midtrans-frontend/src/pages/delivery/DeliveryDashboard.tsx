@@ -404,8 +404,6 @@ const DeliveryDashboard: React.FC = () => {
               colorScheme="teal"
               as={Link}
               to="/delivery/calendar"
-              target="_blank"
-              rel="noopener noreferrer"
               leftIcon={<Icon as={FaTruck} />}
             >
               📅 Kalender
