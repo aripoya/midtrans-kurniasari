@@ -313,6 +313,13 @@ const AdminOrdersPage: React.FC = () => {
   
   return (
     <Container maxW="7xl" py={8}>
+      <style>{`
+        @media print {
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
       <Box>
         {/* Header */}
         <Flex
@@ -321,6 +328,7 @@ const AdminOrdersPage: React.FC = () => {
         align={{ base: 'flex-start', md: 'center' }}
         mb={6}
         gap={4}
+        className="no-print"
         >
         {/* Kiri: Heading */}
           <Heading size="lg">Kelola Pesanan</Heading>
@@ -386,7 +394,7 @@ const AdminOrdersPage: React.FC = () => {
 
         {/* Admin Activity/Session Stats */}
         {adminStats && (
-          <SimpleGrid columns={{ base: 2, md: 5 }} spacing={6} mb={6}>
+          <SimpleGrid columns={{ base: 2, md: 5 }} spacing={6} mb={6} className="no-print">
             <StatCard label="Aktivitas Hari Ini" value={adminStats.today?.total_activities ?? 0} colorScheme="teal" />
             <StatCard label="Login Hari Ini" value={adminStats.today?.logins ?? 0} colorScheme="cyan" />
             <StatCard label="Order Dibuat" value={adminStats.today?.orders_created ?? 0} colorScheme="green" />
@@ -396,7 +404,7 @@ const AdminOrdersPage: React.FC = () => {
         )}
 
         {/* Order Stats Cards */}
-        <SimpleGrid columns={{ base: 2, md: 4 }} spacing={6} mb={8}>
+        <SimpleGrid columns={{ base: 2, md: 4 }} spacing={6} mb={8} className="no-print">
           <StatCard label="Total Pesanan" value={stats.total} colorScheme="blue" />
           <StatCard label="Menunggu Bayar" value={stats.pending} colorScheme="yellow" />
           <StatCard label="Sudah Dibayar" value={stats.paid} colorScheme="green" />
@@ -404,7 +412,7 @@ const AdminOrdersPage: React.FC = () => {
         </SimpleGrid>
 
         {/* Filters */}
-        <HStack spacing={4} mb={6}>
+        <HStack spacing={4} mb={6} className="no-print">
           <Input
             placeholder="Cari pesanan..."
             value={searchTerm}
@@ -427,7 +435,7 @@ const AdminOrdersPage: React.FC = () => {
         </HStack>
 
         {/* Pagination Controls */}
-        <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={4}>
+        <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={4} className="no-print">
           <HStack spacing={2}>
             <Text fontSize="sm" color="gray.600">
               Tampilkan:
@@ -531,7 +539,17 @@ const AdminOrdersPage: React.FC = () => {
                       <Th minW="100px">Dibuat Oleh</Th>
                       <Th minW="140px">Status Pembayaran</Th>
                       <Th minW="120px">Status Pesanan</Th>
-                      <Th minW="80px" position="sticky" right="0" bg="white" borderLeft="1px solid" borderColor="gray.200">Aksi</Th>
+                      <Th
+                        minW="80px"
+                        position="sticky"
+                        right="0"
+                        bg="white"
+                        borderLeft="1px solid"
+                        borderColor="gray.200"
+                        className="no-print"
+                      >
+                        Aksi
+                      </Th>
                     </Tr>
                   </Thead>
                   <Tbody>
@@ -555,7 +573,14 @@ const AdminOrdersPage: React.FC = () => {
                           </Td>
                           <Td>{getPaymentStatusBadge(order.payment_status)}</Td>
                           <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
-                          <Td position="sticky" right="0" bg="white" borderLeft="1px solid" borderColor="gray.200">
+                          <Td
+                            position="sticky"
+                            right="0"
+                            bg="white"
+                            borderLeft="1px solid"
+                            borderColor="gray.200"
+                            className="no-print"
+                          >
                             <Button
                               as={RouterLink}
                               to={`/admin/orders/${order.id}`}
