@@ -73,10 +73,29 @@ const AdminOrderDetailPage: React.FC = () => {
 
   const transformURL = (url: string): string => {
     if (!url) return url;
-    if (url.includes('imagedelivery.net') || url.includes('cloudflareimages.com')) return url;
+    if (
+      url.includes('imagedelivery.net') ||
+      url.includes('cloudflareimages.com') ||
+      url.includes('proses.kurniasari.co.id')
+    ) {
+      return url;
+    }
 
-    // Modern R2 / workers.dev URLs sudah langsung bisa dipakai, jangan di-transform
-    if (url.includes('r2.cloudflarestorage.com') || url.includes('wahwooh.workers.dev')) return url;
+    // Legacy R2 direct URLs: arahkan ke domain publik proses.kurniasari.co.id
+    if (url.includes('r2.cloudflarestorage.com')) {
+      try {
+        const filenameWithQuery = url.split('/').pop() || '';
+        const filename = filenameWithQuery.split('?')[0];
+        if (filename) {
+          return `https://proses.kurniasari.co.id/${filename}`;
+        }
+      } catch {
+        return url;
+      }
+    }
+
+    // Modern workers.dev URLs sudah langsung bisa dipakai, jangan di-transform
+    if (url.includes('wahwooh.workers.dev')) return url;
 
     // Legacy API image paths diubah ke Cloudflare Images
     if (url.includes('/api/images/')) {

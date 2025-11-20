@@ -545,15 +545,35 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
 
     console.log('🔗 [transformURL] Input URL:', url);
 
-    // Jika sudah berupa URL Cloudflare Images yang valid, return langsung
-    if (url.includes('imagedelivery.net') || url.includes('cloudflareimages.com')) {
-      console.log('🔗 [transformURL] Already Cloudflare URL, returning as-is');
+    // Jika sudah berupa URL Cloudflare Images / domain publik yang valid, return langsung
+    if (
+      url.includes('imagedelivery.net') ||
+      url.includes('cloudflareimages.com') ||
+      url.includes('proses.kurniasari.co.id')
+    ) {
+      console.log('🔗 [transformURL] Already public image URL, returning as-is');
       return url;
     }
 
-    // Jika berupa URL R2 / workers.dev modern, gunakan apa adanya (jangan di-transform)
-    if (url.includes('r2.cloudflarestorage.com') || url.includes('wahwooh.workers.dev')) {
-      console.log('🔗 [transformURL] R2/workers URL detected, returning original URL');
+    // Legacy R2 direct URLs: arahkan ke domain publik proses.kurniasari.co.id
+    if (url.includes('r2.cloudflarestorage.com')) {
+      try {
+        const filenameWithQuery = url.split('/').pop() || '';
+        const filename = filenameWithQuery.split('?')[0];
+        if (filename) {
+          const mappedUrl = `https://proses.kurniasari.co.id/${filename}`;
+          console.log('🔗 [transformURL] Mapped R2 URL to proses.kurniasari.co.id:', mappedUrl);
+          return mappedUrl;
+        }
+      } catch (e) {
+        console.warn('🔗 [transformURL] Failed to map R2 URL, returning original:', e);
+        return url;
+      }
+    }
+
+    // Jika berupa URL workers.dev proxy modern, gunakan apa adanya (jangan di-transform)
+    if (url.includes('wahwooh.workers.dev')) {
+      console.log('🔗 [transformURL] workers.dev URL detected, returning original URL');
       return url;
     }
 

@@ -63,6 +63,45 @@ const PublicOrderDetailPage = () => {
   const [refreshingPayment, setRefreshingPayment] = useState(false);
   const toast = useToast();
 
+  const transformURL = (url: string): string => {
+    if (!url) return url;
+
+    // Sudah berupa URL publik (Cloudflare Images / proses), kembalikan apa adanya
+    if (
+      url.includes('imagedelivery.net') ||
+      url.includes('cloudflareimages.com') ||
+      url.includes('proses.kurniasari.co.id')
+    ) {
+      return url;
+    }
+
+    // Legacy R2 direct URLs -> map ke domain publik proses.kurniasari.co.id
+    if (url.includes('r2.cloudflarestorage.com')) {
+      try {
+        const filenameWithQuery = url.split('/').pop() || '';
+        const filename = filenameWithQuery.split('?')[0];
+        if (filename) {
+          return `https://proses.kurniasari.co.id/${filename}`;
+        }
+      } catch {
+        return url;
+      }
+    }
+
+    // workers.dev URL modern tetap dipakai apa adanya
+    if (url.includes('wahwooh.workers.dev')) return url;
+
+    // Legacy /api/images/ diubah ke Cloudflare Images
+    if (url.includes('/api/images/')) {
+      const filename = url.split('/').pop();
+      if (filename) {
+        return `https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA/${filename}/public`;
+      }
+    }
+
+    return url;
+  };
+
   // Fetch shipping images separately
   const fetchShippingImages = async (orderId: string) => {
     try {
@@ -82,7 +121,7 @@ const PublicOrderDetailPage = () => {
             if (imageInfo && imageInfo.url) {
               images.push({
                 image_type: type,
-                image_url: imageInfo.url,
+                image_url: transformURL(imageInfo.url),
                 id: imageInfo.imageId || '',
                 order_id: orderId,
                 uploaded_at: new Date().toISOString()
