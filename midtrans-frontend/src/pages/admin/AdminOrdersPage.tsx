@@ -310,6 +310,111 @@ const AdminOrdersPage: React.FC = () => {
   console.log('[RENDER-DEBUG]   - filteredOrders.length:', filteredOrders.length);
   console.log('[RENDER-DEBUG]   - searchTerm:', searchTerm);
   console.log('[RENDER-DEBUG]   - statusFilter:', statusFilter);
+
+  const handlePrint = (): void => {
+    try {
+      const printWindow = window.open('', '_blank', 'width=1024,height=768');
+      if (!printWindow) {
+        console.warn('[AdminOrdersPage] Failed to open print window');
+        return;
+      }
+
+      const doc = printWindow.document;
+
+      const rowsHtml = filteredOrders.map((order: any, index: number) => {
+        const totalFormatted = typeof order.total_amount === 'number'
+          ? `Rp ${order.total_amount.toLocaleString('id-ID')}`
+          : (order.total_amount || '');
+
+        const paymentStatusText = (order.payment_status || '').toUpperCase();
+        const shippingStatusText = (order.shipping_status || '').toUpperCase();
+
+        return `
+          <tr>
+            <td>${index + 1}</td>
+            <td>#${order.id || ''}</td>
+            <td>${order.created_at ? formatDate(order.created_at) : ''}</td>
+            <td>${order.customer_name || ''}</td>
+            <td>${totalFormatted}</td>
+            <td>${order.lokasi_pengiriman || order.shipping_area || ''}</td>
+            <td>${getDeliveryMethodLabel(order)}</td>
+            <td>${order.created_by_admin_name || ''}</td>
+            <td>${paymentStatusText}</td>
+            <td>${shippingStatusText}</td>
+          </tr>
+        `;
+      }).join('');
+
+      doc.open();
+      doc.write(`
+        <html>
+          <head>
+            <meta charSet="utf-8" />
+            <title>Daftar Pesanan - Kurniasari</title>
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                font-size: 12px;
+                color: #111827;
+                padding: 16px;
+              }
+              h2 {
+                margin: 0 0 8px 0;
+                font-size: 18px;
+              }
+              table {
+                border-collapse: collapse;
+                width: 100%;
+              }
+              th, td {
+                border: 1px solid #D1D5DB;
+                padding: 4px 6px;
+                text-align: left;
+                vertical-align: top;
+              }
+              th {
+                background-color: #F3F4F6;
+                font-weight: 600;
+              }
+              @media print {
+                body {
+                  padding: 0;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <h2>Daftar Pesanan</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>ID Pesanan</th>
+                  <th>Tanggal</th>
+                  <th>Pelanggan</th>
+                  <th>Total</th>
+                  <th>Area / Lokasi Pengiriman</th>
+                  <th>Metode Pengiriman</th>
+                  <th>Dibuat Oleh</th>
+                  <th>Status Pembayaran</th>
+                  <th>Status Pesanan</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `);
+      doc.close();
+
+      printWindow.focus();
+      printWindow.print();
+    } catch (e) {
+      console.error('[AdminOrdersPage] Error generating print view:', e);
+    }
+  };
   
   return (
     <Container maxW="7xl" py={8}>
@@ -374,7 +479,7 @@ const AdminOrdersPage: React.FC = () => {
             </Button>
 
             <Button
-              onClick={() => window.print()}
+              onClick={handlePrint}
               colorScheme="teal"
               variant="outline"
             >
