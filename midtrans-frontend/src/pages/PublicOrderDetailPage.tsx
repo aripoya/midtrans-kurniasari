@@ -114,21 +114,34 @@ const PublicOrderDetailPage = () => {
         console.log('📸 [PublicOrderDetailPage] Raw API response:', imageData);
         
         if (imageData.success && imageData.data) {
-          // Convert the response format to array of shipping images
+          // Convert the response format to array of shipping images with canonical types
           const images: ShippingImage[] = [];
-          
+
+          // Map backend keys (siap_kirim/pengiriman/diterima) and FE keys
+          // (ready_for_pickup/picked_up/delivered/packaged_product) to canonical FE types
+          const canonicalTypeMap: Record<string, string> = {
+            siap_kirim: 'ready_for_pickup',
+            ready_for_pickup: 'ready_for_pickup',
+            packaged_product: 'packaged_product',
+            pengiriman: 'picked_up',
+            picked_up: 'picked_up',
+            diterima: 'delivered',
+            delivered: 'delivered',
+          };
+
           Object.entries(imageData.data).forEach(([type, imageInfo]: [string, any]) => {
             if (imageInfo && imageInfo.url) {
+              const canonicalType = canonicalTypeMap[type] || type;
               images.push({
-                image_type: type,
+                image_type: canonicalType,
                 image_url: transformURL(imageInfo.url),
                 id: imageInfo.imageId || '',
                 order_id: orderId,
-                uploaded_at: new Date().toISOString()
+                uploaded_at: new Date().toISOString(),
               });
             }
           });
-          
+
           console.log('📸 [PublicOrderDetailPage] Processed images:', images);
           setShippingImages(images);
         }
