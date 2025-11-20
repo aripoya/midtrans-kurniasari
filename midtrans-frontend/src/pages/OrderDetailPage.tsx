@@ -403,12 +403,24 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
             const imagesFromAPI = imageData.success ? imageData.data : imageData;
             console.log('📸 [OrderDetailPage] Images from API:', imagesFromAPI);
 
-            // Public API returns object with image types as keys
-            Object.keys(processedImages).forEach((key) => {
-              const imageKey = key as keyof ShippingImages;
-              if (imagesFromAPI[imageKey] && imagesFromAPI[imageKey].url) {
-                processedImages[imageKey] = transformURL(imagesFromAPI[imageKey].url);
-                console.log('📸 [OrderDetailPage] Processed image for', imageKey, ':', processedImages[imageKey]);
+            // Public API returns object with image types as keys.
+            // Support both old backend keys (siap_kirim/pengiriman/diterima)
+            // and normalized frontend keys (ready_for_pickup/picked_up/delivered).
+            const imageKeyAliases: Record<keyof ShippingImages, string[]> = {
+              ready_for_pickup: ['ready_for_pickup', 'siap_kirim', 'packaged_product'],
+              picked_up: ['picked_up', 'pengiriman'],
+              delivered: ['delivered', 'diterima']
+            };
+
+            (Object.keys(processedImages) as (keyof ShippingImages)[]).forEach((imageKey) => {
+              const aliases = imageKeyAliases[imageKey] || [imageKey];
+              for (const alias of aliases) {
+                const info = (imagesFromAPI as any)?.[alias];
+                if (info && info.url) {
+                  processedImages[imageKey] = transformURL(info.url);
+                  console.log('📸 [OrderDetailPage] Processed image for', imageKey, 'using alias', alias, ':', processedImages[imageKey]);
+                  break;
+                }
               }
             });
 
@@ -587,11 +599,22 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         delivered: null
       };
 
-      // Process setiap tipe gambar - backend returns object with imageType as keys
-      Object.keys(processedImages).forEach((key) => {
-        const imageKey = key as keyof ShippingImages;
-        if (shippingImagesData[imageKey] && shippingImagesData[imageKey].url) {
-          processedImages[imageKey] = transformURL(shippingImagesData[imageKey].url);
+      // Process setiap tipe gambar - backend returns object with imageType as keys.
+      // Dukung juga key lama (siap_kirim/pengiriman/diterima).
+      const imageKeyAliases: Record<keyof ShippingImages, string[]> = {
+        ready_for_pickup: ['ready_for_pickup', 'siap_kirim', 'packaged_product'],
+        picked_up: ['picked_up', 'pengiriman'],
+        delivered: ['delivered', 'diterima']
+      };
+
+      (Object.keys(processedImages) as (keyof ShippingImages)[]).forEach((imageKey) => {
+        const aliases = imageKeyAliases[imageKey] || [imageKey];
+        for (const alias of aliases) {
+          const info = (shippingImagesData as any)?.[alias];
+          if (info && info.url) {
+            processedImages[imageKey] = transformURL(info.url);
+            break;
+          }
         }
       });
 
