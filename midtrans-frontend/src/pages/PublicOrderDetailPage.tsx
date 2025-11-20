@@ -737,14 +737,19 @@ const PublicOrderDetailPage = () => {
                           picked_up: isLuarKota ? 'Foto Sudah di Ambil Kurir' : 'Foto Pengiriman',
                           delivered: 'Foto Diterima',
                           packaged_product: 'Foto Siap Kirim'
+                        } as const;
+
+                        // Alias mapping supaya public view konsisten dengan admin/outlet
+                        const typeAliases: Record<string, string[]> = {
+                          ready_for_pickup: ['ready_for_pickup', 'siap_kirim', 'packaged_product'],
+                          picked_up: ['picked_up', 'pengiriman'],
+                          delivered: ['delivered', 'diterima'],
+                          packaged_product: ['packaged_product', 'siap_kirim', 'ready_for_pickup'],
                         };
 
-                        const imageUrl = shippingImages?.find(img =>
-                          img.image_type === type ||
-                          (type === 'ready_for_pickup' && img.image_type === 'ready_for_pickup') ||
-                          (type === 'picked_up' && img.image_type === 'picked_up') ||
-                          (type === 'delivered' && img.image_type === 'delivered') ||
-                          (type === 'packaged_product' && img.image_type === 'packaged_product')
+                        const aliases = typeAliases[type] || [type];
+                        const imageUrl = shippingImages?.find((img) =>
+                          aliases.includes(img.image_type)
                         )?.image_url;
 
                         return (
