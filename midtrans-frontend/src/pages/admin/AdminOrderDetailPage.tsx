@@ -145,10 +145,34 @@ const AdminOrderDetailPage: React.FC = () => {
             if (res.ok) {
               const data = await res.json();
               const images = data.success ? data.data : data;
-              const processed: ShippingImages = { ready_for_pickup: null, picked_up: null, delivered: null, packaged_product: null };
-              (['ready_for_pickup','picked_up','delivered','packaged_product'] as const).forEach((k) => {
-                if (images?.[k]?.url) processed[k] = transformURL(images[k].url);
+
+              const processed: ShippingImages = {
+                ready_for_pickup: null,
+                picked_up: null,
+                delivered: null,
+                packaged_product: null,
+              };
+
+              // Support both backend keys (siap_kirim/pengiriman/diterima) and
+              // normalized frontend keys (ready_for_pickup/picked_up/delivered/packaged_product)
+              const imageKeyAliases: Record<keyof ShippingImages, string[]> = {
+                ready_for_pickup: ['ready_for_pickup', 'siap_kirim', 'packaged_product'],
+                picked_up: ['picked_up', 'pengiriman'],
+                delivered: ['delivered', 'diterima'],
+                packaged_product: ['packaged_product', 'siap_kirim', 'ready_for_pickup'],
+              };
+
+              (Object.keys(processed) as (keyof ShippingImages)[]).forEach((imageKey) => {
+                const aliases = imageKeyAliases[imageKey] || [imageKey];
+                for (const alias of aliases) {
+                  const info = (images as any)?.[alias];
+                  if (info && info.url) {
+                    processed[imageKey] = transformURL(info.url);
+                    break;
+                  }
+                }
               });
+
               setShippingImages(processed);
             }
           } catch (e) {
