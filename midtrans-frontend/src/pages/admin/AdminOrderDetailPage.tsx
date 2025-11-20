@@ -74,17 +74,16 @@ const AdminOrderDetailPage: React.FC = () => {
   const transformURL = (url: string): string => {
     if (!url) return url;
     if (url.includes('imagedelivery.net') || url.includes('cloudflareimages.com')) return url;
+
+    // Modern R2 / workers.dev URLs sudah langsung bisa dipakai, jangan di-transform
+    if (url.includes('r2.cloudflarestorage.com') || url.includes('wahwooh.workers.dev')) return url;
+
+    // Legacy API image paths diubah ke Cloudflare Images
     if (url.includes('/api/images/')) {
       const filename = url.split('/').pop();
       if (filename) return `https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA/${filename}/public`;
     }
-    try {
-      const last = url.split('/').pop() || '';
-      const imageId = last.split('?')[0];
-      if (imageId && imageId.length > 10) {
-        return `https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA/${imageId}/public`;
-      }
-    } catch {}
+
     return url;
   };
 

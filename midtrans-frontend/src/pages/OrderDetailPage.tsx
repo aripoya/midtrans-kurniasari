@@ -551,6 +551,12 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
       return url;
     }
 
+    // Jika berupa URL R2 / workers.dev modern, gunakan apa adanya (jangan di-transform)
+    if (url.includes('r2.cloudflarestorage.com') || url.includes('wahwooh.workers.dev')) {
+      console.log('🔗 [transformURL] R2/workers URL detected, returning original URL');
+      return url;
+    }
+
     // Jika berupa format lama dengan path /api/images/, transform ke Cloudflare Images
     if (url.includes('/api/images/')) {
       const filename = url.split('/').pop();
@@ -560,30 +566,6 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         const transformedUrl = `${baseUrl}/${filename}/public`;
         console.log('🔗 [transformURL] Transformed to Cloudflare URL:', transformedUrl);
         return transformedUrl;
-      }
-    }
-
-    // Handle R2 URLs or other formats - try to extract image ID
-    if (url.includes('r2.cloudflarestorage.com') || url.includes('wahwooh.workers.dev')) {
-      try {
-        // Extract image ID from various URL formats
-        let imageId = null;
-
-        // Try to extract from path segments
-        const urlParts = url.split('/');
-        const lastPart = urlParts[urlParts.length - 1];
-
-        // Remove query parameters if any
-        imageId = lastPart.split('?')[0];
-
-        if (imageId && imageId.length > 10) { // Basic validation for image ID
-          const baseUrl = 'https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA';
-          const transformedUrl = `${baseUrl}/${imageId}/public`;
-          console.log('🔗 [transformURL] Extracted image ID and transformed:', transformedUrl);
-          return transformedUrl;
-        }
-      } catch (e) {
-        console.warn('🔗 [transformURL] Failed to transform R2 URL:', e);
       }
     }
 
