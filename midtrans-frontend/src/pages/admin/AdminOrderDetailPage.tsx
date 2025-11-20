@@ -73,18 +73,36 @@ const AdminOrderDetailPage: React.FC = () => {
 
   const transformURL = (url: string): string => {
     if (!url) return url;
-    if (url.includes('imagedelivery.net') || url.includes('cloudflareimages.com')) return url;
+    if (
+      url.includes('imagedelivery.net') ||
+      url.includes('cloudflareimages.com') ||
+      url.includes('proses.kurniasari.co.id')
+    ) {
+      return url;
+    }
+
+    // Legacy R2 direct URLs: arahkan ke domain publik proses.kurniasari.co.id
+    if (url.includes('r2.cloudflarestorage.com')) {
+      try {
+        const filenameWithQuery = url.split('/').pop() || '';
+        const filename = filenameWithQuery.split('?')[0];
+        if (filename) {
+          return `https://proses.kurniasari.co.id/${filename}`;
+        }
+      } catch {
+        return url;
+      }
+    }
+
+    // Modern workers.dev URLs sudah langsung bisa dipakai, jangan di-transform
+    if (url.includes('wahwooh.workers.dev')) return url;
+
+    // Legacy API image paths diubah ke Cloudflare Images
     if (url.includes('/api/images/')) {
       const filename = url.split('/').pop();
       if (filename) return `https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA/${filename}/public`;
     }
-    try {
-      const last = url.split('/').pop() || '';
-      const imageId = last.split('?')[0];
-      if (imageId && imageId.length > 10) {
-        return `https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA/${imageId}/public`;
-      }
-    } catch {}
+
     return url;
   };
 
@@ -127,10 +145,34 @@ const AdminOrderDetailPage: React.FC = () => {
             if (res.ok) {
               const data = await res.json();
               const images = data.success ? data.data : data;
-              const processed: ShippingImages = { ready_for_pickup: null, picked_up: null, delivered: null, packaged_product: null };
-              (['ready_for_pickup','picked_up','delivered','packaged_product'] as const).forEach((k) => {
-                if (images?.[k]?.url) processed[k] = transformURL(images[k].url);
+
+              const processed: ShippingImages = {
+                ready_for_pickup: null,
+                picked_up: null,
+                delivered: null,
+                packaged_product: null,
+              };
+
+              // Support both backend keys (siap_kirim/pengiriman/diterima) and
+              // normalized frontend keys (ready_for_pickup/picked_up/delivered/packaged_product)
+              const imageKeyAliases: Record<keyof ShippingImages, string[]> = {
+                ready_for_pickup: ['ready_for_pickup', 'siap_kirim', 'packaged_product'],
+                picked_up: ['picked_up', 'pengiriman'],
+                delivered: ['delivered', 'diterima'],
+                packaged_product: ['packaged_product', 'siap_kirim', 'ready_for_pickup'],
+              };
+
+              (Object.keys(processed) as (keyof ShippingImages)[]).forEach((imageKey) => {
+                const aliases = imageKeyAliases[imageKey] || [imageKey];
+                for (const alias of aliases) {
+                  const info = (images as any)?.[alias];
+                  if (info && info.url) {
+                    processed[imageKey] = transformURL(info.url);
+                    break;
+                  }
+                }
               });
+
               setShippingImages(processed);
             }
           } catch (e) {
