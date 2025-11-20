@@ -2965,49 +2965,22 @@ async function uploadShippingImageModern(request, env) {
 
         // Upload to R2/Cloudflare Images based on configuration
         let imageUrl;
+        let cloudflareImageId = null;
 
         try {
-            // Use Cloudflare Images if available, otherwise fall back to R2
-            if (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_IMAGES_API_TOKEN) {
-                console.log('MODERN UPLOAD: Using Cloudflare Images');
+            // Reuse shared Cloudflare Images helper which already handles
+            // both Cloudflare Images and R2 fallback via proses.kurniasari.co.id
+            const uploadResult = await uploadToCloudflareImages(imageFile, env);
 
-                // Create FormData for Cloudflare Images API
-                const cfFormData = new FormData();
-                cfFormData.append('file', imageFile);
-                cfFormData.append('id', fileName.replace(/\./g, '_')); // Replace dots for Cloudflare Images ID
-
-                const cfResponse = await fetch(
-                    `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/images/v1`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${env.CLOUDFLARE_IMAGES_API_TOKEN}`
-                        },
-                        body: cfFormData
-                    }
-                );
-
-                const cfResult = await cfResponse.json();
-
-                if (cfResult.success && cfResult.result) {
-                    imageUrl = cfResult.result.variants.find(v => v.includes('/public')) || cfResult.result.variants[0];
-                    console.log('MODERN UPLOAD: Cloudflare Images upload successful:', imageUrl);
-                } else {
-                    throw new Error('Cloudflare Images upload failed: ' + JSON.stringify(cfResult));
-                }
-            } else {
-                console.log('MODERN UPLOAD: Using R2 Storage');
-
-                // Upload to R2 Storage
-                await env.SHIPPING_IMAGES.put(fileName, imageFile.stream(), {
-                    httpMetadata: {
-                        contentType: imageFile.type,
-                    },
-                });
-
-                imageUrl = `https://13b5c18f23aa268941269ea0db1d1e5a.r2.cloudflarestorage.com/kurniasari-shipping-images/${fileName}`;
-                console.log('MODERN UPLOAD: R2 upload successful:', imageUrl);
+            if (!uploadResult || !uploadResult.success || !uploadResult.data) {
+                throw new Error('Upload failed: ' + (uploadResult?.error || 'Unknown upload error'));
             }
+
+            const { imageId, publicUrl, imageUrl: rawImageUrl } = uploadResult.data;
+            imageUrl = publicUrl || rawImageUrl;
+            cloudflareImageId = imageId || null;
+
+            console.log('MODERN UPLOAD: Upload successful, final URL:', imageUrl);
         } catch (uploadError) {
             console.error('MODERN UPLOAD: Upload failed:', uploadError);
             throw new Error(`Upload failed: ${uploadError.message}`);
@@ -3021,10 +2994,10 @@ async function uploadShippingImageModern(request, env) {
             'DELETE FROM shipping_images WHERE order_id = ? AND image_type = ?'
         ).bind(orderId, imageType).run();
 
-        // Insert new image record
+        // Insert new image record (store Cloudflare image ID when available)
         await env.DB.prepare(
-            'INSERT INTO shipping_images (order_id, image_type, image_url, created_at) VALUES (?, ?, ?, ?)'
-        ).bind(orderId, imageType, imageUrl, timestamp_iso).run();
+            'INSERT INTO shipping_images (order_id, image_type, image_url, cloudflare_image_id, created_at) VALUES (?, ?, ?, ?, ?)'
+        ).bind(orderId, imageType, imageUrl, cloudflareImageId, timestamp_iso).run();
 
         console.log('MODERN UPLOAD: Database updated successfully');
 
