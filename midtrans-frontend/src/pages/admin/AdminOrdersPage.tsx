@@ -364,7 +364,15 @@ const AdminOrdersPage: React.FC = () => {
             >
               Refresh
             </Button>
-            
+
+            <Button
+              onClick={() => window.print()}
+              colorScheme="teal"
+              variant="outline"
+            >
+              Print
+            </Button>
+
             <Button 
               onClick={handleLogout}
               colorScheme="red"
