@@ -774,22 +774,6 @@ export async function getOrderById(request, env) {
       }
     }
 
-    // DEBUG: If items are still empty, attach debug info to the response (will appear in API response)
-    let debugInfo = null;
-    if (!items || items.length === 0) {
-        debugInfo = {
-            message: "No items found in order_items table or legacy JSON",
-            order_keys: Object.keys(order),
-            legacy_items_column_exists: 'items' in order,
-            legacy_items_raw_type: typeof order.items,
-            // careful with large strings, but usually it's null if we are here
-            legacy_items_sample: order.items ? (String(order.items).substring(0, 100)) : null,
-            table_rows_count: rawItems ? rawItems.length : 0,
-            order_id_used: orderId
-        };
-        console.log('[getOrderById] DEBUG:', JSON.stringify(debugInfo));
-    }
-
     // Step 3: Fetch shipping images (with error handling)
     failedQuery = 'fetching shipping images';
     let shipping_images = [];
@@ -839,9 +823,8 @@ export async function getOrderById(request, env) {
       pickup_time: order.pickup_time || null,
       // Delivery scheduling fields
       delivery_date: order.delivery_date || null,
-      delivery_time: order.delivery_time || null,
+      delivery_time: order.delivery_time || null
       // shipping_area sudah termasuk dalam ...order
-      _debug: debugInfo || undefined
     };
 
     return new Response(JSON.stringify({ success: true, data: finalOrder }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});

@@ -34,8 +34,7 @@ import {
   StepStatus,
   StepTitle,
   Stepper,
-  useToast,
-  Input
+  useToast
 } from '@chakra-ui/react';
 import { publicApi, PublicOrder } from '../api/publicApi';
 import { API_URL } from '../api/config';
@@ -150,17 +149,6 @@ const PublicOrderDetailPage = () => {
       }
     } catch (error) {
       console.error('📸 [PublicOrderDetailPage] Error fetching shipping images:', error);
-    }
-  };
-
-  // Copy payment URL helper
-  const copyPaymentUrl = async (url?: string) => {
-    if (!url) return;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast({ title: 'Link pembayaran disalin', status: 'success', duration: 1500, isClosable: true });
-    } catch (e) {
-      toast({ title: 'Gagal menyalin link', status: 'error', duration: 2000, isClosable: true });
     }
   };
 
@@ -794,13 +782,24 @@ const PublicOrderDetailPage = () => {
                 </Tr>
               </Thead>
               <Tbody>
-                {order.items && order.items.map((item, index) => (
-                  <Tr key={index}>
-                    <Td>{item.product_name}</Td>
-                    <Td isNumeric>{item.quantity}</Td>
-                    <Td isNumeric>{formatCurrency(item.price)}</Td>
+                {order.items && order.items.length > 0 ? (
+                  order.items.map((item, index) => (
+                    <Tr key={index}>
+                      <Td>{item.product_name}</Td>
+                      <Td isNumeric>{item.quantity}</Td>
+                      <Td isNumeric>{formatCurrency(item.price)}</Td>
+                    </Tr>
+                  ))
+                ) : (
+                  <Tr>
+                    <Td>
+                      <Text fontWeight="medium">Bakpia</Text>
+                      <Text fontSize="xs" color="gray.500">(Detail item tidak tersedia)</Text>
+                    </Td>
+                    <Td isNumeric>1</Td>
+                    <Td isNumeric>{formatCurrency(order.total_amount)}</Td>
                   </Tr>
-                ))}
+                )}
               </Tbody>
             </Table>
 
