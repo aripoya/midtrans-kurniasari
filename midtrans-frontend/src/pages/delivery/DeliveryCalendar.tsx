@@ -40,11 +40,27 @@ const DeliveryCalendar: React.FC = () => {
     const toast = useToast();
     const navigate = useNavigate();
 
-    // Time slots from 09:00 to 19:00
-    const timeSlots = [
-        '09:00', '10:00', '11:00', '12:00', '13:00',
-        '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'
-    ];
+    // Time slots from 09:00 to 19:00 in 15-minute intervals
+    const timeSlots = (() => {
+        const slots: string[] = [];
+        let hour = 9;
+        let minute = 0;
+
+        // Generate slots from 09:00 up to and including 19:00
+        while (hour < 19 || (hour === 19 && minute === 0)) {
+            const h = String(hour).padStart(2, '0');
+            const m = String(minute).padStart(2, '0');
+            slots.push(`${h}:${m}`);
+
+            minute += 15;
+            if (minute >= 60) {
+                minute = 0;
+                hour += 1;
+            }
+        }
+
+        return slots;
+    })();
 
     // Get week days starting from Monday
     const getWeekDays = (date: Date) => {
