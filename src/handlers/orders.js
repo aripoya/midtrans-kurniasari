@@ -741,12 +741,38 @@ export async function getOrderById(request, env) {
     // Step 2: Fetch order items
     failedQuery = 'fetching order items';
     const { results: rawItems } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(orderId).all();
-    
+
     // Map database fields to frontend-expected field names
-    const items = rawItems.map(item => ({
+    let items = rawItems.map(item => ({
       ...item,
       price: item.product_price // Map product_price to price for frontend compatibility
     }));
+
+    // Fallback: for legacy orders where items might be stored as JSON
+    if ((!items || items.length === 0) && order.items) {
+      try {
+        const rawLegacy = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+        if (Array.isArray(rawLegacy)) {
+          items = rawLegacy.map((it, idx) => {
+            const unitPrice = Number(it.price ?? it.product_price ?? it.unit_price ?? 0);
+            const qty = Number(it.quantity ?? 1);
+            const subtotal = Number(it.subtotal ?? unitPrice * qty);
+            return {
+              id: it.id ?? idx + 1,
+              order_id: orderId,
+              product_name: it.product_name ?? it.name ?? '',
+              product_price: unitPrice,
+              quantity: qty,
+              subtotal,
+              price: unitPrice,
+            };
+          });
+        }
+      } catch (legacyErr) {
+        console.error(`[getOrderById] Failed to parse legacy items JSON for order ${orderId}:`, legacyErr);
+        // keep items as empty array in this case
+      }
+    }
 
     // Step 3: Fetch shipping images (with error handling)
     failedQuery = 'fetching shipping images';
