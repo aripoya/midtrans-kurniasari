@@ -665,7 +665,30 @@ export async function getOrders(request, env) {
     const { results } = await env.DB.prepare('SELECT * FROM orders ORDER BY id DESC').all();
     
     const orders = await Promise.all(results.map(async (order) => {
-        const { results: items } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(order.id).all();
+        let { results: items } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(order.id).all();
+        
+        // Fallback: Extract items from Midtrans payment_response if order_items empty (for legacy orders)
+        if ((!items || items.length === 0) && order.payment_response) {
+          try {
+            const paymentData = typeof order.payment_response === 'string' 
+              ? JSON.parse(order.payment_response) 
+              : order.payment_response;
+            
+            if (paymentData.item_details && Array.isArray(paymentData.item_details)) {
+              items = paymentData.item_details.map((item, idx) => ({
+                id: item.id || idx + 1,
+                order_id: order.id,
+                product_name: item.name || 'Produk',
+                product_price: Number(item.price || 0),
+                quantity: Number(item.quantity || 1),
+                subtotal: Number(item.price || 0) * Number(item.quantity || 1),
+              }));
+            }
+          } catch (err) {
+            console.error(`[getOrders] Failed to extract items from payment_response for order ${order.id}:`, err);
+          }
+        }
+        
         // Omit deprecated pickup_outlet from response payload
         const { pickup_outlet, ...orderWithoutPickupOutlet } = order;
         return {
@@ -743,7 +766,7 @@ export async function getOrderById(request, env) {
       price: item.product_price // Map product_price to price for frontend compatibility
     }));
 
-    // Fallback: for legacy orders where items might be stored as JSON
+    // Fallback 1: for legacy orders where items might be stored as JSON in order.items column
     if ((!items || items.length === 0) && order.items) {
       try {
         const rawLegacy = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
@@ -766,6 +789,36 @@ export async function getOrderById(request, env) {
       } catch (legacyErr) {
         console.error(`[getOrderById] Failed to parse legacy items JSON for order ${orderId}:`, legacyErr);
         // keep items as empty array in this case
+      }
+    }
+
+    // Fallback 2: Extract items from Midtrans payment_response for old orders
+    if ((!items || items.length === 0) && order.payment_response) {
+      try {
+        const paymentData = typeof order.payment_response === 'string' 
+          ? JSON.parse(order.payment_response) 
+          : order.payment_response;
+        
+        // Midtrans stores items in item_details array
+        if (paymentData.item_details && Array.isArray(paymentData.item_details)) {
+          console.log(`[getOrderById] Extracting ${paymentData.item_details.length} items from Midtrans payment_response for order ${orderId}`);
+          items = paymentData.item_details.map((item, idx) => {
+            const unitPrice = Number(item.price || 0);
+            const qty = Number(item.quantity || 1);
+            const subtotal = unitPrice * qty;
+            return {
+              id: item.id || idx + 1,
+              order_id: orderId,
+              product_name: item.name || 'Produk',
+              product_price: unitPrice,
+              quantity: qty,
+              subtotal,
+              price: unitPrice,
+            };
+          });
+        }
+      } catch (midtransErr) {
+        console.error(`[getOrderById] Failed to extract items from payment_response for order ${orderId}:`, midtransErr);
       }
     }
 
