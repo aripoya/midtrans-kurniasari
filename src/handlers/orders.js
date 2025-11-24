@@ -592,9 +592,9 @@ export async function createOrder(request, env) {
         throw new Error('[CREATE ORDER] Order row not found after insert, aborting item insertion to avoid FK failure');
       }
       
-      // CRITICAL: Add initial delay to ensure order record is fully replicated in D1
-      console.log('[CREATE ORDER] Order verified. Waiting 2 seconds for D1 replication...');
-      await new Promise(r => setTimeout(r, 2000));
+      // CRITICAL: Add short delay to allow D1 replication (500ms to avoid timeout)
+      console.log('[CREATE ORDER] Order verified. Waiting 500ms for D1 replication...');
+      await new Promise(r => setTimeout(r, 500));
       console.log('[CREATE ORDER] D1 replication delay complete. Proceeding with item insertion...');
     } catch (verifyErr) {
       console.error('[CREATE ORDER] Post-insert verification failed:', verifyErr?.message || verifyErr);
@@ -616,27 +616,29 @@ export async function createOrder(request, env) {
       );
     }
 
-    // Prefer sequential insertion with aggressive retry for D1 eventual consistency
+    // Sequential insertion with optimized retry for D1 eventual consistency
     if (dbStatements.length > 0) {
       for (const stmt of dbStatements) {
         let inserted = false;
         let lastError = null;
         
-        // Try up to 5 times with increasing delays for FK constraint issues
-        for (let attempt = 1; attempt <= 5; attempt++) {
+        // Try up to 3 times with shorter delays to avoid timeout
+        for (let attempt = 1; attempt <= 3; attempt++) {
           try {
             await stmt.run();
             inserted = true;
-            console.log(`[CREATE ORDER] Item inserted successfully on attempt ${attempt}`);
+            if (attempt > 1) {
+              console.log(`[CREATE ORDER] Item inserted successfully on attempt ${attempt}`);
+            }
             break; // Success, exit retry loop
           } catch (itemErr) {
             lastError = itemErr;
             const msg = itemErr?.message || String(itemErr);
             
             // Only retry on FK constraint failures
-            if (/foreign key|constraint/i.test(msg) && attempt < 5) {
-              const delayMs = (attempt + 1) * 1000; // 2s, 3s, 4s, 5s delays
-              console.warn(`[CREATE ORDER] FK failure on attempt ${attempt}/${5}, retrying after ${delayMs}ms delay...`);
+            if (/foreign key|constraint/i.test(msg) && attempt < 3) {
+              const delayMs = attempt * 500; // 500ms, 1000ms delays
+              console.warn(`[CREATE ORDER] FK failure on attempt ${attempt}/3, retrying after ${delayMs}ms...`);
               await new Promise(r => setTimeout(r, delayMs));
             } else {
               // Either not an FK error, or we've exhausted retries
@@ -648,8 +650,8 @@ export async function createOrder(request, env) {
         
         if (!inserted) {
           const msg = lastError?.message || String(lastError);
-          console.error('[CREATE ORDER] Failed to insert order_item after 5 attempts:', msg);
-          throw new Error(`Failed to save order item after 5 attempts: ${msg}`);
+          console.error('[CREATE ORDER] Failed to insert order_item after 3 attempts:', msg);
+          throw new Error(`Failed to save order item after 3 attempts: ${msg}`);
         }
       }
     }
