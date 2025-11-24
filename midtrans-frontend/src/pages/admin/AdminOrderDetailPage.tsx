@@ -695,12 +695,13 @@ const AdminOrderDetailPage: React.FC = () => {
                         </Box>
                       ))
                     ) : (
-                      <Box p={3} borderWidth={1} borderRadius="md">
-                        <Text fontWeight="semibold">bakpia</Text>
-                        <HStack justify="space-between">
-                          <Text fontSize="sm" color="gray.600">Qty: 1</Text>
+                      <Box p={3} borderWidth={1} borderRadius="md" bg="red.50">
+                        <Text fontWeight="semibold" color="red.600">Detail item tidak tersedia</Text>
+                        <Text fontSize="xs" color="gray.500">Mohon cek catatan pengiriman atau hubungi teknisi.</Text>
+                        <HStack justify="space-between" mt={2}>
+                          <Text fontSize="sm" color="gray.600">Qty: -</Text>
                           <Text fontSize="sm" color="gray.600">
-                            Rp {order.total_amount?.toLocaleString('id-ID')}
+                            Total: Rp {order.total_amount?.toLocaleString('id-ID')}
                           </Text>
                         </HStack>
                       </Box>

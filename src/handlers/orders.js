@@ -619,15 +619,8 @@ export async function createOrder(request, env) {
         } catch (itemErr) {
           const msg = itemErr?.message || String(itemErr);
           console.error('[CREATE ORDER] Inserting single order_item failed:', msg);
-          try {
-            const fkOrderItems = await env.DB.prepare('PRAGMA foreign_key_list(order_items)').all();
-            console.warn('[CREATE ORDER] PRAGMA foreign_key_list(order_items):', fkOrderItems?.results || fkOrderItems);
-            const orderCheck = await env.DB.prepare('SELECT id FROM orders WHERE id = ?').bind(orderId).first();
-            console.warn('[CREATE ORDER] Order existence at item failure:', orderCheck);
-          } catch (diagErr) {
-            console.warn('[CREATE ORDER] Diagnostics after item error failed:', diagErr?.message || diagErr);
-          }
-          // Do NOT fail entire order creation because of item issue; continue
+          // CRITICAL: Throw error to fail the request. We cannot allow orders without items.
+          throw new Error(`Failed to save order item: ${msg}`);
         }
       }
     }
