@@ -73,18 +73,36 @@ const AdminOrderDetailPage: React.FC = () => {
 
   const transformURL = (url: string): string => {
     if (!url) return url;
-    if (url.includes('imagedelivery.net') || url.includes('cloudflareimages.com')) return url;
+    if (
+      url.includes('imagedelivery.net') ||
+      url.includes('cloudflareimages.com') ||
+      url.includes('proses.kurniasari.co.id')
+    ) {
+      return url;
+    }
+
+    // Legacy R2 direct URLs: arahkan ke domain publik proses.kurniasari.co.id
+    if (url.includes('r2.cloudflarestorage.com')) {
+      try {
+        const filenameWithQuery = url.split('/').pop() || '';
+        const filename = filenameWithQuery.split('?')[0];
+        if (filename) {
+          return `https://proses.kurniasari.co.id/${filename}`;
+        }
+      } catch {
+        return url;
+      }
+    }
+
+    // Modern workers.dev URLs sudah langsung bisa dipakai, jangan di-transform
+    if (url.includes('wahwooh.workers.dev')) return url;
+
+    // Legacy API image paths diubah ke Cloudflare Images
     if (url.includes('/api/images/')) {
       const filename = url.split('/').pop();
       if (filename) return `https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA/${filename}/public`;
     }
-    try {
-      const last = url.split('/').pop() || '';
-      const imageId = last.split('?')[0];
-      if (imageId && imageId.length > 10) {
-        return `https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA/${imageId}/public`;
-      }
-    } catch {}
+
     return url;
   };
 
@@ -127,10 +145,34 @@ const AdminOrderDetailPage: React.FC = () => {
             if (res.ok) {
               const data = await res.json();
               const images = data.success ? data.data : data;
-              const processed: ShippingImages = { ready_for_pickup: null, picked_up: null, delivered: null, packaged_product: null };
-              (['ready_for_pickup','picked_up','delivered','packaged_product'] as const).forEach((k) => {
-                if (images?.[k]?.url) processed[k] = transformURL(images[k].url);
+
+              const processed: ShippingImages = {
+                ready_for_pickup: null,
+                picked_up: null,
+                delivered: null,
+                packaged_product: null,
+              };
+
+              // Support both backend keys (siap_kirim/pengiriman/diterima) and
+              // normalized frontend keys (ready_for_pickup/picked_up/delivered/packaged_product)
+              const imageKeyAliases: Record<keyof ShippingImages, string[]> = {
+                ready_for_pickup: ['ready_for_pickup', 'siap_kirim', 'packaged_product'],
+                picked_up: ['picked_up', 'pengiriman'],
+                delivered: ['delivered', 'diterima'],
+                packaged_product: ['packaged_product', 'siap_kirim', 'ready_for_pickup'],
+              };
+
+              (Object.keys(processed) as (keyof ShippingImages)[]).forEach((imageKey) => {
+                const aliases = imageKeyAliases[imageKey] || [imageKey];
+                for (const alias of aliases) {
+                  const info = (images as any)?.[alias];
+                  if (info && info.url) {
+                    processed[imageKey] = transformURL(info.url);
+                    break;
+                  }
+                }
               });
+
               setShippingImages(processed);
             }
           } catch (e) {
@@ -653,14 +695,30 @@ const AdminOrderDetailPage: React.FC = () => {
                         </Box>
                       ))
                     ) : (
-                      <Box p={3} borderWidth={1} borderRadius="md">
-                        <Text fontWeight="semibold">bakpia</Text>
-                        <HStack justify="space-between">
-                          <Text fontSize="sm" color="gray.600">Qty: 1</Text>
-                          <Text fontSize="sm" color="gray.600">
-                            Rp {order.total_amount?.toLocaleString('id-ID')}
-                          </Text>
+                      <Box p={3} borderWidth={1} borderRadius="md" bg="orange.50">
+                        <HStack spacing={2} mb={2}>
+                          <Text fontSize="lg">⚠️</Text>
+                          <Text fontWeight="semibold" color="orange.700">Pesanan Legacy - Detail Item Tidak Tersedia</Text>
                         </HStack>
+                        <Text fontSize="sm" color="gray.700" mb={2}>
+                          Pesanan ini dibuat sebelum sistem upgrade. Detail item tidak tersimpan karena:
+                        </Text>
+                        <VStack align="start" spacing={1} pl={4} mb={3}>
+                          <Text fontSize="xs" color="gray.600">• Data item tidak ada di database</Text>
+                          <Text fontSize="xs" color="gray.600">• Response Midtrans tidak menyimpan detail item</Text>
+                          <Text fontSize="xs" color="gray.600">• Item tidak dapat di-recover secara otomatis</Text>
+                        </VStack>
+                        <Box p={2} bg="white" borderRadius="md" borderWidth={1} borderColor="orange.200">
+                          <HStack justify="space-between">
+                            <Text fontSize="sm" fontWeight="medium" color="gray.700">Total Pembayaran:</Text>
+                            <Text fontSize="md" fontWeight="bold" color="gray.800">
+                              Rp {order.total_amount?.toLocaleString('id-ID')}
+                            </Text>
+                          </HStack>
+                        </Box>
+                        <Text fontSize="xs" color="gray.500" mt={2} fontStyle="italic">
+                          💡 Pesanan baru (setelah {new Date('2025-11-25').toLocaleDateString('id-ID')}) sudah menyimpan detail item dengan lengkap.
+                        </Text>
                       </Box>
                     )}
                   </VStack>

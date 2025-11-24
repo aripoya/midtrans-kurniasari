@@ -435,14 +435,16 @@ export const adminApi = {
       // Handle different response structures from the API
       if (response.data?.success && Array.isArray(response.data?.orders)) {
         const orders: Order[] = response.data.orders;
+        const pagination = response.data.pagination || {};
         console.log("[DEBUG] Found orders array with length:", orders.length);
+        console.log("[DEBUG] Pagination data:", pagination);
         return {
           success: true,
           data: {
             orders,
-            total: response.data.total || orders.length,
-            offset: response.data.offset || offset,
-            limit: response.data.limit || limit,
+            total: pagination.total || response.data.total || orders.length,
+            offset: pagination.offset || response.data.offset || offset,
+            limit: pagination.limit || response.data.limit || limit,
           },
           error: null,
         };
@@ -521,11 +523,23 @@ export const adminApi = {
       console.log("📸 Image Type:", imageType);
       console.log("📁 File:", imageFile.name);
 
+      // Backend hanya menerima imageType: siap_kirim, pengiriman, diterima, shipment_proof
+      // Lakukan mapping dari nilai di frontend ke nilai backend yang valid
+      const backendImageTypeMap: Record<string, string> = {
+        ready_for_pickup: "siap_kirim",
+        picked_up: "pengiriman",
+        delivered: "diterima",
+        shipment_proof: "shipment_proof",
+        packaged_product: "siap_kirim",
+      };
+
+      const mappedImageType = backendImageTypeMap[imageType] || imageType;
+
       const formData = new FormData();
       formData.append("image", imageFile);
-      formData.append("imageType", imageType);
+      formData.append("imageType", mappedImageType);
       const response: AxiosResponse<any> = await axios.post(
-        `${API_URL}/api/shipping/images/${orderId}/${imageType}`,
+        `${API_URL}/api/orders/${orderId}/shipping-images`,
         formData,
         {
           headers: {
@@ -580,7 +594,7 @@ export const adminApi = {
       console.log(`🔍 [adminApi.getShippingImages] Fetching images for order: ${orderId}`);
       
       const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/shipping/images/${orderId}`,
+        `${API_URL}/api/orders/${orderId}/shipping-images`,
         {
           headers: {
             Authorization: `Bearer ${getAdminToken()}`,
@@ -750,7 +764,7 @@ export const adminApi = {
   getDeliveryOrders: async (): Promise<OrdersResponse> => {
     try {
       const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/orders/delivery`,
+        `${API_URL}/api/orders/delivery?_t=${Date.now()}`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -778,6 +792,8 @@ export const adminApi = {
     try {
       const params: any = {};
       if (status) params.status = status;
+      // cache-busting to ensure fresh data in dashboards
+      params.t = Date.now();
       const response: AxiosResponse = await axios.get(
         `${API_URL}/api/delivery/overview`,
         {

@@ -72,6 +72,10 @@ const AdminOrdersPage: React.FC = () => {
     shipping: 0,
   });
   const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(20);
+  const [totalOrders, setTotalOrders] = useState<number>(0);
   const toast = useToast();
   const isMobile = useBreakpointValue({ base: true, md: false });
   const { logout } = useAuth();
@@ -159,14 +163,16 @@ const AdminOrdersPage: React.FC = () => {
     console.log('[DEBUG] 🚀 fetchOrders called - starting fetch process...');
     setLoading(true);
     try {
-      console.log('[DEBUG] 📡 Calling adminApi.getAdminOrders()...');
-      const response = await adminApi.getAdminOrders() as any;
+      const offset = (currentPage - 1) * itemsPerPage;
+      console.log('[DEBUG] 📡 Calling adminApi.getAdminOrders with offset:', offset, 'limit:', itemsPerPage);
+      const response = await adminApi.getAdminOrders(offset, itemsPerPage) as any;
       console.log('[DEBUG] 📦 Admin API response received:', response);
       console.log('[DEBUG] 🔍 Response structure check:');
       console.log('[DEBUG]   - response.success:', response.success);
       console.log('[DEBUG]   - response.error:', response.error);
       console.log('[DEBUG]   - response.data:', response.data);
       console.log('[DEBUG]   - response.data?.orders:', response.data?.orders);
+      console.log('[DEBUG]   - response.data?.total:', response.data?.total);
       
       if (response.error) {
         console.error('[DEBUG] ❌ API returned error:', response.error);
@@ -175,15 +181,17 @@ const AdminOrdersPage: React.FC = () => {
       
       if (response.success && (response.data?.orders || response.orders)) {
         const orders = response.data?.orders || response.orders || [];
-        console.log('[DEBUG] ✅ Successfully parsed orders:', orders.length, 'orders');
+        const total = response.data?.total || response.total || orders.length;
+        console.log('[DEBUG] ✅ Successfully parsed orders:', orders.length, 'orders, total:', total);
         console.log('[DEBUG] 📋 Orders data:', orders);
         
         console.log('[DEBUG] 🎯 Setting orders state with:', orders.length, 'orders');
         setOrders(orders);
+        setTotalOrders(total);
         
-        // Calculate stats
+        // Calculate stats from total, not just current page
         const stats = {
-          total: orders.length,
+          total: total,
           pending: orders.filter((o: any) => o.payment_status === 'pending').length,
           paid: orders.filter((o: any) => ['paid', 'settlement', 'capture'].includes(o.payment_status)).length,
           shipping: orders.filter((o: any) => o.shipping_status && !['received'].includes(o.shipping_status)).length,
@@ -198,6 +206,7 @@ const AdminOrdersPage: React.FC = () => {
         console.error('[DEBUG] Expected adminApi format: { success: true, data: { orders: [...] } }');
         console.log('[DEBUG] 🚫 Setting empty orders array');
         setOrders([]);
+        setTotalOrders(0);
       }
     } catch (error: unknown) {
       console.error('[DEBUG] ❌ Error in fetchOrders:', error);
@@ -212,11 +221,12 @@ const AdminOrdersPage: React.FC = () => {
       });
       console.log('[DEBUG] 🚫 Setting empty orders array due to error');
       setOrders([]);
+      setTotalOrders(0);
     } finally {
       console.log('[DEBUG] 🏁 fetchOrders finally block - setting loading to false');
       setLoading(false);
     }
-  }, [toast]); // Only depend on toast which is stable from useToast
+  }, [toast, currentPage, itemsPerPage]); // Add pagination dependencies
 
   useEffect(() => {
     console.log('[DEBUG] 🚀 useEffect called - starting fetch process...');
@@ -300,9 +310,121 @@ const AdminOrdersPage: React.FC = () => {
   console.log('[RENDER-DEBUG]   - filteredOrders.length:', filteredOrders.length);
   console.log('[RENDER-DEBUG]   - searchTerm:', searchTerm);
   console.log('[RENDER-DEBUG]   - statusFilter:', statusFilter);
+
+  const handlePrint = (): void => {
+    try {
+      const printWindow = window.open('', '_blank', 'width=1024,height=768');
+      if (!printWindow) {
+        console.warn('[AdminOrdersPage] Failed to open print window');
+        return;
+      }
+
+      const doc = printWindow.document;
+
+      const rowsHtml = filteredOrders.map((order: any, index: number) => {
+        const totalFormatted = typeof order.total_amount === 'number'
+          ? `Rp ${order.total_amount.toLocaleString('id-ID')}`
+          : (order.total_amount || '');
+
+        const paymentStatusText = (order.payment_status || '').toUpperCase();
+        const shippingStatusText = (order.shipping_status || '').toUpperCase();
+
+        return `
+          <tr>
+            <td>${index + 1}</td>
+            <td>#${order.id || ''}</td>
+            <td>${order.created_at ? formatDate(order.created_at) : ''}</td>
+            <td>${order.customer_name || ''}</td>
+            <td>${totalFormatted}</td>
+            <td>${order.lokasi_pengiriman || order.shipping_area || ''}</td>
+            <td>${getDeliveryMethodLabel(order)}</td>
+            <td>${order.created_by_admin_name || ''}</td>
+            <td>${paymentStatusText}</td>
+            <td>${shippingStatusText}</td>
+          </tr>
+        `;
+      }).join('');
+
+      doc.open();
+      doc.write(`
+        <html>
+          <head>
+            <meta charSet="utf-8" />
+            <title>Daftar Pesanan - Kurniasari</title>
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                font-size: 12px;
+                color: #111827;
+                padding: 16px;
+              }
+              h2 {
+                margin: 0 0 8px 0;
+                font-size: 18px;
+              }
+              table {
+                border-collapse: collapse;
+                width: 100%;
+              }
+              th, td {
+                border: 1px solid #D1D5DB;
+                padding: 4px 6px;
+                text-align: left;
+                vertical-align: top;
+              }
+              th {
+                background-color: #F3F4F6;
+                font-weight: 600;
+              }
+              @media print {
+                body {
+                  padding: 0;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <h2>Daftar Pesanan</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>ID Pesanan</th>
+                  <th>Tanggal</th>
+                  <th>Pelanggan</th>
+                  <th>Total</th>
+                  <th>Area / Lokasi Pengiriman</th>
+                  <th>Metode Pengiriman</th>
+                  <th>Dibuat Oleh</th>
+                  <th>Status Pembayaran</th>
+                  <th>Status Pesanan</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `);
+      doc.close();
+
+      printWindow.focus();
+      printWindow.print();
+    } catch (e) {
+      console.error('[AdminOrdersPage] Error generating print view:', e);
+    }
+  };
   
   return (
     <Container maxW="7xl" py={8}>
+      <style>{`
+        @media print {
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
       <Box>
         {/* Header */}
         <Flex
@@ -311,6 +433,7 @@ const AdminOrdersPage: React.FC = () => {
         align={{ base: 'flex-start', md: 'center' }}
         mb={6}
         gap={4}
+        className="no-print"
         >
         {/* Kiri: Heading */}
           <Heading size="lg">Kelola Pesanan</Heading>
@@ -354,7 +477,15 @@ const AdminOrdersPage: React.FC = () => {
             >
               Refresh
             </Button>
-            
+
+            <Button
+              onClick={handlePrint}
+              colorScheme="teal"
+              variant="outline"
+            >
+              Print
+            </Button>
+
             <Button 
               onClick={handleLogout}
               colorScheme="red"
@@ -368,7 +499,7 @@ const AdminOrdersPage: React.FC = () => {
 
         {/* Admin Activity/Session Stats */}
         {adminStats && (
-          <SimpleGrid columns={{ base: 2, md: 5 }} spacing={6} mb={6}>
+          <SimpleGrid columns={{ base: 2, md: 5 }} spacing={6} mb={6} className="no-print">
             <StatCard label="Aktivitas Hari Ini" value={adminStats.today?.total_activities ?? 0} colorScheme="teal" />
             <StatCard label="Login Hari Ini" value={adminStats.today?.logins ?? 0} colorScheme="cyan" />
             <StatCard label="Order Dibuat" value={adminStats.today?.orders_created ?? 0} colorScheme="green" />
@@ -378,7 +509,7 @@ const AdminOrdersPage: React.FC = () => {
         )}
 
         {/* Order Stats Cards */}
-        <SimpleGrid columns={{ base: 2, md: 4 }} spacing={6} mb={8}>
+        <SimpleGrid columns={{ base: 2, md: 4 }} spacing={6} mb={8} className="no-print">
           <StatCard label="Total Pesanan" value={stats.total} colorScheme="blue" />
           <StatCard label="Menunggu Bayar" value={stats.pending} colorScheme="yellow" />
           <StatCard label="Sudah Dibayar" value={stats.paid} colorScheme="green" />
@@ -386,7 +517,7 @@ const AdminOrdersPage: React.FC = () => {
         </SimpleGrid>
 
         {/* Filters */}
-        <HStack spacing={4} mb={6}>
+        <HStack spacing={4} mb={6} className="no-print">
           <Input
             placeholder="Cari pesanan..."
             value={searchTerm}
@@ -407,6 +538,54 @@ const AdminOrdersPage: React.FC = () => {
             <option value="received">Diterima</option>
           </Select>
         </HStack>
+
+        {/* Pagination Controls */}
+        <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={4} className="no-print">
+          <HStack spacing={2}>
+            <Text fontSize="sm" color="gray.600">
+              Tampilkan:
+            </Text>
+            <Select
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1); // Reset to first page
+              }}
+              size="sm"
+              maxW="100px"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+            </Select>
+            <Text fontSize="sm" color="gray.600">
+              data per halaman
+            </Text>
+          </HStack>
+
+          <HStack spacing={2}>
+            <Button
+              size="sm"
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              isDisabled={currentPage === 1}
+            >
+              Prev
+            </Button>
+            <Text fontSize="sm">
+              Halaman {currentPage} dari {Math.ceil(totalOrders / itemsPerPage) || 1}
+            </Text>
+            <Button
+              size="sm"
+              onClick={() => setCurrentPage(currentPage + 1)}
+              isDisabled={currentPage >= Math.ceil(totalOrders / itemsPerPage)}
+            >
+              Next
+            </Button>
+          </HStack>
+
+          <Text fontSize="sm" color="gray.600">
+            Total: {totalOrders} pesanan
+          </Text>
+        </Flex>
         
         {loading ? (
           <Flex justify="center" align="center" height="200px">
@@ -465,7 +644,17 @@ const AdminOrdersPage: React.FC = () => {
                       <Th minW="100px">Dibuat Oleh</Th>
                       <Th minW="140px">Status Pembayaran</Th>
                       <Th minW="120px">Status Pesanan</Th>
-                      <Th minW="80px" position="sticky" right="0" bg="white" borderLeft="1px solid" borderColor="gray.200">Aksi</Th>
+                      <Th
+                        minW="80px"
+                        position="sticky"
+                        right="0"
+                        bg="white"
+                        borderLeft="1px solid"
+                        borderColor="gray.200"
+                        className="no-print"
+                      >
+                        Aksi
+                      </Th>
                     </Tr>
                   </Thead>
                   <Tbody>
@@ -489,7 +678,14 @@ const AdminOrdersPage: React.FC = () => {
                           </Td>
                           <Td>{getPaymentStatusBadge(order.payment_status)}</Td>
                           <Td>{getShippingStatusBadge(order.shipping_status)}</Td>
-                          <Td position="sticky" right="0" bg="white" borderLeft="1px solid" borderColor="gray.200">
+                          <Td
+                            position="sticky"
+                            right="0"
+                            bg="white"
+                            borderLeft="1px solid"
+                            borderColor="gray.200"
+                            className="no-print"
+                          >
                             <Button
                               as={RouterLink}
                               to={`/admin/orders/${order.id}`}
