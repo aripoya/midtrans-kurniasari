@@ -596,15 +596,10 @@ export async function createOrder(request, env) {
       throw verifyErr;
     }
 
-    // Insert order_items with FK constraints temporarily disabled
-    // This is safe because we just created and verified the order exists
-    // D1's eventual consistency can cause FK constraint failures even when the order exists
+    // Insert order_items (FK constraints removed from schema for D1 compatibility)
     if (processedItems.length > 0) {
       try {
-        console.log(`[CREATE ORDER] Inserting ${processedItems.length} items with FK disabled...`);
-        
-        // Disable foreign key constraints for this connection
-        await env.DB.prepare('PRAGMA foreign_keys = OFF').run();
+        console.log(`[CREATE ORDER] Inserting ${processedItems.length} items...`);
         
         // Build batch insert statements
         const insertPromises = [];
@@ -624,18 +619,8 @@ export async function createOrder(request, env) {
         // Execute all inserts in parallel
         await Promise.all(insertPromises);
         
-        // Re-enable foreign key constraints
-        await env.DB.prepare('PRAGMA foreign_keys = ON').run();
-        
         console.log(`[CREATE ORDER] Successfully inserted ${processedItems.length} items`);
       } catch (itemErr) {
-        // Re-enable FK even on error
-        try {
-          await env.DB.prepare('PRAGMA foreign_keys = ON').run();
-        } catch (pragmaErr) {
-          console.error('[CREATE ORDER] Failed to re-enable FK:', pragmaErr);
-        }
-        
         const msg = itemErr?.message || String(itemErr);
         console.error('[CREATE ORDER] Failed to insert order items:', msg);
         throw new Error(`Failed to save order items: ${msg}`);
