@@ -618,6 +618,20 @@ export async function createOrder(request, env) {
           await stmt.run();
         } catch (itemErr) {
           const msg = itemErr?.message || String(itemErr);
+          
+          // Retry logic for Foreign Key constraint failures (common in distributed/async DBs)
+          if (/foreign key|constraint/i.test(msg)) {
+            console.warn(`[CREATE ORDER] FK failure for item, retrying after 500ms delay...`);
+            await new Promise(r => setTimeout(r, 500)); 
+            try {
+              await stmt.run();
+              continue; // Success on retry, move to next item
+            } catch (retryErr) {
+              console.error(`[CREATE ORDER] Retry failed for item:`, retryErr);
+              // Proceed to throw original error
+            }
+          }
+
           console.error('[CREATE ORDER] Inserting single order_item failed:', msg);
           // CRITICAL: Throw error to fail the request. We cannot allow orders without items.
           throw new Error(`Failed to save order item: ${msg}`);
