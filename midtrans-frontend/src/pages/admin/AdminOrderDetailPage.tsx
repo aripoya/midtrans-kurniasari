@@ -695,15 +695,30 @@ const AdminOrderDetailPage: React.FC = () => {
                         </Box>
                       ))
                     ) : (
-                      <Box p={3} borderWidth={1} borderRadius="md" bg="red.50">
-                        <Text fontWeight="semibold" color="red.600">Detail item tidak tersedia</Text>
-                        <Text fontSize="xs" color="gray.500">Mohon cek catatan pengiriman atau hubungi teknisi.</Text>
-                        <HStack justify="space-between" mt={2}>
-                          <Text fontSize="sm" color="gray.600">Qty: -</Text>
-                          <Text fontSize="sm" color="gray.600">
-                            Total: Rp {order.total_amount?.toLocaleString('id-ID')}
-                          </Text>
+                      <Box p={3} borderWidth={1} borderRadius="md" bg="orange.50">
+                        <HStack spacing={2} mb={2}>
+                          <Text fontSize="lg">⚠️</Text>
+                          <Text fontWeight="semibold" color="orange.700">Pesanan Legacy - Detail Item Tidak Tersedia</Text>
                         </HStack>
+                        <Text fontSize="sm" color="gray.700" mb={2}>
+                          Pesanan ini dibuat sebelum sistem upgrade. Detail item tidak tersimpan karena:
+                        </Text>
+                        <VStack align="start" spacing={1} pl={4} mb={3}>
+                          <Text fontSize="xs" color="gray.600">• Data item tidak ada di database</Text>
+                          <Text fontSize="xs" color="gray.600">• Response Midtrans tidak menyimpan detail item</Text>
+                          <Text fontSize="xs" color="gray.600">• Item tidak dapat di-recover secara otomatis</Text>
+                        </VStack>
+                        <Box p={2} bg="white" borderRadius="md" borderWidth={1} borderColor="orange.200">
+                          <HStack justify="space-between">
+                            <Text fontSize="sm" fontWeight="medium" color="gray.700">Total Pembayaran:</Text>
+                            <Text fontSize="md" fontWeight="bold" color="gray.800">
+                              Rp {order.total_amount?.toLocaleString('id-ID')}
+                            </Text>
+                          </HStack>
+                        </Box>
+                        <Text fontSize="xs" color="gray.500" mt={2} fontStyle="italic">
+                          💡 Pesanan baru (setelah {new Date('2025-11-25').toLocaleDateString('id-ID')}) sudah menyimpan detail item dengan lengkap.
+                        </Text>
                       </Box>
                     )}
                   </VStack>

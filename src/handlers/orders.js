@@ -759,6 +759,8 @@ export async function getOrderById(request, env) {
     // Step 2: Fetch order items
     failedQuery = 'fetching order items';
     const { results: rawItems } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(orderId).all();
+    
+    console.log(`[getOrderById] ${orderId} - Found ${rawItems?.length || 0} items in order_items table`);
 
     // Map database fields to frontend-expected field names
     let items = rawItems.map(item => ({
@@ -794,14 +796,18 @@ export async function getOrderById(request, env) {
 
     // Fallback 2: Extract items from Midtrans payment_response for old orders
     if ((!items || items.length === 0) && order.payment_response) {
+      console.log(`[getOrderById] ${orderId} - Attempting Midtrans extraction (items empty, payment_response exists)`);
       try {
         const paymentData = typeof order.payment_response === 'string' 
           ? JSON.parse(order.payment_response) 
           : order.payment_response;
         
+        console.log(`[getOrderById] ${orderId} - payment_response type: ${typeof order.payment_response}, parsed:`, !!paymentData);
+        console.log(`[getOrderById] ${orderId} - payment_response has item_details:`, !!paymentData.item_details);
+        
         // Midtrans stores items in item_details array
         if (paymentData.item_details && Array.isArray(paymentData.item_details)) {
-          console.log(`[getOrderById] Extracting ${paymentData.item_details.length} items from Midtrans payment_response for order ${orderId}`);
+          console.log(`[getOrderById] ✅ Extracting ${paymentData.item_details.length} items from Midtrans payment_response for order ${orderId}`);
           items = paymentData.item_details.map((item, idx) => {
             const unitPrice = Number(item.price || 0);
             const qty = Number(item.quantity || 1);
@@ -816,10 +822,16 @@ export async function getOrderById(request, env) {
               price: unitPrice,
             };
           });
+          console.log(`[getOrderById] ${orderId} - Items after extraction:`, items.length, items);
+        } else {
+          console.warn(`[getOrderById] ${orderId} - payment_response exists but no item_details array found`);
+          console.warn(`[getOrderById] ${orderId} - payment_response keys:`, Object.keys(paymentData || {}));
         }
       } catch (midtransErr) {
-        console.error(`[getOrderById] Failed to extract items from payment_response for order ${orderId}:`, midtransErr);
+        console.error(`[getOrderById] ❌ Failed to extract items from payment_response for order ${orderId}:`, midtransErr);
       }
+    } else {
+      console.log(`[getOrderById] ${orderId} - Skip Midtrans extraction (items: ${items?.length || 0}, payment_response: ${!!order.payment_response})`);
     }
 
     // Step 3: Fetch shipping images (with error handling)
@@ -874,6 +886,8 @@ export async function getOrderById(request, env) {
       delivery_time: order.delivery_time || null
       // shipping_area sudah termasuk dalam ...order
     };
+
+    console.log(`[getOrderById] ✅ ${orderId} - Final response: ${items?.length || 0} items, ${shipping_images?.length || 0} images`);
 
     return new Response(JSON.stringify({ success: true, data: finalOrder }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
 
