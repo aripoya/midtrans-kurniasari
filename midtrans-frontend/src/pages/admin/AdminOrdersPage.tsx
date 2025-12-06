@@ -613,7 +613,7 @@ const AdminOrdersPage: React.FC = () => {
                         {order.created_by_admin_name}
                       </Badge>
                     ) : '-'}</Text>
-                    <Text><strong>Metode Pengiriman:</strong> {getDeliveryMethodLabel(order)}</Text>
+                    <Text><strong>{order.tipe_pesanan === 'Pesan Ambil' ? 'Metode Pengambilan' : 'Metode Pengiriman'}:</strong> {getDeliveryMethodLabel(order)}</Text>
                     <Text><strong>Status Pembayaran:</strong> {getPaymentStatusBadge(order.payment_status)}</Text>
                     <Text><strong>Status Pesanan:</strong> {getShippingStatusBadge(order.shipping_status)}</Text>
                     <Button
@@ -640,7 +640,7 @@ const AdminOrdersPage: React.FC = () => {
                       <Th minW="120px">Pelanggan</Th>
                       <Th minW="90px">Total</Th>
                       <Th minW="100px">Area Pengiriman</Th>
-                      <Th minW="140px">Metode Pengiriman</Th>
+                      <Th minW="140px">Metode Pengiriman/Ambil</Th>
                       <Th minW="100px">Dibuat Oleh</Th>
                       <Th minW="140px">Status Pembayaran</Th>
                       <Th minW="120px">Status Pesanan</Th>
