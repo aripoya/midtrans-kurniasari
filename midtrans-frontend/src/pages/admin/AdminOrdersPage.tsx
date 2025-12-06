@@ -135,7 +135,9 @@ const AdminOrdersPage: React.FC = () => {
       "dikemas": { color: "blue", text: "Dikemas" },
       "siap kirim": { color: "purple", text: "Siap Kirim" },
       "dikirim": { color: "orange", text: "Dikirim" },
+      "dalam pengiriman": { color: "orange", text: "Dalam Pengiriman" },
       "sedang dikirim": { color: "orange", text: "Sedang Dikirim" },
+      "diterima": { color: "green", text: "Diterima" },
       "received": { color: "green", text: "Diterima" },
     };
 
@@ -261,19 +263,26 @@ const AdminOrdersPage: React.FC = () => {
       'menunggu pembayaran': 'pending',
       'sudah dibayar': 'paid',
       'dibayar': 'paid',
-      'sedang dikirim': 'dikirim',
-      'dikirim': 'dikirim',
+      'sedang dikirim': 'dalam pengiriman',
+      'dikirim': 'dalam pengiriman',
       'siap kirim': 'siap kirim',
-      'diterima': 'received',
+      'diterima': 'diterima',
+      'received': 'diterima',
     };
     const sf = sfMap[sfRaw] || sfRaw;
     const pay = (order.payment_status || '').toLowerCase().trim();
     const shipRaw = (order.shipping_status || '').toLowerCase().trim();
-    const ship = shipRaw === 'sedang dikirim' ? 'dikirim' : shipRaw; // synonym mapping
+    // Synonym mapping for different shipping status values
+    let ship = shipRaw;
+    if (shipRaw === 'sedang dikirim' || shipRaw === 'dikirim') {
+      ship = 'dalam pengiriman';
+    } else if (shipRaw === 'received') {
+      ship = 'diterima';
+    }
 
     // Define filter domains
     const paymentSet = new Set(['pending', 'paid', 'settlement', 'capture', 'cancel', 'expire', 'failure']);
-    const shippingSet = new Set(['dikemas', 'siap kirim', 'dikirim', 'received']);
+    const shippingSet = new Set(['dikemas', 'siap kirim', 'dalam pengiriman', 'diterima']);
 
     // Payment equivalence: settlement/capture ~ paid
     const paymentMatches = (
