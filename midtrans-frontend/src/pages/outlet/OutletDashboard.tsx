@@ -70,6 +70,8 @@ const OutletDashboard: React.FC = () => {
     inProgress: 0,
     completed: 0
   });
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(20);
   const toast = useToast();
   const cardBgColor = useColorModeValue('white', 'gray.700');
   
@@ -109,9 +111,13 @@ const OutletDashboard: React.FC = () => {
     try {
       setLoading(true);
       // Use relative path in development (proxy) and full URL in production
-    const apiUrl = import.meta.env.DEV 
+      const baseApiUrl = import.meta.env.DEV 
         ? '/api/orders/outlet-relational' 
         : `${import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev'}/api/orders/outlet-relational`;
+
+      // Request a larger perPage from backend so older orders are also returned,
+      // then use client-side pagination (10/20 per page) on the full list.
+      const apiUrl = `${baseApiUrl}?page=1&perPage=200`;
       
       const response = await fetch(apiUrl, {
         headers: {
@@ -231,6 +237,16 @@ const OutletDashboard: React.FC = () => {
         
         // Refresh orders to get updated data
         await fetchOrders();
+
+        // Jika ini adalah foto tahap akhir (diterima) dari modal Status Foto,
+        // otomatis ubah status pesanan menjadi 'diterima'
+        if (type === 'delivered') {
+          try {
+            await updateOrderStatus(selectedOrder.id, 'diterima' as ShippingStatus);
+          } catch (e) {
+            console.error('Error auto-updating order status to diterima after final photo upload:', e);
+          }
+        }
       } else {
         throw new Error(response.error || 'Upload gagal dari server');
       }
@@ -310,6 +326,15 @@ const OutletDashboard: React.FC = () => {
         
         // Refresh orders to get updated data
         await fetchOrders();
+
+        // Jika quick upload ini adalah foto tahap akhir, otomatis set status pengiriman menjadi 'diterima'
+        if (photoType === 'delivered') {
+          try {
+            await updateOrderStatus(orderId, 'diterima' as ShippingStatus);
+          } catch (e) {
+            console.error('Error auto-updating order status to diterima after quick final photo upload:', e);
+          }
+        }
       } else {
         throw new Error(response.error || 'Upload gagal dari server');
       }
@@ -402,6 +427,13 @@ const OutletDashboard: React.FC = () => {
   //   return <Badge colorScheme={config.color}>{config.text}</Badge>;
   // };
 
+  const totalOrders = orders.length;
+  const totalPages = Math.max(1, Math.ceil(totalOrders / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedOrders = orders.slice(startIndex, endIndex);
+
   if (loading) {
     return (
       <Flex justify="center" align="center" height="80vh">
@@ -482,10 +514,61 @@ const OutletDashboard: React.FC = () => {
         <Heading size="md">Daftar Pesanan Terbaru</Heading>
       </Flex>
 
+      {/* Pagination controls */}
+      {orders.length > 0 && (
+        <Flex p={4} pt={2} pb={2} justify="space-between" align="center" wrap="wrap" gap={4}>
+          <HStack spacing={2}>
+            <Text fontSize="sm" color="gray.600">
+              Tampilkan:
+            </Text>
+            <Select
+              size="sm"
+              maxW="100px"
+              value={itemsPerPage}
+              onChange={(e) => {
+                const value = Number(e.target.value) || 10;
+                setItemsPerPage(value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+            </Select>
+            <Text fontSize="sm" color="gray.600">
+              data per halaman
+            </Text>
+          </HStack>
+
+          <HStack spacing={2}>
+            <Button
+              size="sm"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              isDisabled={safeCurrentPage === 1}
+            >
+              Prev
+            </Button>
+            <Text fontSize="sm">
+              Halaman {safeCurrentPage} dari {totalPages}
+            </Text>
+            <Button
+              size="sm"
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              isDisabled={safeCurrentPage >= totalPages}
+            >
+              Next
+            </Button>
+          </HStack>
+
+          <Text fontSize="sm" color="gray.600">
+            Total: {totalOrders} pesanan
+          </Text>
+        </Flex>
+      )}
+
       {orders.length > 0 ? (
         isMobile ? (
           <Accordion allowToggle>
-            {orders.map((order) => (
+            {paginatedOrders.map((order) => (
               <AccordionItem key={order.id} >
                 <AccordionButton >
                   <Box flex="1" textAlign="left" fontWeight="semibold">
@@ -589,7 +672,7 @@ const OutletDashboard: React.FC = () => {
                 </Tr>
               </Thead>
               <Tbody>
-                {orders.map((order) => (
+                {paginatedOrders.map((order) => (
                   <Tr key={order.id}>
                     <Td fontWeight="medium">{order.id}</Td>
                     <Td>{order.customer_name}</Td>

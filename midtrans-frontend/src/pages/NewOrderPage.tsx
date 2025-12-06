@@ -215,6 +215,10 @@ const NewOrderPage: React.FC = () => {
     setIsLoading(true);
 
     try {
+      // Create a backup summary of items to store in shipping_notes
+      // This ensures we have a record of items even if the relational insert fails
+      const itemBackupSummary = items.map(item => `${item.quantity}x ${item.name}`).join(', ');
+
       const orderData = {
         customer_name: formData.customer_name,
         phone: formData.phone,
@@ -226,7 +230,7 @@ const NewOrderPage: React.FC = () => {
         shipping_area: "dalam_kota" as 'dalam_kota' | 'luar_kota', // Default to dalam kota
         pickup_method: "deliveryman" as 'deliveryman' | 'pickup_sendiri' | 'ojek_online', // Default pickup method
         courier_service: null,
-        shipping_notes: null,
+        shipping_notes: `[Auto-Backup] ${itemBackupSummary}`,
         items: items.map(item => ({
           id: item.productId,
           name: item.name,
