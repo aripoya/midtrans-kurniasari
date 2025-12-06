@@ -572,7 +572,7 @@ const PublicOrderDetailPage = () => {
                     <Heading size="sm" mb={2}>Detail Pembayaran</Heading>
                     <Text><strong>Total:</strong> {formatCurrency(order.total_amount)}</Text>
                     <Text><strong>Status:</strong> <Badge colorScheme={isPaid ? 'green' : 'red'}>{isPaid ? 'LUNAS' : 'BELUM BAYAR'}</Badge></Text>
-                    <Text><strong>Metode Pengiriman:</strong> {
+                    <Text><strong>{order.tipe_pesanan === 'Pesan Ambil' ? 'Metode Pengambilan' : 'Metode Pengiriman'}:</strong> {
                       order.tipe_pesanan === 'Pesan Ambil'
                         ? (order.pickup_method === 'self-pickup' ? 'Di Ambil Sendiri' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-'))
                         : (order.shipping_area === 'luar-kota' ? 'Paket Expedisi (Paket)' : order.pickup_method === 'deliveryman' ? 'Kurir Toko' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || 'qris'))
