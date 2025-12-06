@@ -732,12 +732,13 @@ const PublicOrderDetailPage = () => {
                     <Heading size="sm" mb={2}>Status Foto Pesanan</Heading>
                     <VStack align="stretch" spacing={3}>
                       {photoSlotsToShow.map((type) => {
-                        // Label berbeda untuk luar kota dan dalam kota
+                        // Label berbeda untuk luar kota, dalam kota, dan pesan ambil
+                        const isPesanAmbil = order.tipe_pesanan === 'Pesan Ambil';
                         const labels = {
-                          ready_for_pickup: 'Foto Siap Kirim',
-                          picked_up: isLuarKota ? 'Foto Sudah di Ambil Kurir' : 'Foto Pengiriman',
+                          ready_for_pickup: isPesanAmbil ? 'Foto Siap Ambil' : 'Foto Siap Kirim',
+                          picked_up: isPesanAmbil ? 'Foto Pengambilan' : (isLuarKota ? 'Foto Sudah di Ambil Kurir' : 'Foto Pengiriman'),
                           delivered: 'Foto Diterima',
-                          packaged_product: 'Foto Siap Kirim'
+                          packaged_product: isPesanAmbil ? 'Foto Siap Ambil' : 'Foto Siap Kirim'
                         } as const;
 
                         // Alias mapping supaya public view konsisten dengan admin/outlet
