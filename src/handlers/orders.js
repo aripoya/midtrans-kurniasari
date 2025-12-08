@@ -1345,9 +1345,16 @@ export async function getAdminOrders(request, env) {
     if (search.trim()) {
       const searchTerm = `%${search.trim()}%`;
       ordersQuery += `
-        WHERE o.id LIKE ? OR o.customer_name LIKE ? OR o.customer_email LIKE ?
+        WHERE o.id LIKE ? 
+        OR o.customer_name LIKE ? 
+        OR o.customer_email LIKE ?
+        OR o.shipping_area LIKE ?
+        OR o.lokasi_pengiriman LIKE ?
+        OR o.lokasi_pengambilan LIKE ?
+        OR o.pickup_method LIKE ?
+        OR o.created_by_admin_name LIKE ?
       `;
-      bindings.push(searchTerm, searchTerm, searchTerm);
+      bindings.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
     
     ordersQuery += `
@@ -1431,8 +1438,15 @@ export async function getAdminOrders(request, env) {
     
     if (search.trim()) {
       const searchTerm = `%${search.trim()}%`;
-      countQuery += ' WHERE id LIKE ? OR customer_name LIKE ? OR customer_email LIKE ?';
-      countBindings.push(searchTerm, searchTerm, searchTerm);
+      countQuery += ` WHERE id LIKE ? 
+        OR customer_name LIKE ? 
+        OR customer_email LIKE ?
+        OR shipping_area LIKE ?
+        OR lokasi_pengiriman LIKE ?
+        OR lokasi_pengambilan LIKE ?
+        OR pickup_method LIKE ?
+        OR created_by_admin_name LIKE ?`;
+      countBindings.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
     
     const countResult = await env.DB.prepare(countQuery).bind(...countBindings).first();
