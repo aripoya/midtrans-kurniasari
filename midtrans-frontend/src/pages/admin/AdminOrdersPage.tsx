@@ -166,8 +166,11 @@ const AdminOrdersPage: React.FC = () => {
     setLoading(true);
     try {
       const offset = (currentPage - 1) * itemsPerPage;
-      console.log('[DEBUG] 📡 Calling adminApi.getAdminOrders with offset:', offset, 'limit:', itemsPerPage);
-      const response = await adminApi.getAdminOrders(offset, itemsPerPage) as any;
+      console.log('[DEBUG] ⚙️ Calculating pagination:', { currentPage, itemsPerPage, offset });
+      console.log('[DEBUG] 🔍 Search term:', searchTerm);
+      
+      console.log('[DEBUG] 📡 Calling adminApi.getAdminOrders with offset:', offset, 'limit:', itemsPerPage, 'search:', searchTerm);
+      const response = await adminApi.getAdminOrders(offset, itemsPerPage, searchTerm);
       console.log('[DEBUG] 📦 Admin API response received:', response);
       console.log('[DEBUG] 🔍 Response structure check:');
       console.log('[DEBUG]   - response.success:', response.success);
@@ -228,7 +231,22 @@ const AdminOrdersPage: React.FC = () => {
       console.log('[DEBUG] 🏁 fetchOrders finally block - setting loading to false');
       setLoading(false);
     }
-  }, [toast, currentPage, itemsPerPage]); // Add pagination dependencies
+  }, [toast, currentPage, itemsPerPage, searchTerm]); // Add pagination and search dependencies
+
+  // Debounce search to avoid too many API calls
+  useEffect(() => {
+    console.log('[DEBUG] 🔍 Search term changed, setting up debounce timer...');
+    const debounceTimer = setTimeout(() => {
+      console.log('[DEBUG] ⏰ Debounce timer fired, resetting to page 1 and fetching...');
+      setCurrentPage(1); // Reset to first page when searching
+      fetchOrders();
+    }, 500); // Wait 500ms after user stops typing
+
+    return () => {
+      console.log('[DEBUG] 🧹 Cleaning up debounce timer');
+      clearTimeout(debounceTimer);
+    };
+  }, [searchTerm]); // Only trigger on searchTerm change
 
   useEffect(() => {
     console.log('[DEBUG] 🚀 useEffect called - starting fetch process...');

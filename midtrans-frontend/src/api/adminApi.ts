@@ -409,20 +409,28 @@ export const adminApi = {
   // Mendapatkan daftar lengkap pesanan untuk admin
   getAdminOrders: async (
     offset: number = 0,
-    limit: number = 50
+    limit: number = 50,
+    search: string = ''
   ): Promise<OrdersResponse> => {
     try {
       console.log("[DEBUG] Fetching admin orders...");
       console.log("[DEBUG] Using endpoint:", `${API_URL}/api/orders/admin`);
       console.log("[DEBUG] Token:", getAdminToken() ? "Present" : "Missing");
+      console.log("[DEBUG] Search term:", search);
+
+      const params: any = {
+        offset,
+        limit,
+      };
+      
+      if (search.trim()) {
+        params.search = search.trim();
+      }
 
       const response: AxiosResponse = await axios.get(
         `${API_URL}/api/orders/admin`,
         {
-          params: {
-            offset,
-            limit,
-          },
+          params,
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${getAdminToken()}`,

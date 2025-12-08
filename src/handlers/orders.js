@@ -1325,22 +1325,39 @@ export async function getAdminOrders(request, env) {
     const url = new URL(request.url);
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
     const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+    const search = url.searchParams.get('search') || '';
 
     if (!env.DB) {
       throw new Error('Database binding not found');
     }
 
-    const ordersQuery = `
+    // Build query with optional search
+    let ordersQuery = `
       SELECT
         o.*,
         o.lokasi_pengiriman AS lokasi_pengiriman_nama,
         o.lokasi_pengambilan AS lokasi_pengambilan_nama
       FROM orders o
+    `;
+    
+    const bindings = [];
+    
+    if (search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      ordersQuery += `
+        WHERE o.id LIKE ? OR o.customer_name LIKE ? OR o.customer_email LIKE ?
+      `;
+      bindings.push(searchTerm, searchTerm, searchTerm);
+    }
+    
+    ordersQuery += `
       ORDER BY o.created_at DESC
       LIMIT ? OFFSET ?
     `;
+    
+    bindings.push(limit, offset);
 
-    const orders = await env.DB.prepare(ordersQuery).bind(limit, offset).all();
+    const orders = await env.DB.prepare(ordersQuery).bind(...bindings).all();
 
     if (!orders || !orders.results) {
       return new Response(JSON.stringify({ success: false, error: 'Failed to fetch orders' }), {
@@ -1408,7 +1425,17 @@ export async function getAdminOrders(request, env) {
       }
     }));
 
-    const countResult = await env.DB.prepare('SELECT COUNT(*) as total FROM orders').first();
+    // Count total with same search filter
+    let countQuery = 'SELECT COUNT(*) as total FROM orders';
+    const countBindings = [];
+    
+    if (search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      countQuery += ' WHERE id LIKE ? OR customer_name LIKE ? OR customer_email LIKE ?';
+      countBindings.push(searchTerm, searchTerm, searchTerm);
+    }
+    
+    const countResult = await env.DB.prepare(countQuery).bind(...countBindings).first();
     const total = countResult ? countResult.total : 0;
 
     return new Response(JSON.stringify({
