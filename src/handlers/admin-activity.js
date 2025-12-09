@@ -29,7 +29,7 @@ export async function getAdminActivity(request, env) {
       total: activities.length
     }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
 
   } catch (error) {
@@ -40,7 +40,7 @@ export async function getAdminActivity(request, env) {
       error: error.message
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
   }
 }
@@ -62,7 +62,7 @@ export async function getActiveSessions(request, env) {
       total: sessions.length
     }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
 
   } catch (error) {
@@ -73,7 +73,7 @@ export async function getActiveSessions(request, env) {
       error: error.message
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
   }
 }
@@ -90,7 +90,7 @@ export async function logoutUser(request, env) {
         message: 'Session ID or Admin ID is required'
       }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
       });
     }
 
@@ -126,7 +126,7 @@ export async function logoutUser(request, env) {
       message: 'Logged out successfully'
     }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
 
   } catch (error) {
@@ -137,7 +137,7 @@ export async function logoutUser(request, env) {
       error: error.message
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
   }
 }
@@ -180,7 +180,7 @@ export async function getAdminStats(request, env) {
       data: stats
     }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
 
   } catch (error) {
@@ -191,7 +191,7 @@ export async function getAdminStats(request, env) {
       error: error.message
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
   }
 }
