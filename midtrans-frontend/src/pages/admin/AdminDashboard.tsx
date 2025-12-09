@@ -85,7 +85,7 @@ const AdminDashboard: React.FC = () => {
           `${import.meta.env.VITE_API_URL || 'https://order-management-app-production.wahwooh.workers.dev'}/api/orders/deleted/list?limit=1`,
           {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
             },
           }
         );
