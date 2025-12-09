@@ -157,7 +157,7 @@ export async function getAdminStats(request, env) {
     // Get active sessions
     const activeSessions = await activityLogger.getActiveSessions();
 
-    // Get today's logins - use string comparison for date to avoid timezone issues
+    // Get today's logins - use SUBSTR to extract date portion
     // Format: YYYY-MM-DD
     const nowDate = new Date();
     const wibOffset = 7 * 60; // WIB is UTC+7
@@ -166,18 +166,25 @@ export async function getAdminStats(request, env) {
     
     console.log('📅 Today in WIB:', todayWIB);
     
-    const todayLoginsResult = await env.DB.prepare(`
-      SELECT COUNT(DISTINCT admin_id) as count
-      FROM admin_sessions
-      WHERE DATE(login_at) >= ?
-    `).bind(todayWIB).first();
-    
-    const todayLogins = todayLoginsResult?.count || 0;
-    
-    console.log('📊 Login Stats:', {
-      today_wib: todayWIB,
-      logins_count: todayLogins
-    });
+    try {
+      const todayLoginsResult = await env.DB.prepare(`
+        SELECT COUNT(DISTINCT admin_id) as count
+        FROM admin_sessions
+        WHERE SUBSTR(login_at, 1, 10) = ?
+      `).bind(todayWIB).first();
+      
+      const todayLogins = todayLoginsResult?.count || 0;
+      
+      console.log('📊 Login Stats:', {
+        today_wib: todayWIB,
+        logins_count: todayLogins
+      });
+      
+      var finalTodayLogins = todayLogins;
+    } catch (error) {
+      console.error('❌ Error counting logins:', error);
+      var finalTodayLogins = 0;
+    }
     
     // Get total activities today from activity logs
     const todayActivitiesCountResult = await env.DB.prepare(`
@@ -197,7 +204,7 @@ export async function getAdminStats(request, env) {
     const stats = {
       today: {
         total_activities: todayActivitiesCount,
-        logins: todayLogins,
+        logins: finalTodayLogins,
         orders_created: todayActivities.filter(a => a.activity_type === 'order_created').length,
         orders_updated: todayActivities.filter(a => a.activity_type === 'order_updated').length
       },
