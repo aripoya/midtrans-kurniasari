@@ -80,7 +80,7 @@ router.options('*', (request) => {
     const headers = corsHeaders(request);
     console.log('CORS headers for OPTIONS:', headers);
     return new Response(null, {
-        status: 200,
+        status: 204, // 204 No Content is standard for OPTIONS
         headers: headers
     });
 });
