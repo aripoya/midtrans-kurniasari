@@ -1033,7 +1033,7 @@ export async function getOrderQrisUrl(request, env) {
   }
 }
 
-// Function to delete an order by ID
+// Function to soft delete an order by ID
 export async function deleteOrder(request, env) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -1060,9 +1060,23 @@ export async function deleteOrder(request, env) {
       throw new Error('Database binding not found');
     }
 
-    // Check if order exists before attempting to delete
+    // Get admin info from token
+    const authHeader = request.headers.get('Authorization');
+    let deletedBy = 'Unknown Admin';
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      try {
+        const decoded = jwt.verify(token, env.JWT_SECRET);
+        deletedBy = decoded.name || decoded.email || 'Unknown Admin';
+      } catch (e) {
+        console.log('Could not decode admin info from token');
+      }
+    }
+
+    // Check if order exists and is not already deleted
     const existingOrder = await env.DB.prepare(
-      `SELECT id FROM orders WHERE id = ?`
+      `SELECT id, customer_name, deleted_at FROM orders WHERE id = ?`
     ).bind(orderId).first();
 
     if (!existingOrder) {
@@ -1070,92 +1084,26 @@ export async function deleteOrder(request, env) {
         { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
 
-    // Delete all related data first to maintain referential integrity
-    console.log(`[DELETE] Starting deletion process for order: ${orderId}`);
-    
-    try {
-      // Delete notifications
-      const notifResult = await env.DB.prepare(
-        `DELETE FROM notifications WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${notifResult.meta.changes} notifications`);
-    } catch (e) {
-      console.log(`[DELETE] Notifications table may not exist: ${e.message}`);
-    }
-    
-    try {
-      // First get images for R2 cleanup before deleting DB records
-      let imagesToDelete = [];
-      try {
-        const imageQuery = await env.DB.prepare(
-          `SELECT image_url, cloudflare_id FROM shipping_images WHERE order_id = ?`
-        ).bind(orderId).all();
-        imagesToDelete = imageQuery.results || [];
-      } catch (selectError) {
-        console.log(`[DELETE] Could not select images for cleanup: ${selectError.message}`);
-      }
-      
-      // Delete shipping images from database
-      const imagesResult = await env.DB.prepare(
-        `DELETE FROM shipping_images WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${imagesResult.meta.changes} shipping images from database`);
-      
-      // Clean up R2 storage
-      if (imagesToDelete.length > 0 && env.SHIPPING_IMAGES) {
-        for (const image of imagesToDelete) {
-          try {
-            if (image.cloudflare_id) {
-              await env.SHIPPING_IMAGES.delete(image.cloudflare_id);
-              console.log(`[DELETE] Removed image ${image.cloudflare_id} from R2 storage`);
-            }
-          } catch (r2Error) {
-            console.log(`[DELETE] Failed to delete ${image.cloudflare_id} from R2: ${r2Error.message}`);
-          }
-        }
-      }
-    } catch (e) {
-      console.log(`[DELETE] Critical shipping images deletion error: ${e.message}`);
-      throw e; // This is critical for foreign key constraints
-    }
-    
-    try {
-      // Delete audit logs
-      const auditResult = await env.DB.prepare(
-        `DELETE FROM audit_logs WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${auditResult.meta.changes} audit logs`);
-    } catch (e) {
-      console.log(`[DELETE] Audit logs table may not exist: ${e.message}`);
-    }
-    
-    try {
-      // Delete order update logs
-      const updateLogsResult = await env.DB.prepare(
-        `DELETE FROM order_update_logs WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${updateLogsResult.meta.changes} update logs`);
-    } catch (e) {
-      console.log(`[DELETE] Order update logs table may not exist: ${e.message}`);
-    }
-    
-    try {
-      // Delete order items
-      const itemsResult = await env.DB.prepare(
-        `DELETE FROM order_items WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${itemsResult.meta.changes} order items`);
-    } catch (e) {
-      console.log(`[DELETE] Order items deletion error: ${e.message}`);
-      throw e; // This one is critical
+    if (existingOrder.deleted_at) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Order already deleted' 
+      }), { 
+        status: 400, 
+        headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+      });
     }
 
-    // Finally delete the order
-    const result = await env.DB.prepare(
-      `DELETE FROM orders WHERE id = ?`
-    ).bind(orderId).run();
+    // Soft delete: Mark the order as deleted instead of removing it
+    console.log(`[SOFT DELETE] Marking order as deleted: ${orderId}`);
     
-    console.log(`[DELETE] Successfully deleted order ${orderId}, main record changes: ${result.meta.changes}`);
+    const deletedAt = new Date().toISOString();
+    
+    const result = await env.DB.prepare(
+      `UPDATE orders SET deleted_at = ?, deleted_by = ? WHERE id = ?`
+    ).bind(deletedAt, deletedBy, orderId).run();
+    
+    console.log(`[SOFT DELETE] Successfully soft deleted order ${orderId} by ${deletedBy}`);
 
     return new Response(JSON.stringify({ 
       success: true, 
@@ -1171,6 +1119,214 @@ export async function deleteOrder(request, env) {
     return new Response(JSON.stringify({ 
       success: false, 
       error: 'Failed to delete order',
+      details: error.message 
+    }), { 
+      status: 500, 
+      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    });
+  }
+}
+
+// Function to restore a soft-deleted order
+export async function restoreOrder(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const orderId = url.pathname.split('/')[3]; // /api/orders/:id/restore
+
+    if (!orderId) {
+      return new Response(JSON.stringify({ success: false, error: 'Order ID is required' }), 
+        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+    }
+
+    if (!env.DB) {
+      throw new Error('Database binding not found');
+    }
+
+    // Check if order exists and is deleted
+    const existingOrder = await env.DB.prepare(
+      `SELECT id, customer_name, deleted_at, deleted_by FROM orders WHERE id = ?`
+    ).bind(orderId).first();
+
+    if (!existingOrder) {
+      return new Response(JSON.stringify({ success: false, error: 'Order not found' }), 
+        { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+    }
+
+    if (!existingOrder.deleted_at) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Order is not deleted' 
+      }), { 
+        status: 400, 
+        headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+      });
+    }
+
+    // Restore the order by clearing deleted_at and deleted_by
+    const result = await env.DB.prepare(
+      `UPDATE orders SET deleted_at = NULL, deleted_by = NULL WHERE id = ?`
+    ).bind(orderId).run();
+    
+    console.log(`[RESTORE] Successfully restored order ${orderId}`);
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: 'Order successfully restored',
+      orderId: orderId,
+      customerName: existingOrder.customer_name,
+      previouslyDeletedBy: existingOrder.deleted_by
+    }), { 
+      status: 200, 
+      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    });
+
+  } catch (error) {
+    console.error('Restore Order Error:', error.message, error.stack);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Failed to restore order',
+      details: error.message 
+    }), { 
+      status: 500, 
+      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    });
+  }
+}
+
+// Function to get deleted orders (recycle bin)
+export async function getDeletedOrders(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+    const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+
+    if (!env.DB) {
+      throw new Error('Database binding not found');
+    }
+
+    // Query only deleted orders
+    const ordersQuery = `
+      SELECT
+        o.*,
+        o.lokasi_pengiriman AS lokasi_pengiriman_nama,
+        o.lokasi_pengambilan AS lokasi_pengambilan_nama
+      FROM orders o
+      WHERE o.deleted_at IS NOT NULL
+      ORDER BY o.deleted_at DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    const orders = await env.DB.prepare(ordersQuery).bind(limit, offset).all();
+
+    if (!orders || !orders.results) {
+      return new Response(JSON.stringify({ success: false, error: 'Failed to fetch deleted orders' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    // Process orders similar to getAdminOrders but include deleted info
+    const processedOrders = await Promise.all(orders.results.map(async order => {
+      try {
+        const orderItems = await env.DB.prepare(
+          `SELECT product_name, product_price, quantity, subtotal FROM order_items WHERE order_id = ?`
+        ).bind(order.id).all();
+        
+        const rawItems = orderItems?.results || [];
+        const items = rawItems.map(it => ({
+          ...it,
+          price: it.product_price
+        }));
+        
+        let paymentDetails = null;
+        if (order.payment_response) {
+          try {
+            paymentDetails = JSON.parse(order.payment_response);
+          } catch (e) {
+            console.error(`Error parsing payment response for order ${order.id}:`, e);
+          }
+        }
+
+        const { 
+          lokasi_pengiriman_nama, 
+          lokasi_pengambilan_nama,
+          ...restOfOrder 
+        } = order;
+
+        const { pickup_outlet, ...restNoPickup } = restOfOrder;
+
+        const calculatedTotal = items.reduce((sum, item) => {
+          const unit = Number(item.price) || 0;
+          const qty = Number(item.quantity) || 0;
+          const sub = item.subtotal != null ? Number(item.subtotal) : (unit * qty);
+          return sum + sub;
+        }, 0);
+        
+        return {
+          ...restNoPickup,
+          lokasi_pengiriman: lokasi_pengiriman_nama,
+          lokasi_pengambilan: lokasi_pengambilan_nama,
+          items,
+          payment_details: paymentDetails,
+          payment_status: derivePaymentStatusFromData(order),
+          total_amount: calculatedTotal || Number(order.total_amount) || 0
+        };
+      } catch (itemError) {
+        console.error(`Error processing items for order ${order.id}:`, itemError);
+        return {
+          ...order,
+          items: [],
+          total_amount: Number(order.total_amount) || 0,
+          error: 'Failed to fetch items for this order'
+        };
+      }
+    }));
+
+    // Count total deleted orders
+    const countResult = await env.DB.prepare(
+      'SELECT COUNT(*) as total FROM orders WHERE deleted_at IS NOT NULL'
+    ).first();
+    const total = countResult ? countResult.total : 0;
+
+    return new Response(JSON.stringify({
+      success: true,
+      orders: processedOrders,
+      pagination: {
+        total,
+        offset,
+        limit,
+        has_more: offset + limit < total
+      }
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+
+  } catch (error) {
+    console.error('Get Deleted Orders Error:', error.message, error.stack);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Failed to fetch deleted orders',
       details: error.message 
     }), { 
       status: 500, 
@@ -1331,13 +1487,14 @@ export async function getAdminOrders(request, env) {
       throw new Error('Database binding not found');
     }
 
-    // Build query with optional search
+    // Build query with optional search and exclude deleted orders
     let ordersQuery = `
       SELECT
         o.*,
         o.lokasi_pengiriman AS lokasi_pengiriman_nama,
         o.lokasi_pengambilan AS lokasi_pengambilan_nama
       FROM orders o
+      WHERE o.deleted_at IS NULL
     `;
     
     const bindings = [];
@@ -1345,14 +1502,14 @@ export async function getAdminOrders(request, env) {
     if (search.trim()) {
       const searchTerm = `%${search.trim()}%`;
       ordersQuery += `
-        WHERE o.id LIKE ? 
+        AND (o.id LIKE ? 
         OR o.customer_name LIKE ? 
         OR o.customer_email LIKE ?
         OR o.shipping_area LIKE ?
         OR o.lokasi_pengiriman LIKE ?
         OR o.lokasi_pengambilan LIKE ?
         OR o.pickup_method LIKE ?
-        OR o.created_by_admin_name LIKE ?
+        OR o.created_by_admin_name LIKE ?)
       `;
       bindings.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
@@ -1432,20 +1589,20 @@ export async function getAdminOrders(request, env) {
       }
     }));
 
-    // Count total with same search filter
-    let countQuery = 'SELECT COUNT(*) as total FROM orders';
+    // Count total with same search filter and exclude deleted orders
+    let countQuery = 'SELECT COUNT(*) as total FROM orders WHERE deleted_at IS NULL';
     const countBindings = [];
     
     if (search.trim()) {
       const searchTerm = `%${search.trim()}%`;
-      countQuery += ` WHERE id LIKE ? 
+      countQuery += ` AND (id LIKE ? 
         OR customer_name LIKE ? 
         OR customer_email LIKE ?
         OR shipping_area LIKE ?
         OR lokasi_pengiriman LIKE ?
         OR lokasi_pengambilan LIKE ?
         OR pickup_method LIKE ?
-        OR created_by_admin_name LIKE ?`;
+        OR created_by_admin_name LIKE ?)`;
       countBindings.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
     }
     

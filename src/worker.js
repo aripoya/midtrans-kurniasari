@@ -1,7 +1,7 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
 import jwt from 'jsonwebtoken';
-import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDetails, refreshOrderStatus, getAdminOrders, deleteOrder, getOutletOrders, getDeliveryOrders, markOrderAsReceived, getDeliveryOverview, getOrderQrisUrl, proxyOrderQrisImage } from './handlers/orders.js';
+import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDetails, refreshOrderStatus, getAdminOrders, deleteOrder, restoreOrder, getDeletedOrders, getOutletOrders, getDeliveryOrders, markOrderAsReceived, getDeliveryOverview, getOrderQrisUrl, proxyOrderQrisImage } from './handlers/orders.js';
 import { debugOutletOrderFiltering, fixOutletOrderAssignment } from './handlers/debug-outlet.js';
 import { debugDeliverySync, fixDeliveryAssignment } from './handlers/debug-delivery.js';
 import { getAssignmentOptions } from './handlers/assignment-options.js';
@@ -19,6 +19,7 @@ import { createRelationalDBStructure, getRelationalDBStatus } from './handlers/m
 import { migrateSafeRelationalDB, getSafeMigrationStatus } from './handlers/migrate-safe-db.js';
 import { migrateShippingInfoFields, getOrdersTableSchema } from './handlers/migrate-shipping-info.js';
 import { migrateAdminActivity } from './handlers/migrate-admin-activity.js';
+import { migrateSoftDelete, getSoftDeleteMigrationStatus } from './handlers/migrate-soft-delete.js';
 import { getAdminActivity, getActiveSessions, logoutUser, getAdminStats } from './handlers/admin-activity.js';
 import { listMigrationBackups, getMigrationBackup, restoreMigrationBackup } from './handlers/migration-backups.js';
 import { resetAdminPassword } from '../reset-admin-password.js';
@@ -250,6 +251,14 @@ router.post('/api/orders/:id/mark-received', (request, env) => {
 router.delete('/api/orders/:id', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return deleteOrder(request, env);
+});
+router.post('/api/orders/:id/restore', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return restoreOrder(request, env);
+});
+router.get('/api/orders/deleted/list', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getDeletedOrders(request, env);
 });
 
 // Midtrans webhook endpoint (no auth - verified by signature)
@@ -629,6 +638,31 @@ router.get('/api/admin/orders-table-schema', verifyToken, (request, env) => {
         });
     }
     return getOrdersTableSchema(request, env);
+});
+
+// Soft Delete Migration endpoints
+router.post('/api/admin/migrate-soft-delete', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+    return migrateSoftDelete(request, env);
+});
+
+router.get('/api/admin/soft-delete-status', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+    return getSoftDeleteMigrationStatus(request, env);
 });
 
 // Admin Activity Migration endpoints
