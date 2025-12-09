@@ -157,13 +157,27 @@ export async function getAdminStats(request, env) {
     // Get active sessions
     const activeSessions = await activityLogger.getActiveSessions();
 
-    // Get today's logins from admin_sessions table (use localtime for WIB)
+    // Get today's logins - use string comparison for date to avoid timezone issues
+    // Format: YYYY-MM-DD
+    const nowDate = new Date();
+    const wibOffset = 7 * 60; // WIB is UTC+7
+    const wibTime = new Date(nowDate.getTime() + wibOffset * 60 * 1000);
+    const todayWIB = wibTime.toISOString().split('T')[0]; // e.g., '2025-12-10'
+    
+    console.log('📅 Today in WIB:', todayWIB);
+    
     const todayLoginsResult = await env.DB.prepare(`
-      SELECT COUNT(*) as count
+      SELECT COUNT(DISTINCT admin_id) as count
       FROM admin_sessions
-      WHERE DATE(login_at, 'localtime') = DATE('now', 'localtime')
-    `).first();
+      WHERE DATE(login_at) >= ?
+    `).bind(todayWIB).first();
+    
     const todayLogins = todayLoginsResult?.count || 0;
+    
+    console.log('📊 Login Stats:', {
+      today_wib: todayWIB,
+      logins_count: todayLogins
+    });
     
     // Get total activities today from activity logs
     const todayActivitiesCountResult = await env.DB.prepare(`
