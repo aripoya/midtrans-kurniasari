@@ -147,7 +147,7 @@ export async function getAdminStats(request, env) {
   try {
     const activityLogger = new AdminActivityLogger(env);
     
-    // Get today's activities
+    // Get today's activities (use localtime for WIB timezone)
     const today = new Date().toISOString().split('T')[0];
     const todayActivities = await activityLogger.getActivityHistory({
       dateFrom: today + 'T00:00:00Z',
@@ -157,13 +157,21 @@ export async function getAdminStats(request, env) {
     // Get active sessions
     const activeSessions = await activityLogger.getActiveSessions();
 
-    // Get today's logins from admin_sessions table
+    // Get today's logins from admin_sessions table (use localtime for WIB)
     const todayLoginsResult = await env.DB.prepare(`
       SELECT COUNT(*) as count
       FROM admin_sessions
-      WHERE DATE(login_at) = DATE('now')
+      WHERE DATE(login_at, 'localtime') = DATE('now', 'localtime')
     `).first();
     const todayLogins = todayLoginsResult?.count || 0;
+    
+    // Get total activities today from activity logs
+    const todayActivitiesCountResult = await env.DB.prepare(`
+      SELECT COUNT(*) as count
+      FROM admin_activity_logs
+      WHERE DATE(created_at, 'localtime') = DATE('now', 'localtime')
+    `).first();
+    const todayActivitiesCount = todayActivitiesCountResult?.count || 0;
 
     // Get recent order activities
     const recentOrderActivities = await activityLogger.getActivityHistory({
@@ -174,7 +182,7 @@ export async function getAdminStats(request, env) {
     // Calculate stats
     const stats = {
       today: {
-        total_activities: todayActivities.length,
+        total_activities: todayActivitiesCount,
         logins: todayLogins,
         orders_created: todayActivities.filter(a => a.activity_type === 'order_created').length,
         orders_updated: todayActivities.filter(a => a.activity_type === 'order_updated').length
