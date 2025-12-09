@@ -68,11 +68,16 @@ const AdminDashboard: React.FC = () => {
       // Fetch orders data
       const ordersResponse = await adminApi.getAdminOrders(0, 1000);
       
-      if (!ordersResponse.success || !ordersResponse.data) {
-        throw new Error('Failed to fetch orders');
+      console.log('[AdminDashboard] Orders response:', ordersResponse);
+      
+      if (!ordersResponse.success) {
+        throw new Error(ordersResponse.error || 'Failed to fetch orders');
       }
 
-      const orders = ordersResponse.data.orders || [];
+      // Handle different response structures
+      const orders: any[] = ordersResponse.data?.orders || (ordersResponse as any).orders || [];
+      
+      console.log('[AdminDashboard] Orders count:', orders.length);
       
       // Fetch deleted orders count
       let deletedCount = 0;
@@ -93,12 +98,12 @@ const AdminDashboard: React.FC = () => {
 
       // Calculate statistics
       const totalOrders = orders.length;
-      const totalRevenue = orders.reduce((sum, order) => sum + (Number(order.total_amount) || 0), 0);
-      const pendingOrders = orders.filter(order => 
+      const totalRevenue = orders.reduce((sum: number, order: any) => sum + (Number(order.total_amount) || 0), 0);
+      const pendingOrders = orders.filter((order: any) => 
         order.payment_status?.toLowerCase() === 'pending' || 
         order.payment_status?.toLowerCase() === 'menunggu pembayaran'
       ).length;
-      const completedOrders = orders.filter(order => 
+      const completedOrders = orders.filter((order: any) => 
         order.shipping_status?.toLowerCase() === 'diterima' || 
         order.shipping_status?.toLowerCase() === 'received'
       ).length;
@@ -106,7 +111,7 @@ const AdminDashboard: React.FC = () => {
       // Today's orders
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayOrders = orders.filter(order => {
+      const todayOrders = orders.filter((order: any) => {
         const orderDate = new Date(order.created_at);
         return orderDate >= today;
       }).length;
@@ -116,8 +121,8 @@ const AdminDashboard: React.FC = () => {
       thisMonth.setDate(1);
       thisMonth.setHours(0, 0, 0, 0);
       const monthRevenue = orders
-        .filter(order => new Date(order.created_at) >= thisMonth)
-        .reduce((sum, order) => sum + (Number(order.total_amount) || 0), 0);
+        .filter((order: any) => new Date(order.created_at) >= thisMonth)
+        .reduce((sum: number, order: any) => sum + (Number(order.total_amount) || 0), 0);
 
       // Calculate growth (mock data for now)
       const revenueGrowth = 12.5; // This could be calculated by comparing with last month
