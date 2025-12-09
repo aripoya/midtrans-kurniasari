@@ -157,6 +157,14 @@ export async function getAdminStats(request, env) {
     // Get active sessions
     const activeSessions = await activityLogger.getActiveSessions();
 
+    // Get today's logins from admin_sessions table
+    const todayLoginsResult = await env.DB.prepare(`
+      SELECT COUNT(*) as count
+      FROM admin_sessions
+      WHERE DATE(login_at) = DATE('now')
+    `).first();
+    const todayLogins = todayLoginsResult?.count || 0;
+
     // Get recent order activities
     const recentOrderActivities = await activityLogger.getActivityHistory({
       activityType: 'order_created',
@@ -167,7 +175,7 @@ export async function getAdminStats(request, env) {
     const stats = {
       today: {
         total_activities: todayActivities.length,
-        logins: todayActivities.filter(a => a.activity_type === 'login').length,
+        logins: todayLogins,
         orders_created: todayActivities.filter(a => a.activity_type === 'order_created').length,
         orders_updated: todayActivities.filter(a => a.activity_type === 'order_updated').length
       },
