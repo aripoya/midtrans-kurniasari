@@ -58,6 +58,8 @@ import { adminApi } from '../../api/adminApi';
 import { getShippingStatusOptions, getShippingStatusConfig } from '../../utils/orderStatusUtils';
 import { useRealTimeSync, useNotificationSync } from '../../hooks/useRealTimeSync';
 import { formatDateShort } from '../../utils/formatters';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const OutletDashboard: React.FC = () => {
   const isMobile = useBreakpointValue({ base: true, md: false });
@@ -75,6 +77,50 @@ const OutletDashboard: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState<number>(20);
   const toast = useToast();
   const cardBgColor = useColorModeValue('white', 'gray.700');
+
+  // Export PDF function
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(18);
+    doc.text('Laporan Pesanan Outlet', 14, 20);
+    
+    // Add date
+    doc.setFontSize(11);
+    doc.text(`Tanggal Export: ${formatDateShort(new Date())}`, 14, 28);
+    doc.text(`Outlet: ${user?.outlet_id || 'N/A'}`, 14, 34);
+    
+    // Prepare data for table
+    const tableData = orders.map((order) => [
+      order.id.substring(0, 8),
+      order.customer_name,
+      `Rp ${order.total_amount?.toLocaleString('id-ID') || '0'}`,
+      getPaymentStatusText(order.payment_status),
+      order.shipping_status || 'N/A',
+      formatDateShort(order.created_at)
+    ]);
+    
+    // Add table
+    autoTable(doc, {
+      head: [['ID Order', 'Pelanggan', 'Total', 'Pembayaran', 'Pengiriman', 'Tanggal']],
+      body: tableData,
+      startY: 40,
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [66, 153, 225], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+      margin: { top: 40 },
+    });
+    
+    // Add summary
+    const finalY = (doc as any).lastAutoTable.finalY || 40;
+    doc.setFontSize(10);
+    doc.text(`Total Pesanan: ${orders.length}`, 14, finalY + 10);
+    doc.text(`Total Pendapatan: Rp ${orders.reduce((sum, order) => sum + (order.total_amount || 0), 0).toLocaleString('id-ID')}`, 14, finalY + 16);
+    
+    // Save PDF
+    doc.save(`laporan-outlet-${formatDateShort(new Date()).replace(/\//g, '-')}.pdf`);
+  };
   
   // Status Foto state
   const { isOpen: isPhotoModalOpen, onOpen: onPhotoModalOpen, onClose: onPhotoModalClose } = useDisclosure();
@@ -518,7 +564,7 @@ const OutletDashboard: React.FC = () => {
       {/* Pagination controls */}
       {orders.length > 0 && (
         <Flex p={4} pt={2} pb={2} justify="space-between" align="center" wrap="wrap" gap={4}>
-          <HStack spacing={2}>
+          <HStack spacing={2} flex="1">
             <Text fontSize="sm" color="gray.600">
               Tampilkan:
             </Text>
@@ -538,6 +584,17 @@ const OutletDashboard: React.FC = () => {
             <Text fontSize="sm" color="gray.600">
               data per halaman
             </Text>
+          </HStack>
+
+          <HStack spacing={2}>
+            <Button
+              size="sm"
+              colorScheme="green"
+              leftIcon={<FaBox />}
+              onClick={exportToPDF}
+            >
+              Export PDF
+            </Button>
           </HStack>
 
           <HStack spacing={2}>
