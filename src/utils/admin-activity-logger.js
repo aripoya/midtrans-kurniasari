@@ -256,7 +256,7 @@ export class AdminActivityLogger {
   }
 
   /**
-   * Get active admin sessions (only sessions active in last 24 hours)
+   * Get active admin sessions (only sessions active in last 15 minutes)
    */
   async getActiveSessions() {
     try {
@@ -266,7 +266,7 @@ export class AdminActivityLogger {
           login_at, last_activity
         FROM admin_sessions 
         WHERE is_active = 1
-          AND datetime(last_activity) > datetime('now', '-24 hours')
+          AND datetime(last_activity) > datetime('now', '-15 minutes')
         ORDER BY last_activity DESC
       `).all();
       

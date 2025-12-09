@@ -201,7 +201,14 @@ export async function loginUser(request, env) {
         const activityLogger = new AdminActivityLogger(env);
         const { ipAddress, userAgent } = getClientInfo(request);
         
-        // Create session and log login activity
+        // End all previous active sessions for this user before creating new one
+        await env.DB.prepare(`
+          UPDATE admin_sessions 
+          SET is_active = 0, logout_at = CURRENT_TIMESTAMP
+          WHERE admin_id = ? AND is_active = 1
+        `).bind(user.id).run();
+        
+        // Create new session and log login activity
         const sessionId = await activityLogger.createSession(user, ipAddress, userAgent);
         await activityLogger.logLogin(user, ipAddress, userAgent, sessionId);
 
