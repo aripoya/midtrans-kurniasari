@@ -1,5 +1,6 @@
 // Authentication middleware
 import jwt from 'jsonwebtoken';
+import { AdminActivityLogger } from '../utils/admin-activity-logger.js';
 
 // Verify JWT token and extract user data
 export async function verifyToken(request, env) {
@@ -29,6 +30,17 @@ export async function verifyToken(request, env) {
         
         // Add user data to request
         request.user = decoded;
+
+        // Update session activity for active sessions
+        if (decoded.sessionId) {
+            try {
+                const activityLogger = new AdminActivityLogger(env);
+                await activityLogger.updateSessionActivity(decoded.sessionId);
+            } catch (error) {
+                console.error('Failed to update session activity:', error);
+                // Don't block request if session update fails
+            }
+        }
 
         // By not returning a Response, we allow the router to proceed to the next handler.
     } catch (error) {
