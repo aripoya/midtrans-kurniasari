@@ -255,7 +255,7 @@ export class AdminActivityLogger {
   }
 
   /**
-   * Get active admin sessions
+   * Get active admin sessions (only sessions active in last 24 hours)
    */
   async getActiveSessions() {
     try {
@@ -265,6 +265,7 @@ export class AdminActivityLogger {
           login_at, last_activity
         FROM admin_sessions 
         WHERE is_active = 1
+          AND datetime(last_activity) > datetime('now', '-24 hours')
         ORDER BY last_activity DESC
       `).all();
       
@@ -272,6 +273,26 @@ export class AdminActivityLogger {
     } catch (error) {
       console.error('❌ Failed to get active sessions:', error);
       return [];
+    }
+  }
+
+  /**
+   * Cleanup old inactive sessions (older than 24 hours)
+   */
+  async cleanupOldSessions() {
+    try {
+      const result = await this.env.DB.prepare(`
+        UPDATE admin_sessions
+        SET is_active = 0, logout_at = datetime('now')
+        WHERE is_active = 1
+          AND datetime(last_activity) < datetime('now', '-24 hours')
+      `).run();
+      
+      console.log(`🧹 Cleaned up ${result.changes || 0} old sessions`);
+      return result.changes || 0;
+    } catch (error) {
+      console.error('❌ Failed to cleanup old sessions:', error);
+      return 0;
     }
   }
 }

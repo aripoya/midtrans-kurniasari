@@ -49,6 +49,11 @@ export async function getAdminActivity(request, env) {
 export async function getActiveSessions(request, env) {
   try {
     const activityLogger = new AdminActivityLogger(env);
+    
+    // Cleanup old sessions first
+    await activityLogger.cleanupOldSessions();
+    
+    // Get currently active sessions
     const sessions = await activityLogger.getActiveSessions();
 
     return new Response(JSON.stringify({
