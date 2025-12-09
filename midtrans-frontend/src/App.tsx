@@ -19,6 +19,7 @@ import PublicOrderDetailPage from './pages/PublicOrderDetailPage';
 import ProductsPage from './pages/ProductsPage';
 import DebugPage from './pages/DebugPage';
 import LoginPage from './pages/LoginPage';
+import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
 import AdminOrderDetailPage from './pages/admin/AdminOrderDetailPage';
 import UserManagementPage from './pages/admin/UserManagementPage';
@@ -62,7 +63,7 @@ const App: React.FC = () => {
 
                 {/* Admin Routes */}
                 <Route path="/admin" element={<RoleProtectedRoute allowedRoles={['admin']}><AdminLayout /></RoleProtectedRoute>}>
-                  <Route index element={<Navigate to="orders" replace />} />
+                  <Route index element={<AdminDashboard />} />
                   <Route path="orders" element={<AdminOrdersPage />} />
                   <Route path="orders/new" element={<NewOrderPage />} />
                   <Route path="orders/:id" element={<AdminOrderDetailPage />} />
