@@ -208,7 +208,8 @@ export class AdminActivityLogger {
     try {
       let query = `
         SELECT 
-          id, admin_id, admin_name, admin_email, activity_type, description, 
+          id, admin_id, admin_name, admin_email, activity_type, 
+          activity_description as description, 
           order_id, ip_address, created_at
         FROM admin_activity_logs
       `;
