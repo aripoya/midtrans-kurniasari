@@ -8,7 +8,6 @@ import {
   StatLabel,
   StatNumber,
   StatHelpText,
-  StatArrow,
   Card,
   CardHeader,
   CardBody,
@@ -96,9 +95,22 @@ const AdminDashboard: React.FC = () => {
         console.log('Could not fetch deleted orders count');
       }
 
+      // Helper function to check if payment is completed
+      const isPaid = (paymentStatus: string) => {
+        const status = paymentStatus?.toLowerCase() || '';
+        return status === 'settlement' || 
+               status === 'paid' || 
+               status === 'capture' || 
+               status === 'success' ||
+               status === 'dibayar';
+      };
+
+      // Filter only paid orders for revenue calculation
+      const paidOrders = orders.filter((order: any) => isPaid(order.payment_status));
+
       // Calculate statistics
       const totalOrders = orders.length;
-      const totalRevenue = orders.reduce((sum: number, order: any) => sum + (Number(order.total_amount) || 0), 0);
+      const totalRevenue = paidOrders.reduce((sum: number, order: any) => sum + (Number(order.total_amount) || 0), 0);
       const pendingOrders = orders.filter((order: any) => 
         order.payment_status?.toLowerCase() === 'pending' || 
         order.payment_status?.toLowerCase() === 'menunggu pembayaran'
@@ -116,11 +128,11 @@ const AdminDashboard: React.FC = () => {
         return orderDate >= today;
       }).length;
 
-      // This month's revenue
+      // This month's revenue (only from paid orders)
       const thisMonth = new Date();
       thisMonth.setDate(1);
       thisMonth.setHours(0, 0, 0, 0);
-      const monthRevenue = orders
+      const monthRevenue = paidOrders
         .filter((order: any) => new Date(order.created_at) >= thisMonth)
         .reduce((sum: number, order: any) => sum + (Number(order.total_amount) || 0), 0);
 
@@ -281,8 +293,7 @@ const AdminDashboard: React.FC = () => {
               </HStack>
               <StatNumber fontSize="2xl">{formatCurrency(stats.totalRevenue)}</StatNumber>
               <StatHelpText>
-                <StatArrow type="increase" />
-                {stats.revenueGrowth}% bulan ini
+                <Badge colorScheme="green">Sudah dibayar</Badge>
               </StatHelpText>
             </Stat>
           </CardBody>
