@@ -15,7 +15,10 @@ export async function verifyToken(request, env) {
     try {
         // Get token from Authorization header
         const authHeader = request.headers.get('Authorization');
+        console.log('🔑 [verifyToken] Authorization header:', authHeader ? 'Present' : 'Missing');
+        
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.log('❌ [verifyToken] Invalid auth header format');
             return new Response(JSON.stringify({ success: false, message: 'Authentication token not provided' }), {
                 status: 401,
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -24,9 +27,12 @@ export async function verifyToken(request, env) {
 
         // Extract token
         const token = authHeader.split(' ')[1];
+        console.log('🔑 [verifyToken] Token extracted, length:', token.length);
         
         // Verify token
+        console.log('🔍 [verifyToken] Verifying token with JWT_SECRET...');
         const decoded = jwt.verify(token, env.JWT_SECRET);
+        console.log('✅ [verifyToken] Token verified successfully. User:', decoded.username);
         
         // Add user data to request
         request.user = decoded;
@@ -44,16 +50,21 @@ export async function verifyToken(request, env) {
 
         // By not returning a Response, we allow the router to proceed to the next handler.
     } catch (error) {
-        console.error('Error verifying token:', error);
+        console.error('❌ [verifyToken] Error verifying token:', error.name, error.message);
         
         if (error.name === 'TokenExpiredError') {
+            console.log('⏰ [verifyToken] Token has expired');
             return new Response(JSON.stringify({ success: false, message: 'Token expired' }), {
                 status: 401,
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
             });
         }
         
-        return new Response(JSON.stringify({ success: false, message: 'Invalid token' }), {
+        if (error.name === 'JsonWebTokenError') {
+            console.log('🔴 [verifyToken] JWT verification failed:', error.message);
+        }
+        
+        return new Response(JSON.stringify({ success: false, message: 'Invalid token', error: error.message }), {
                 status: 401,
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
             });

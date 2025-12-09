@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Token Tester</title>
+</head>
+<body>
+    <h1>JWT Token Tester</h1>
+    
+    <h2>1. Login Test</h2>
+    <input type="text" id="username" placeholder="Username" value="ana">
+    <input type="password" id="password" placeholder="Password" value="password123">
+    <button onclick="testLogin()">Login</button>
+    <pre id="loginResult"></pre>
+    
+    <h2>2. Test API Call with Token</h2>
+    <button onclick="testApi()">Test /api/admin/sessions</button>
+    <pre id="apiResult"></pre>
+    
+    <h2>3. Token Info</h2>
+    <button onclick="showToken()">Show Token Details</button>
+    <pre id="tokenInfo"></pre>
+    
+    <script>
+        const API_URL = 'https://order-management-app-production.wahwooh.workers.dev';
+        
+        async function testLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                document.getElementById('loginResult').textContent = JSON.stringify(data, null, 2);
+                
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                    console.log('✅ Token saved to localStorage');
+                }
+            } catch (error) {
+                document.getElementById('loginResult').textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function testApi() {
+            const token = localStorage.getItem('token');
+            
+            if (!token) {
+                document.getElementById('apiResult').textContent = '❌ No token found! Login first.';
+                return;
+            }
+            
+            try {
+                console.log('🔑 Token:', token.substring(0, 50) + '...');
+                console.log('📤 Calling API with Authorization header...');
+                
+                const response = await fetch(`${API_URL}/api/admin/sessions`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                console.log('📥 Response status:', response.status);
+                
+                const data = await response.json();
+                document.getElementById('apiResult').textContent = 
+                    `Status: ${response.status}\n\n` + JSON.stringify(data, null, 2);
+                    
+            } catch (error) {
+                document.getElementById('apiResult').textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        function showToken() {
+            const token = localStorage.getItem('token');
+            
+            if (!token) {
+                document.getElementById('tokenInfo').textContent = '❌ No token found!';
+                return;
+            }
+            
+            try {
+                const parts = token.split('.');
+                const header = JSON.parse(atob(parts[0]));
+                const payload = JSON.parse(atob(parts[1]));
+                
+                const info = {
+                    header: header,
+                    payload: payload,
+                    hasSessionId: !!payload.sessionId,
+                    expiresAt: new Date(payload.exp * 1000).toLocaleString(),
+                    isExpired: payload.exp < Date.now() / 1000
+                };
+                
+                document.getElementById('tokenInfo').textContent = JSON.stringify(info, null, 2);
+            } catch (error) {
+                document.getElementById('tokenInfo').textContent = 'Error decoding token: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
