@@ -38,7 +38,7 @@ import {
 } from '@chakra-ui/react';
 import { publicApi, PublicOrder } from '../api/publicApi';
 import { API_URL } from '../api/config';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDateShort } from '../utils/formatters';
 import { normalizeShippingStatus } from '../utils/orderStatusUtils';
 import ShippingImageDisplay from '../components/ShippingImageDisplay';
 
@@ -509,7 +509,7 @@ const PublicOrderDetailPage = () => {
                     {(order.delivery_date || order.delivery_time) && (
                       <Text><strong>Jadwal Pengantaran:</strong> {
                         (() => {
-                          const date = order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                          const date = order.delivery_date ? formatDateShort(order.delivery_date) : '';
                           const time = order.delivery_time || '';
                           return `${date}${date && time ? ', ' : ''}${time}`;
                         })()

@@ -57,6 +57,7 @@ import { FaBox, FaShippingFast, FaCheckCircle, FaExclamationTriangle } from 'rea
 import { adminApi } from '../../api/adminApi';
 import { getShippingStatusOptions, getShippingStatusConfig } from '../../utils/orderStatusUtils';
 import { useRealTimeSync, useNotificationSync } from '../../hooks/useRealTimeSync';
+import { formatDateShort } from '../../utils/formatters';
 
 const OutletDashboard: React.FC = () => {
   const isMobile = useBreakpointValue({ base: true, md: false });
@@ -591,7 +592,7 @@ const OutletDashboard: React.FC = () => {
                         {order.shipping_status}
                       </Badge>
                     </Box>
-                    <Box><strong>Tanggal:</strong> {new Date(order.created_at).toLocaleDateString()}</Box>
+                    <Box><strong>Tanggal:</strong> {formatDateShort(order.created_at)}</Box>
 
                     <HStack spacing={2} pt={2}>
                       <Button
@@ -687,7 +688,7 @@ const OutletDashboard: React.FC = () => {
                         {order.shipping_status}
                       </Badge>
                     </Td>
-                    <Td>{new Date(order.created_at).toLocaleDateString()}</Td>
+                    <Td>{formatDateShort(order.created_at)}</Td>
                     <Td>
                       <HStack spacing={2}>
                         <Button

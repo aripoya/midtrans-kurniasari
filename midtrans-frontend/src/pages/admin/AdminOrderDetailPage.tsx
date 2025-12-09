@@ -12,6 +12,7 @@ import {
 import QRCodeGenerator from '../../components/QRCodeGenerator';
 import { adminApi, Order, Outlet } from '../../api/adminApi';
 import ShippingImageDisplay from '../../components/ShippingImageDisplay';
+import { formatCurrency, formatDateShort } from '../../utils/formatters';
 
 type ShippingImages = {
   ready_for_pickup: string | null;
@@ -557,7 +558,7 @@ const AdminOrderDetailPage: React.FC = () => {
                       )}
                       <Tr>
                         <Td fontWeight="semibold">Tanggal Dibuat</Td>
-                        <Td>{new Date(order.created_at).toLocaleDateString('id-ID')}</Td>
+                        <Td>{formatDateShort(order.created_at)}</Td>
                       </Tr>
                       <Tr>
                         <Td fontWeight="semibold">Metode Pembayaran</Td>
@@ -590,7 +591,7 @@ const AdminOrderDetailPage: React.FC = () => {
                         <Tr>
                           <Td fontWeight="semibold">Jadwal Pengambilan</Td>
                           <Td>
-                            {(order.pickup_date ? new Date(order.pickup_date).toLocaleDateString('id-ID') : '-')}
+                            {(order.pickup_date ? formatDateShort(order.pickup_date) : '-')}
                             {order.pickup_time ? `, ${order.pickup_time}` : ''}
                           </Td>
                         </Tr>
@@ -599,7 +600,7 @@ const AdminOrderDetailPage: React.FC = () => {
                         <Tr>
                           <Td fontWeight="semibold">Jadwal Pengantaran</Td>
                           <Td>
-                            {(order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('id-ID') : '-')}
+                            {(order.delivery_date ? formatDateShort(order.delivery_date) : '-')}
                             {order.delivery_time ? `, ${order.delivery_time}` : ''}
                           </Td>
                         </Tr>
@@ -622,7 +623,7 @@ const AdminOrderDetailPage: React.FC = () => {
                       </Tr>
                       <Tr>
                         <Td fontWeight="semibold">Terakhir Diupdate</Td>
-                        <Td>{new Date(order.updated_at || order.created_at).toLocaleDateString('id-ID')}</Td>
+                        <Td>{formatDateShort(order.updated_at || order.created_at)}</Td>
                       </Tr>
                     </Tbody>
                   </Table>

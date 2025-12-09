@@ -17,6 +17,7 @@ import html2canvas from 'html2canvas';
 import { adminApi } from '../api/adminApi';
 import ShippingImageDisplay from '../components/ShippingImageDisplay';
 import { downloadQrisPng } from '../utils/qrisDownload';
+import { formatDateShort } from '../utils/formatters';
 
 // Local TypeScript interfaces for this component
 interface OrderItem {
@@ -928,7 +929,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           {order.admin_note && (
             <div className="kv"><span className="label">Catatan Admin</span><span className="value">{order.admin_note}</span></div>
           )}
-          <div className="kv"><span className="label">Tanggal Dibuat</span><span className="value">{new Date(order.created_at).toLocaleDateString('id-ID')}</span></div>
+          <div className="kv"><span className="label">Tanggal Dibuat</span><span className="value">{formatDateShort(order.created_at)}</span></div>
           {order.payment_method && (
             <div className="kv"><span className="label">Metode Pembayaran</span><span className="value">{order.payment_method}</span></div>
           )}
@@ -947,7 +948,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
             <div className="kv"><span className="label">Tipe Pesanan</span><span className="value">{order.tipe_pesanan}</span></div>
           )}
           {order.updated_at && (
-            <div className="kv"><span className="label">Terakhir Diupdate</span><span className="value">{new Date(order.updated_at).toLocaleDateString('id-ID')}</span></div>
+            <div className="kv"><span className="label">Terakhir Diupdate</span><span className="value">{formatDateShort(order.updated_at)}</span></div>
           )}
         </div>
         <div className="separator">==============================</div>
@@ -1053,7 +1054,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                       {(order.delivery_date || order.delivery_time) && (
                         <Text><strong>Jadwal Pengantaran:</strong> {
                           (() => {
-                            const date = order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+                            const date = order.delivery_date ? formatDateShort(order.delivery_date) : '';
                             const time = order.delivery_time || '';
                             return `${date}${date && time ? ', ' : ''}${time}`;
                           })()
