@@ -190,102 +190,167 @@ const LuarKotaReportPage: React.FC = () => {
     setOffset(0);
   };
 
-  const handleExportPDF = () => {
-    const doc = new jsPDF();
-    
-    // Title
-    doc.setFontSize(18);
-    doc.text('Laporan Pesanan Luar Kota', 14, 20);
-    
-    // Subtitle with date
-    doc.setFontSize(10);
-    const today = new Date().toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    });
-    doc.text(`Tanggal Export: ${today}`, 14, 28);
-    
-    // Statistics Summary
-    if (stats) {
-      doc.setFontSize(12);
-      doc.text('Ringkasan Statistik', 14, 38);
-      doc.setFontSize(10);
-      doc.text(`Total Pesanan: ${stats.total.orders}`, 14, 45);
-      doc.text(`Total Pendapatan: ${stats.total.revenue_formatted}`, 14, 52);
-      
-      const settledOrders = stats.by_payment_status.find((s) => s.status === 'settlement');
-      if (settledOrders) {
-        doc.text(`Pesanan Lunas: ${settledOrders.count} (${settledOrders.revenue_formatted})`, 14, 59);
+  const handleExportPDF = async () => {
+    try {
+      // Show loading toast
+      const loadingToast = toast({
+        title: 'Mengunduh Data...',
+        description: 'Sedang mengambil semua data pesanan luar kota',
+        status: 'info',
+        duration: null,
+        isClosable: false,
+      });
+
+      // Fetch ALL orders with same filters but no pagination limit
+      const response = await adminApi.getLuarKotaOrders({
+        offset: 0,
+        limit: 10000, // Large limit to get all data
+        payment_status: paymentStatusFilter || undefined,
+        shipping_status: shippingStatusFilter || undefined,
+        courier_service: courierFilter || undefined,
+        search: searchQuery || undefined,
+      });
+
+      // Close loading toast
+      toast.close(loadingToast);
+
+      if (!response.success) {
+        toast({
+          title: 'Error',
+          description: response.error || 'Gagal mengambil data',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        return;
       }
-    }
-    
-    // Active Filters
-    const activeFilters: string[] = [];
-    if (searchQuery) activeFilters.push(`Pencarian: ${searchQuery}`);
-    if (paymentStatusFilter) activeFilters.push(`Status Pembayaran: ${paymentStatusFilter}`);
-    if (shippingStatusFilter) activeFilters.push(`Status Pengiriman: ${shippingStatusFilter}`);
-    if (courierFilter) activeFilters.push(`Kurir: ${courierFilter}`);
-    
-    if (activeFilters.length > 0) {
-      doc.text('Filter Aktif:', 14, 68);
-      activeFilters.forEach((filter, index) => {
-        doc.text(`- ${filter}`, 14, 75 + (index * 7));
+
+      const allOrders = (response as any).orders || [];
+
+      if (allOrders.length === 0) {
+        toast({
+          title: 'Tidak Ada Data',
+          description: 'Tidak ada pesanan untuk di-export',
+          status: 'warning',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      // Generate PDF
+      const doc = new jsPDF();
+      
+      // Title
+      doc.setFontSize(18);
+      doc.text('Laporan Pesanan Luar Kota', 14, 20);
+      
+      // Subtitle with date
+      doc.setFontSize(10);
+      const today = new Date().toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      });
+      doc.text(`Tanggal Export: ${today}`, 14, 28);
+      
+      // Statistics Summary
+      if (stats) {
+        doc.setFontSize(12);
+        doc.text('Ringkasan Statistik', 14, 38);
+        doc.setFontSize(10);
+        doc.text(`Total Pesanan: ${stats.total.orders}`, 14, 45);
+        doc.text(`Total Pendapatan: ${stats.total.revenue_formatted}`, 14, 52);
+        
+        const settledOrders = stats.by_payment_status.find((s) => s.status === 'settlement');
+        if (settledOrders) {
+          doc.text(`Pesanan Lunas: ${settledOrders.count} (${settledOrders.revenue_formatted})`, 14, 59);
+        }
+      }
+      
+      // Active Filters
+      const activeFilters: string[] = [];
+      if (searchQuery) activeFilters.push(`Pencarian: ${searchQuery}`);
+      if (paymentStatusFilter) activeFilters.push(`Status Pembayaran: ${paymentStatusFilter}`);
+      if (shippingStatusFilter) activeFilters.push(`Status Pengiriman: ${shippingStatusFilter}`);
+      if (courierFilter) activeFilters.push(`Kurir: ${courierFilter}`);
+      
+      if (activeFilters.length > 0) {
+        doc.text('Filter Aktif:', 14, 68);
+        activeFilters.forEach((filter, index) => {
+          doc.text(`- ${filter}`, 14, 75 + (index * 7));
+        });
+      }
+      
+      // Add note about total exported orders
+      const noteY = activeFilters.length > 0 ? 85 + (activeFilters.length * 7) : 68;
+      doc.setFontSize(10);
+      doc.setTextColor(0, 128, 0); // Green color
+      doc.text(`Mengekspor ${allOrders.length} pesanan dari total ${stats?.total.orders || allOrders.length} pesanan`, 14, noteY);
+      doc.setTextColor(0, 0, 0); // Reset to black
+      
+      // Table
+      const tableStartY = noteY + 10;
+      
+      autoTable(doc, {
+        startY: tableStartY,
+        head: [['ID', 'Pelanggan', 'Telepon', 'Kurir', 'Resi', 'Total', 'Pembayaran', 'Pengiriman', 'Tanggal']],
+        body: allOrders.map((order: Order) => [
+          order.id.split('-').pop() || order.id,
+          order.customer_name,
+          order.customer_phone,
+          order.courier_service || '-',
+          order.tracking_number || '-',
+          order.total_amount_formatted,
+          order.payment_status === 'settlement' ? 'Lunas' : 
+            order.payment_status === 'pending' ? 'Pending' : order.payment_status,
+          order.shipping_status,
+          formatDate(order.created_at),
+        ]),
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [66, 153, 225] },
+        margin: { top: 10 },
+      });
+      
+      // Footer
+      const pageCount = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text(
+          `Halaman ${i} dari ${pageCount}`,
+          doc.internal.pageSize.width / 2,
+          doc.internal.pageSize.height - 10,
+          { align: 'center' }
+        );
+        doc.text(
+          '© 2025 Kurniasari Order Management',
+          14,
+          doc.internal.pageSize.height - 10
+        );
+      }
+      
+      // Save PDF
+      const filename = `Laporan-Luar-Kota-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+      
+      toast({
+        title: 'Export Berhasil',
+        description: `${allOrders.length} pesanan berhasil di-export ke ${filename}`,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast({
+        title: 'Error',
+        description: 'Terjadi kesalahan saat mengekspor PDF',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
       });
     }
-    
-    // Table
-    const tableStartY = activeFilters.length > 0 ? 85 + (activeFilters.length * 7) : 75;
-    
-    autoTable(doc, {
-      startY: tableStartY,
-      head: [['ID', 'Pelanggan', 'Telepon', 'Kurir', 'Resi', 'Total', 'Pembayaran', 'Pengiriman', 'Tanggal']],
-      body: orders.map((order) => [
-        order.id.split('-').pop() || order.id,
-        order.customer_name,
-        order.customer_phone,
-        order.courier_service || '-',
-        order.tracking_number || '-',
-        order.total_amount_formatted,
-        order.payment_status === 'settlement' ? 'Lunas' : 
-          order.payment_status === 'pending' ? 'Pending' : order.payment_status,
-        order.shipping_status,
-        formatDate(order.created_at),
-      ]),
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [66, 153, 225] },
-      margin: { top: 10 },
-    });
-    
-    // Footer
-    const pageCount = (doc as any).internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.text(
-        `Halaman ${i} dari ${pageCount}`,
-        doc.internal.pageSize.width / 2,
-        doc.internal.pageSize.height - 10,
-        { align: 'center' }
-      );
-      doc.text(
-        '© 2025 Kurniasari Order Management',
-        14,
-        doc.internal.pageSize.height - 10
-      );
-    }
-    
-    // Save PDF
-    const filename = `Laporan-Luar-Kota-${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(filename);
-    
-    toast({
-      title: 'Export Berhasil',
-      description: `File ${filename} telah diunduh`,
-      status: 'success',
-      duration: 3000,
-      isClosable: true,
-    });
   };
 
   const formatDate = (dateString: string) => {
