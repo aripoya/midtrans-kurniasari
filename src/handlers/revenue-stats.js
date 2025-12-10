@@ -57,7 +57,6 @@ async function getMonthlyRevenue(env) {
       SUM(total_amount) as revenue
     FROM orders
     WHERE payment_status = 'settlement'
-      AND is_deleted = 0
       AND date(created_at) >= date('now', '-12 months')
     GROUP BY strftime('%Y-%m', created_at)
     ORDER BY month ASC
@@ -87,7 +86,6 @@ async function getWeeklyRevenue(env) {
       MAX(date(created_at)) as week_end
     FROM orders
     WHERE payment_status = 'settlement'
-      AND is_deleted = 0
       AND date(created_at) >= date('now', '-56 days')
     GROUP BY strftime('%Y-W%W', created_at)
     ORDER BY week ASC
