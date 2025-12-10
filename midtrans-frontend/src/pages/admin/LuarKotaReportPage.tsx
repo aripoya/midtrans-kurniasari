@@ -307,9 +307,19 @@ const LuarKotaReportPage: React.FC = () => {
           order.shipping_status,
           formatDate(order.created_at),
         ]),
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [66, 153, 225] },
-        margin: { top: 10 },
+        styles: { 
+          fontSize: 8,
+          cellPadding: 2,
+        },
+        headStyles: { 
+          fillColor: [66, 153, 225],
+          fontSize: 8,
+          fontStyle: 'bold',
+        },
+        margin: { top: 10, bottom: 20 },
+        rowPageBreak: 'avoid', // Prevent rows from being split across pages
+        tableLineWidth: 0.1,
+        tableLineColor: [200, 200, 200],
       });
       
       // Footer
