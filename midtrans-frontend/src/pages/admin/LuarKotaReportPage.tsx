@@ -379,11 +379,14 @@ const LuarKotaReportPage: React.FC = () => {
 
   const getShippingStatusBadge = (status: string) => {
     const statusMap: Record<string, { color: string; label: string }> = {
+      'pending': { color: 'gray', label: 'Pending' },
       'menunggu diproses': { color: 'gray', label: 'Menunggu' },
       'dikemas': { color: 'blue', label: 'Dikemas' },
       'siap diambil': { color: 'cyan', label: 'Siap Diambil' },
       'sudah diambil': { color: 'purple', label: 'Diambil' },
+      'dalam pengiriman': { color: 'orange', label: 'Dalam Pengiriman' },
       'dikirim': { color: 'orange', label: 'Dikirim' },
+      'diterima': { color: 'green', label: 'Diterima' },
       'terkirim': { color: 'green', label: 'Terkirim' },
     };
     const config = statusMap[status] || { color: 'gray', label: status };
@@ -486,10 +489,10 @@ const LuarKotaReportPage: React.FC = () => {
                       </HStack>
                     </StatLabel>
                     <StatNumber>
-                      {stats.by_shipping_status.find((s) => s.status === 'terkirim')
+                      {stats.by_shipping_status.find((s) => s.status === 'diterima')
                         ?.count || 0}
                     </StatNumber>
-                    <StatHelpText>Sudah sampai tujuan</StatHelpText>
+                    <StatHelpText>Sudah diterima pelanggan</StatHelpText>
                   </Stat>
                 </CardBody>
               </Card>
@@ -607,12 +610,13 @@ const LuarKotaReportPage: React.FC = () => {
                   value={shippingStatusFilter}
                   onChange={(e) => setShippingStatusFilter(e.target.value)}
                 >
+                  <option value="pending">Pending</option>
                   <option value="menunggu diproses">Menunggu</option>
                   <option value="dikemas">Dikemas</option>
                   <option value="siap diambil">Siap Diambil</option>
                   <option value="sudah diambil">Diambil</option>
-                  <option value="dikirim">Dikirim</option>
-                  <option value="terkirim">Terkirim</option>
+                  <option value="dalam pengiriman">Dalam Pengiriman</option>
+                  <option value="diterima">Diterima</option>
                 </Select>
 
                 <Button onClick={handleReset} variant="outline">
