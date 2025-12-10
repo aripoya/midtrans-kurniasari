@@ -1342,6 +1342,84 @@ export const adminApi = {
       });
   },
 
+  getDalamKotaStats(): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/dalam-kota-report?type=stats`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting dalam kota stats:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting dalam kota stats",
+        };
+      });
+  },
+
+  getDalamKotaOrders(options: {
+    offset?: number;
+    limit?: number;
+    payment_status?: string;
+    shipping_status?: string;
+    delivery_method?: string;
+    date_from?: string;
+    date_to?: string;
+    search?: string;
+  } = {}): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    // Build query parameters
+    const params = new URLSearchParams({ type: 'orders' });
+    if (options.offset !== undefined) params.append('offset', String(options.offset));
+    if (options.limit !== undefined) params.append('limit', String(options.limit));
+    if (options.payment_status) params.append('payment_status', options.payment_status);
+    if (options.shipping_status) params.append('shipping_status', options.shipping_status);
+    if (options.delivery_method) params.append('delivery_method', options.delivery_method);
+    if (options.date_from) params.append('date_from', options.date_from);
+    if (options.date_to) params.append('date_to', options.date_to);
+    if (options.search) params.append('search', options.search);
+
+    return axios
+      .get(`${API_URL}/api/admin/dalam-kota-report?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting dalam kota orders:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting dalam kota orders",
+        };
+      });
+  },
+
   logoutAdmin(sessionId?: string, adminId?: string): Promise<ApiResponse<any>> {
     const token = getAdminToken();
     if (!token) {

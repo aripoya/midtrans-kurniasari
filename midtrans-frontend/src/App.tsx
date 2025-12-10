@@ -25,6 +25,7 @@ import AdminOrderDetailPage from './pages/admin/AdminOrderDetailPage';
 import UserManagementPage from './pages/admin/UserManagementPage';
 import AdminActivityPage from './pages/admin/AdminActivityPage';
 import LuarKotaReportPage from './pages/admin/LuarKotaReportPage';
+import DalamKotaReportPage from './pages/admin/DalamKotaReportPage';
 import SafeMigrationPage from './pages/admin/SafeMigrationPage';
 import OutletDashboard from './pages/outlet/OutletDashboard';
 import OutletAdminView from './pages/outlet/OutletAdminView';
@@ -70,6 +71,7 @@ const App: React.FC = () => {
                   <Route path="orders/:id" element={<AdminOrderDetailPage />} />
                   <Route path="users" element={<UserManagementPage />} />
                   <Route path="activity" element={<AdminActivityPage />} />
+                  <Route path="dalam-kota-report" element={<DalamKotaReportPage />} />
                   <Route path="luar-kota-report" element={<LuarKotaReportPage />} />
                   <Route path="safe-migration" element={<SafeMigrationPage />} />
                 </Route>
