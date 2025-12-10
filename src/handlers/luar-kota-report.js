@@ -231,7 +231,7 @@ export async function getLuarKotaReport(request, env) {
         data: stats
       }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
       });
     } else if (type === 'orders') {
       // Return orders list
@@ -252,7 +252,7 @@ export async function getLuarKotaReport(request, env) {
         ...result
       }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
       });
     } else {
       return new Response(JSON.stringify({
@@ -260,7 +260,7 @@ export async function getLuarKotaReport(request, env) {
         error: 'Invalid type parameter. Use "stats" or "orders"'
       }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
       });
     }
   } catch (error) {
@@ -270,7 +270,7 @@ export async function getLuarKotaReport(request, env) {
       error: error.message || 'Failed to generate luar kota report'
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
   }
 }
