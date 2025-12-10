@@ -1234,6 +1234,36 @@ export const adminApi = {
       });
   },
 
+  getRevenueStats(period: 'monthly' | 'weekly' = 'monthly'): Promise<ApiResponse<any[]>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/revenue-stats?period=${period}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any[]>>) => {
+        return response.data;
+      })
+      .catch((error) => {
+        console.error("Error getting revenue stats:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting revenue stats",
+        };
+      });
+  },
+
   logoutAdmin(sessionId?: string, adminId?: string): Promise<ApiResponse<any>> {
     const token = getAdminToken();
     if (!token) {

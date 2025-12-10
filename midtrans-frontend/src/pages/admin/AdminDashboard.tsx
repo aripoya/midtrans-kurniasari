@@ -37,6 +37,7 @@ import {
   FiList,
 } from 'react-icons/fi';
 import { adminApi } from '../../api/adminApi';
+import RevenueChart from '../../components/RevenueChart';
 
 interface DashboardStats {
   totalOrders: number;
@@ -49,15 +50,49 @@ interface DashboardStats {
   revenueGrowth: number;
 }
 
+interface RevenueData {
+  period: string;
+  revenue: number;
+  orders: number;
+}
+
 const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [monthlyRevenue, setMonthlyRevenue] = useState<RevenueData[]>([]);
+  const [weeklyRevenue, setWeeklyRevenue] = useState<RevenueData[]>([]);
+  const [chartLoading, setChartLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
 
   useEffect(() => {
     fetchDashboardStats();
+    fetchRevenueChartData();
   }, []);
+
+  const fetchRevenueChartData = async () => {
+    try {
+      setChartLoading(true);
+      
+      // Fetch monthly and weekly revenue data
+      const [monthlyRes, weeklyRes] = await Promise.all([
+        adminApi.getRevenueStats('monthly'),
+        adminApi.getRevenueStats('weekly')
+      ]);
+      
+      if (monthlyRes.success && monthlyRes.data) {
+        setMonthlyRevenue(monthlyRes.data);
+      }
+      
+      if (weeklyRes.success && weeklyRes.data) {
+        setWeeklyRevenue(weeklyRes.data);
+      }
+    } catch (err) {
+      console.error('Error fetching revenue chart data:', err);
+    } finally {
+      setChartLoading(false);
+    }
+  };
 
   const fetchDashboardStats = async () => {
     try {
@@ -410,6 +445,61 @@ const AdminDashboard: React.FC = () => {
                 <Badge colorScheme="purple">Multi-Role</Badge>
               </HStack>
             </VStack>
+          </CardBody>
+        </Card>
+      </SimpleGrid>
+
+      {/* Revenue Charts Section */}
+      <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} mt={6}>
+        {/* Monthly Revenue Chart */}
+        <Card>
+          <CardHeader>
+            <Heading size="md">
+              <Icon as={FiTrendingUp} mr={2} />
+              Grafik Pendapatan Bulanan
+            </Heading>
+          </CardHeader>
+          <CardBody>
+            {chartLoading ? (
+              <Flex justify="center" align="center" h="300px">
+                <Spinner size="xl" color="green.500" />
+              </Flex>
+            ) : monthlyRevenue.length > 0 ? (
+              <RevenueChart 
+                data={monthlyRevenue}
+                title="12 Bulan Terakhir"
+              />
+            ) : (
+              <Flex justify="center" align="center" h="300px">
+                <Text color="gray.500">Tidak ada data pendapatan bulanan</Text>
+              </Flex>
+            )}
+          </CardBody>
+        </Card>
+
+        {/* Weekly Revenue Chart */}
+        <Card>
+          <CardHeader>
+            <Heading size="md">
+              <Icon as={FiActivity} mr={2} />
+              Grafik Pendapatan Mingguan
+            </Heading>
+          </CardHeader>
+          <CardBody>
+            {chartLoading ? (
+              <Flex justify="center" align="center" h="300px">
+                <Spinner size="xl" color="green.500" />
+              </Flex>
+            ) : weeklyRevenue.length > 0 ? (
+              <RevenueChart 
+                data={weeklyRevenue}
+                title="8 Minggu Terakhir"
+              />
+            ) : (
+              <Flex justify="center" align="center" h="300px">
+                <Text color="gray.500">Tidak ada data pendapatan mingguan</Text>
+              </Flex>
+            )}
           </CardBody>
         </Card>
       </SimpleGrid>

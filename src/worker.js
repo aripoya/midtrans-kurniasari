@@ -21,6 +21,7 @@ import { migrateShippingInfoFields, getOrdersTableSchema } from './handlers/migr
 import { migrateAdminActivity } from './handlers/migrate-admin-activity.js';
 import { migrateSoftDelete, getSoftDeleteMigrationStatus } from './handlers/migrate-soft-delete.js';
 import { getAdminActivity, getActiveSessions, logoutUser, getAdminStats } from './handlers/admin-activity.js';
+import { getRevenueStats } from './handlers/revenue-stats.js';
 import { listMigrationBackups, getMigrationBackup, restoreMigrationBackup } from './handlers/migration-backups.js';
 import { resetAdminPassword } from '../reset-admin-password.js';
 import { handleGetOutlets } from './handlers/outlets';
@@ -889,6 +890,11 @@ router.post('/api/admin/logout', verifyToken, (request, env) => {
 router.get('/api/admin/stats', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return getAdminStats(request, env);
+});
+
+router.get('/api/admin/revenue-stats', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getRevenueStats(request, env);
 });
 
 // Cloudflare Images endpoints for image uploads and management
