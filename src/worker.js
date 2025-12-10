@@ -870,8 +870,8 @@ router.get('/api/admin/outlets', verifyToken, async (request, env) => {
     }
 });
 
-// Fallback admin outlets endpoint if above doesn't exist
-router.get('/api/admin/outlets-fallback', verifyToken, async (request, env) => {
+// Admin Activity endpoints
+router.get('/api/admin/activity', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return getAdminActivity(request, env);
 });
