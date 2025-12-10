@@ -289,7 +289,18 @@ const AdminDashboard: React.FC = () => {
             <Stat>
               <HStack justify="space-between" mb={2}>
                 <StatLabel>Total Pendapatan</StatLabel>
-                <Icon as={FiDollarSign} boxSize={6} color="green.500" />
+                <Box 
+                  fontSize="2xl" 
+                  fontWeight="bold" 
+                  color="green.500"
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  w="8"
+                  h="8"
+                >
+                  Rp
+                </Box>
               </HStack>
               <StatNumber fontSize="2xl">{formatCurrency(stats.totalRevenue)}</StatNumber>
               <StatHelpText>
