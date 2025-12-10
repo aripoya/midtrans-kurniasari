@@ -29,7 +29,7 @@ async function getDalamKotaStats(env) {
         COUNT(*) as total_orders,
         SUM(total_amount) as total_revenue
       FROM orders
-      WHERE shipping_area = 'dalam-kota'
+      WHERE shipping_area IN ('dalam-kota', 'dalam_kota')
     `).first();
 
     // Orders by payment status
@@ -39,7 +39,7 @@ async function getDalamKotaStats(env) {
         COUNT(*) as count,
         SUM(total_amount) as revenue
       FROM orders
-      WHERE shipping_area = 'dalam-kota'
+      WHERE shipping_area IN ('dalam-kota', 'dalam_kota')
       GROUP BY payment_status
     `).all();
 
@@ -49,7 +49,7 @@ async function getDalamKotaStats(env) {
         shipping_status,
         COUNT(*) as count
       FROM orders
-      WHERE shipping_area = 'dalam-kota'
+      WHERE shipping_area IN ('dalam-kota', 'dalam_kota')
       GROUP BY shipping_status
     `).all();
 
@@ -60,7 +60,7 @@ async function getDalamKotaStats(env) {
         COUNT(*) as count,
         SUM(total_amount) as revenue
       FROM orders
-      WHERE shipping_area = 'dalam-kota'
+      WHERE shipping_area IN ('dalam-kota', 'dalam_kota')
         AND delivery_method IS NOT NULL
       GROUP BY delivery_method
     `).all();
@@ -72,7 +72,7 @@ async function getDalamKotaStats(env) {
         COUNT(*) as count,
         SUM(total_amount) as revenue
       FROM orders
-      WHERE shipping_area = 'dalam-kota'
+      WHERE shipping_area IN ('dalam-kota', 'dalam_kota')
         AND date(created_at) >= date('now', '-6 months')
       GROUP BY strftime('%Y-%m', created_at)
       ORDER BY month DESC
@@ -130,7 +130,7 @@ async function getDalamKotaOrders(env, options = {}) {
 
   try {
     // Build WHERE conditions
-    let conditions = ["shipping_area = 'dalam-kota'"];
+    let conditions = ["shipping_area IN ('dalam-kota', 'dalam_kota')"];
     let params = [];
 
     if (payment_status) {
