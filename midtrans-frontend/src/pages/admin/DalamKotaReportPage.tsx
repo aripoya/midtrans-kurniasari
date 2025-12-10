@@ -74,8 +74,8 @@ interface Order {
   total_amount_formatted: string;
   payment_status: string;
   shipping_status: string;
-  delivery_method: string;
-  courier_name: string;
+  pickup_method: string;
+  courier_service: string;
   created_at: string;
 }
 
@@ -92,7 +92,7 @@ const DalamKotaReportPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
   const [shippingStatusFilter, setShippingStatusFilter] = useState('');
-  const [deliveryMethodFilter, setDeliveryMethodFilter] = useState('');
+  const [pickupMethodFilter, setPickupMethodFilter] = useState('');
 
   // Pagination
   const [offset, setOffset] = useState(0);
@@ -108,7 +108,7 @@ const DalamKotaReportPage: React.FC = () => {
   // Fetch orders
   useEffect(() => {
     fetchOrders();
-  }, [offset, searchQuery, paymentStatusFilter, shippingStatusFilter, deliveryMethodFilter]);
+  }, [offset, searchQuery, paymentStatusFilter, shippingStatusFilter, pickupMethodFilter]);
 
   const fetchStats = async () => {
     try {
@@ -146,7 +146,7 @@ const DalamKotaReportPage: React.FC = () => {
         limit,
         payment_status: paymentStatusFilter || undefined,
         shipping_status: shippingStatusFilter || undefined,
-        delivery_method: deliveryMethodFilter || undefined,
+        pickup_method: pickupMethodFilter || undefined,
         search: searchQuery || undefined,
       });
 
@@ -186,7 +186,7 @@ const DalamKotaReportPage: React.FC = () => {
     setSearchQuery('');
     setPaymentStatusFilter('');
     setShippingStatusFilter('');
-    setDeliveryMethodFilter('');
+    setPickupMethodFilter('');
     setOffset(0);
   };
 
@@ -207,7 +207,7 @@ const DalamKotaReportPage: React.FC = () => {
         limit: 10000, // Large limit to get all data
         payment_status: paymentStatusFilter || undefined,
         shipping_status: shippingStatusFilter || undefined,
-        delivery_method: deliveryMethodFilter || undefined,
+        pickup_method: pickupMethodFilter || undefined,
         search: searchQuery || undefined,
       });
 
@@ -273,7 +273,7 @@ const DalamKotaReportPage: React.FC = () => {
       if (searchQuery) activeFilters.push(`Pencarian: ${searchQuery}`);
       if (paymentStatusFilter) activeFilters.push(`Status Pembayaran: ${paymentStatusFilter}`);
       if (shippingStatusFilter) activeFilters.push(`Status Pengiriman: ${shippingStatusFilter}`);
-      if (deliveryMethodFilter) activeFilters.push(`Metode Pengiriman: ${deliveryMethodFilter}`);
+      if (pickupMethodFilter) activeFilters.push(`Metode Pengiriman: ${pickupMethodFilter}`);
       
       if (activeFilters.length > 0) {
         doc.text('Filter Aktif:', 14, 68);
@@ -299,8 +299,8 @@ const DalamKotaReportPage: React.FC = () => {
           order.id.split('-').pop() || order.id,
           order.customer_name,
           order.customer_phone,
-          order.delivery_method || '-',
-          order.courier_name || '-',
+          order.pickup_method || '-',
+          order.courier_service || '-',
           order.total_amount_formatted,
           order.payment_status === 'settlement' ? 'Lunas' : 
             order.payment_status === 'pending' ? 'Pending' : order.payment_status,
@@ -630,12 +630,13 @@ const DalamKotaReportPage: React.FC = () => {
                 </Select>
 
                 <Select
-                  placeholder="Metode Pengiriman"
-                  value={deliveryMethodFilter}
-                  onChange={(e) => setDeliveryMethodFilter(e.target.value)}
+                  placeholder="Metode Pengambilan"
+                  value={pickupMethodFilter}
+                  onChange={(e) => setPickupMethodFilter(e.target.value)}
                 >
-                  <option value="Ambil Sendiri">Ambil Sendiri</option>
-                  <option value="Kurir Toko">Kurir Toko</option>
+                  <option value="deliveryman">Deliveryman (Kurir Toko)</option>
+                  <option value="ojek-online">Ojek Online</option>
+                  <option value="self-pickup">Ambil Sendiri</option>
                 </Select>
 
                 <Button onClick={handleReset} variant="outline">
@@ -688,9 +689,9 @@ const DalamKotaReportPage: React.FC = () => {
                             <Text fontWeight="medium">{order.customer_name}</Text>
                           </Td>
                           <Td>{order.customer_phone}</Td>
-                          <Td>{order.delivery_method || '-'}</Td>
+                          <Td>{order.pickup_method || '-'}</Td>
                           <Td>
-                            <Text fontSize="xs">{order.courier_name || '-'}</Text>
+                            <Text fontSize="xs">{order.courier_service || '-'}</Text>
                           </Td>
                           <Td>
                             <Text fontWeight="bold">

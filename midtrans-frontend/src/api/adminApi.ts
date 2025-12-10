@@ -1376,7 +1376,7 @@ export const adminApi = {
     limit?: number;
     payment_status?: string;
     shipping_status?: string;
-    delivery_method?: string;
+    pickup_method?: string;
     date_from?: string;
     date_to?: string;
     search?: string;
@@ -1396,7 +1396,7 @@ export const adminApi = {
     if (options.limit !== undefined) params.append('limit', String(options.limit));
     if (options.payment_status) params.append('payment_status', options.payment_status);
     if (options.shipping_status) params.append('shipping_status', options.shipping_status);
-    if (options.delivery_method) params.append('delivery_method', options.delivery_method);
+    if (options.pickup_method) params.append('pickup_method', options.pickup_method);
     if (options.date_from) params.append('date_from', options.date_from);
     if (options.date_to) params.append('date_to', options.date_to);
     if (options.search) params.append('search', options.search);

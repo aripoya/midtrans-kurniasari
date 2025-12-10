@@ -53,16 +53,16 @@ async function getDalamKotaStats(env) {
       GROUP BY shipping_status
     `).all();
 
-    // Orders by delivery method (Ambil Sendiri vs Kurir Toko)
+    // Orders by pickup method (deliveryman, ojek-online, self-pickup)
     const deliveryMethodQuery = await env.DB.prepare(`
       SELECT 
-        delivery_method,
+        pickup_method as method,
         COUNT(*) as count,
         SUM(total_amount) as revenue
       FROM orders
       WHERE shipping_area IN ('dalam-kota', 'dalam_kota')
-        AND delivery_method IS NOT NULL
-      GROUP BY delivery_method
+        AND pickup_method IS NOT NULL
+      GROUP BY pickup_method
     `).all();
 
     // Monthly trend (last 6 months)
@@ -122,7 +122,7 @@ async function getDalamKotaOrders(env, options = {}) {
     limit = 50,
     payment_status = null,
     shipping_status = null,
-    delivery_method = null,
+    pickup_method = null,
     date_from = null,
     date_to = null,
     search = null
@@ -143,9 +143,9 @@ async function getDalamKotaOrders(env, options = {}) {
       params.push(shipping_status);
     }
 
-    if (delivery_method) {
-      conditions.push('delivery_method = ?');
-      params.push(delivery_method);
+    if (pickup_method) {
+      conditions.push('pickup_method = ?');
+      params.push(pickup_method);
     }
 
     if (date_from) {
@@ -182,11 +182,10 @@ async function getDalamKotaOrders(env, options = {}) {
         total_amount,
         payment_status,
         shipping_status,
-        delivery_method,
-        courier_name,
+        pickup_method,
+        courier_service,
         lokasi_pengambilan,
         lokasi_pengiriman,
-        pickup_method,
         created_at,
         updated_at
       FROM orders
@@ -240,7 +239,7 @@ export async function getDalamKotaReport(request, env) {
         limit: parseInt(url.searchParams.get('limit') || '50'),
         payment_status: url.searchParams.get('payment_status'),
         shipping_status: url.searchParams.get('shipping_status'),
-        delivery_method: url.searchParams.get('delivery_method'),
+        pickup_method: url.searchParams.get('pickup_method'),
         date_from: url.searchParams.get('date_from'),
         date_to: url.searchParams.get('date_to'),
         search: url.searchParams.get('search')
