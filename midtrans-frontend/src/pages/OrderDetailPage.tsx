@@ -33,7 +33,7 @@ interface LocalOrder {
   customer_phone: string;
   customer_address?: string;
   customer_email?: string;
-  shipping_area?: 'dalam_kota' | 'luar_kota' | 'dalam-kota' | 'luar-kota';
+  shipping_area?: 'dalam-kota' | 'luar-kota';
   pickup_method?: 'deliveryman' | 'ojek-online' | 'self-pickup';
   courier_service?: string;
   tracking_number?: string;
@@ -286,10 +286,10 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         }))
         : [];
 
-      const shipping_area: 'dalam_kota' | 'luar_kota' =
-        apiOrder?.shipping_area === 'luar_kota' || apiOrder?.shipping_area === 'luar-kota'
-          ? 'luar_kota'
-          : 'dalam_kota';
+      const shipping_area: 'dalam-kota' | 'luar-kota' =
+        apiOrder?.shipping_area === 'luar-kota'
+          ? 'luar-kota'
+          : 'dalam-kota';
 
       // Build payment URL with robust fallbacks
       const snapToken = apiOrder?.snap_token || apiOrder?.token;
@@ -356,7 +356,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
         customer_name: apiOrder?.customer_name || apiOrder?.name || '-',
         customer_phone: apiOrder?.customer_phone || apiOrder?.phone || '-',
         customer_address: apiOrder?.customer_address || apiOrder?.address || '-',
-        shipping_area: 'dalam_kota',
+        shipping_area: 'dalam-kota',
         pickup_method: apiOrder?.pickup_method || '',
         total_amount: Number(apiOrder?.total_amount) || 0,
         payment_status: apiOrder?.payment_status || 'pending',
@@ -822,7 +822,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
   });
 
   // Tentukan apakah harus menampilkan foto berdasarkan shipping_area
-  const isLuarKota = order.shipping_area === 'luar_kota';
+  const isLuarKota = order.shipping_area === 'luar-kota';
   const photoSlotsToShow = isLuarKota ? ['delivered'] : ['ready_for_pickup', 'picked_up', 'delivered'];
   const paymentText = isPaid ? 'Lunas' : (order.payment_status?.toLowerCase() === 'pending' ? 'Menunggu' : 'Gagal');
   const getShortOrderId = (raw?: string): string => {
@@ -933,7 +933,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
           {order.payment_method && (
             <div className="kv"><span className="label">Metode Pembayaran</span><span className="value">{order.payment_method}</span></div>
           )}
-          <div className="kv"><span className="label">Area Pengiriman</span><span className="value">{order.shipping_area === 'dalam_kota' || order.shipping_area === 'dalam-kota' ? 'DALAM KOTA' : 'LUAR KOTA'}</span></div>
+          <div className="kv"><span className="label">Area Pengiriman</span><span className="value">{order.shipping_area === 'dalam-kota' ? 'DALAM KOTA' : 'LUAR KOTA'}</span></div>
           {order.lokasi_pengambilan && (
             <div className="kv"><span className="label">Lokasi Pengambilan</span><span className="value">{order.lokasi_pengambilan}</span></div>
           )}
@@ -1035,14 +1035,14 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                       <Text><strong>Nama:</strong> {order.customer_name}</Text>
                       <Text><strong>Telepon:</strong> {order.customer_phone}</Text>
                       <Text><strong>Alamat:</strong> {order.customer_address}</Text>
-                      <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam_kota' || order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
+                      <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                       <Text><strong>Metode Pengambilan:</strong> {
                         order.pickup_method === 'self-pickup' ? 'Pickup Sendiri di Outlet' :
                           order.pickup_method === 'ojek-online' ? 'Ojek Online' :
                             order.pickup_method === 'deliveryman' ? 'Kurir Outlet' :
                               (order.pickup_method || '-')
                       }</Text>
-                      {order.courier_service && order.shipping_area === 'luar_kota' && (
+                      {order.courier_service && order.shipping_area === 'luar-kota' && (
                         <Text><strong>Jasa Kurir:</strong> {order.courier_service}</Text>
                       )}
                       {order.pickup_method === 'deliveryman' && (
@@ -1060,7 +1060,7 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                           })()
                         }</Text>
                       )}
-                      {order.tracking_number && String(order.shipping_area || '').toLowerCase() === 'luar_kota' && (
+                      {order.tracking_number && order.shipping_area === 'luar-kota' && (
                         <Text><strong>Nomor Resi:</strong> {order.tracking_number}</Text>
                       )}
                     </Box>

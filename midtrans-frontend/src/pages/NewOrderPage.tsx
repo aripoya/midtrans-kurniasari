@@ -227,7 +227,7 @@ const NewOrderPage: React.FC = () => {
         // DEFAULT SHIPPING INFO - Since form fields were removed
         lokasi_pengambilan: "Outlet Bonbin", // Default outlet for pickup
         lokasi_pengantaran: formData.customer_address, // Always customer address (delivery destination)
-        shipping_area: "dalam_kota" as 'dalam_kota' | 'luar_kota', // Default to dalam kota
+        shipping_area: "dalam-kota" as 'dalam-kota' | 'luar-kota', // Default to dalam kota
         pickup_method: "deliveryman" as 'deliveryman' | 'pickup_sendiri' | 'ojek_online', // Default pickup method
         courier_service: null,
         shipping_notes: `[Auto-Backup] ${itemBackupSummary}`,

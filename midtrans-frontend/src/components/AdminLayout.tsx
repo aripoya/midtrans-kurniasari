@@ -29,6 +29,9 @@ const AdminLayout: React.FC = () => {
             <Link as={RouterLink} to="/admin/activity" fontWeight="medium">
               Aktivitas Admin
             </Link>
+            <Link as={RouterLink} to="/admin/luar-kota-report" fontWeight="medium">
+              Laporan Luar Kota
+            </Link>
             <Link as={RouterLink} to="/admin/safe-migration" fontWeight="medium">
               Safe Migration
             </Link>
