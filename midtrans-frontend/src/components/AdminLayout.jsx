@@ -62,6 +62,9 @@ function AdminLayout() {
             <Link as={RouterLink} to="/admin/activity" fontWeight="medium"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
               Aktivitas Admin
             </Link>
+            <Link as={RouterLink} to="/admin/dalam-kota-report" fontWeight="medium"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
+              Laporan Dalam Kota
+            </Link>
             <Link as={RouterLink} to="/admin/luar-kota-report" fontWeight="medium"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
               Laporan Luar Kota
             </Link>
@@ -101,6 +104,9 @@ function AdminLayout() {
             </Link>
             <Link as={RouterLink} to="/admin/activity" fontWeight="medium" w="full"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
               Aktivitas Admin
+            </Link>
+            <Link as={RouterLink} to="/admin/dalam-kota-report" fontWeight="medium" w="full"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
+              Laporan Dalam Kota
             </Link>
             <Link as={RouterLink} to="/admin/luar-kota-report" fontWeight="medium" w="full"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
               Laporan Luar Kota
