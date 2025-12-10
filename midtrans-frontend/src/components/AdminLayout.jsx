@@ -59,6 +59,15 @@ function AdminLayout() {
             <Link as={RouterLink} to="/admin/users" fontWeight="medium"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
               User Management
             </Link>
+            <Link as={RouterLink} to="/admin/activity" fontWeight="medium"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
+              Aktivitas Admin
+            </Link>
+            <Link as={RouterLink} to="/admin/luar-kota-report" fontWeight="medium"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
+              Laporan Luar Kota
+            </Link>
+            <Link as={RouterLink} to="/admin/safe-migration" fontWeight="medium"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
+              Safe Migration
+            </Link>
           </Flex>
 
           {/* Burger Menu (Mobile only) */}
@@ -89,6 +98,15 @@ function AdminLayout() {
             </Link>
             <Link as={RouterLink} to="/admin/users" fontWeight="medium" w="full"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
               User Management
+            </Link>
+            <Link as={RouterLink} to="/admin/activity" fontWeight="medium" w="full"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
+              Aktivitas Admin
+            </Link>
+            <Link as={RouterLink} to="/admin/luar-kota-report" fontWeight="medium" w="full"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
+              Laporan Luar Kota
+            </Link>
+            <Link as={RouterLink} to="/admin/safe-migration" fontWeight="medium" w="full"  _hover={{ textDecoration: 'none', color: 'inherit' }}>
+              Safe Migration
             </Link>
           </Stack>
         </Collapse>
