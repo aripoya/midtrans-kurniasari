@@ -238,12 +238,25 @@ const LuarKotaReportPage: React.FC = () => {
         return;
       }
 
+      // Group orders by courier service
+      const ordersByCourier: Record<string, Order[]> = {};
+      allOrders.forEach((order: Order) => {
+        const courier = order.courier_service || 'Belum Ditentukan';
+        if (!ordersByCourier[courier]) {
+          ordersByCourier[courier] = [];
+        }
+        ordersByCourier[courier].push(order);
+      });
+
+      // Sort couriers alphabetically
+      const sortedCouriers = Object.keys(ordersByCourier).sort();
+
       // Generate PDF
       const doc = new jsPDF();
       
       // Title
       doc.setFontSize(18);
-      doc.text('Laporan Pesanan Luar Kota', 14, 20);
+      doc.text('Laporan Pesanan Luar Kota Per Jasa Kurir', 14, 20);
       
       // Subtitle with date
       doc.setFontSize(10);
@@ -266,6 +279,18 @@ const LuarKotaReportPage: React.FC = () => {
         if (settledOrders) {
           doc.text(`Pesanan Lunas: ${settledOrders.count} (${settledOrders.revenue_formatted})`, 14, 59);
         }
+
+        // Breakdown by courier
+        if (stats.by_courier.length > 0) {
+          doc.setFontSize(12);
+          doc.text('Breakdown per Jasa Kurir:', 14, 69);
+          doc.setFontSize(10);
+          let breakdownY = 76;
+          stats.by_courier.forEach((courier) => {
+            doc.text(`${courier.courier}: ${courier.count} pesanan - ${courier.revenue_formatted}`, 20, breakdownY);
+            breakdownY += 7;
+          });
+        }
       }
       
       // Active Filters
@@ -275,51 +300,79 @@ const LuarKotaReportPage: React.FC = () => {
       if (shippingStatusFilter) activeFilters.push(`Status Pengiriman: ${shippingStatusFilter}`);
       if (courierFilter) activeFilters.push(`Kurir: ${courierFilter}`);
       
+      let currentY = stats?.by_courier.length ? 76 + (stats.by_courier.length * 7) : 68;
+      
       if (activeFilters.length > 0) {
-        doc.text('Filter Aktif:', 14, 68);
+        doc.text('Filter Aktif:', 14, currentY);
         activeFilters.forEach((filter, index) => {
-          doc.text(`- ${filter}`, 14, 75 + (index * 7));
+          doc.text(`- ${filter}`, 14, currentY + 7 + (index * 7));
         });
+        currentY += 7 + (activeFilters.length * 7);
       }
       
       // Add note about total exported orders
-      const noteY = activeFilters.length > 0 ? 85 + (activeFilters.length * 7) : 68;
       doc.setFontSize(10);
       doc.setTextColor(0, 128, 0); // Green color
-      doc.text(`Mengekspor ${allOrders.length} pesanan dari total ${stats?.total.orders || allOrders.length} pesanan`, 14, noteY);
+      doc.text(`Mengekspor ${allOrders.length} pesanan dari total ${stats?.total.orders || allOrders.length} pesanan`, 14, currentY + 5);
       doc.setTextColor(0, 0, 0); // Reset to black
       
-      // Table
-      const tableStartY = noteY + 10;
+      // Generate tables grouped by courier
+      let tableStartY = currentY + 15;
       
-      autoTable(doc, {
-        startY: tableStartY,
-        head: [['ID', 'Pelanggan', 'Telepon', 'Kurir', 'Resi', 'Total', 'Pembayaran', 'Pengiriman', 'Tanggal']],
-        body: allOrders.map((order: Order) => [
-          order.id.split('-').pop() || order.id,
-          order.customer_name,
-          order.customer_phone,
-          order.courier_service || '-',
-          order.tracking_number || '-',
-          order.total_amount_formatted,
-          order.payment_status === 'settlement' ? 'Lunas' : 
-            order.payment_status === 'pending' ? 'Pending' : order.payment_status,
-          order.shipping_status,
-          formatDate(order.created_at),
-        ]),
-        styles: { 
-          fontSize: 8,
-          cellPadding: 2,
-        },
-        headStyles: { 
-          fillColor: [66, 153, 225],
-          fontSize: 8,
-          fontStyle: 'bold',
-        },
-        margin: { top: 10, bottom: 20 },
-        rowPageBreak: 'avoid', // Prevent rows from being split across pages
-        tableLineWidth: 0.1,
-        tableLineColor: [200, 200, 200],
+      sortedCouriers.forEach((courierName) => {
+        const courierOrders = ordersByCourier[courierName];
+        
+        // Calculate courier statistics
+        const courierTotal = courierOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+        const courierSettled = courierOrders.filter(order => order.payment_status === 'settlement').length;
+        
+        // Check if we need a new page
+        if (tableStartY > 240) {
+          doc.addPage();
+          tableStartY = 20;
+        }
+        
+        // Courier section header
+        doc.setFontSize(14);
+        doc.setTextColor(66, 153, 225); // Blue color
+        doc.text(`${courierName}`, 14, tableStartY);
+        doc.setTextColor(0, 0, 0); // Reset to black
+        
+        doc.setFontSize(10);
+        doc.text(`${courierOrders.length} pesanan - Total: ${formatRupiah(courierTotal)} - Lunas: ${courierSettled}`, 14, tableStartY + 7);
+        
+        // Table for this courier
+        autoTable(doc, {
+          startY: tableStartY + 12,
+          head: [['ID', 'Pelanggan', 'Telepon', 'Resi', 'Total', 'Pembayaran', 'Pengiriman', 'Tanggal']],
+          body: courierOrders.map((order: Order) => [
+            order.id.split('-').pop() || order.id,
+            order.customer_name,
+            order.customer_phone,
+            order.tracking_number || '-',
+            order.total_amount_formatted,
+            order.payment_status === 'settlement' ? 'Lunas' : 
+              order.payment_status === 'pending' ? 'Pending' : order.payment_status,
+            order.shipping_status,
+            formatDate(order.created_at),
+          ]),
+          styles: { 
+            fontSize: 8,
+            cellPadding: 2,
+          },
+          headStyles: { 
+            fillColor: [66, 153, 225],
+            fontSize: 8,
+            fontStyle: 'bold',
+          },
+          margin: { top: 10, bottom: 20 },
+          rowPageBreak: 'avoid',
+          tableLineWidth: 0.1,
+          tableLineColor: [200, 200, 200],
+        });
+        
+        // Update Y position for next section
+        tableStartY = (doc as any).lastAutoTable.finalY + 15;
       });
       
       // Footer
@@ -341,12 +394,12 @@ const LuarKotaReportPage: React.FC = () => {
       }
       
       // Save PDF
-      const filename = `Laporan-Luar-Kota-${new Date().toISOString().split('T')[0]}.pdf`;
+      const filename = `Laporan-Luar-Kota-Per-Kurir-${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(filename);
       
       toast({
         title: 'Export Berhasil',
-        description: `${allOrders.length} pesanan berhasil di-export ke ${filename}`,
+        description: `${allOrders.length} pesanan dari ${sortedCouriers.length} jasa kurir berhasil di-export`,
         status: 'success',
         duration: 5000,
         isClosable: true,
@@ -360,6 +413,18 @@ const LuarKotaReportPage: React.FC = () => {
         duration: 5000,
         isClosable: true,
       });
+    }
+  };
+
+  const formatRupiah = (amount: number) => {
+    try {
+      return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+      }).format(amount || 0);
+    } catch {
+      return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
     }
   };
 
