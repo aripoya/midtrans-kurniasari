@@ -416,6 +416,139 @@ const LuarKotaReportPage: React.FC = () => {
     }
   };
 
+  const handleExportCourierPDF = async (courierName: string) => {
+    try {
+      const loadingToast = toast({
+        title: 'Mengunduh Data...',
+        description: `Sedang mengambil data pesanan ${courierName}`,
+        status: 'info',
+        duration: null,
+        isClosable: false,
+      });
+
+      const response = await adminApi.getLuarKotaOrders({
+        offset: 0,
+        limit: 10000,
+        courier_service: courierName,
+      });
+
+      toast.close(loadingToast);
+
+      if (!response.success) {
+        toast({
+          title: 'Error',
+          description: response.error || 'Gagal mengambil data',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      const courierOrders = (response as any).orders || [];
+
+      if (courierOrders.length === 0) {
+        toast({
+          title: 'Tidak Ada Data',
+          description: `Tidak ada pesanan untuk kurir ${courierName}`,
+          status: 'warning',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      const doc = new jsPDF();
+      
+      doc.setFontSize(18);
+      doc.text(`Laporan Pesanan - ${courierName}`, 14, 20);
+      
+      doc.setFontSize(10);
+      const today = new Date().toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      });
+      doc.text(`Tanggal Export: ${today}`, 14, 28);
+      
+      const courierTotal = courierOrders.reduce((sum: number, order: Order) => sum + (order.total_amount || 0), 0);
+      const courierSettled = courierOrders.filter((order: Order) => order.payment_status === 'settlement').length;
+      
+      doc.setFontSize(12);
+      doc.text('Ringkasan', 14, 38);
+      doc.setFontSize(10);
+      doc.text(`Total Pesanan: ${courierOrders.length}`, 14, 45);
+      doc.text(`Total Pendapatan: ${formatRupiah(courierTotal)}`, 14, 52);
+      doc.text(`Pesanan Lunas: ${courierSettled}`, 14, 59);
+      
+      autoTable(doc, {
+        startY: 68,
+        head: [['ID', 'Pelanggan', 'Telepon', 'Resi', 'Total', 'Pembayaran', 'Pengiriman', 'Tanggal']],
+        body: courierOrders.map((order: Order) => [
+          order.id.split('-').pop() || order.id,
+          order.customer_name,
+          order.customer_phone,
+          order.tracking_number || '-',
+          order.total_amount_formatted,
+          order.payment_status === 'settlement' ? 'Lunas' : 
+            order.payment_status === 'pending' ? 'Pending' : order.payment_status,
+          order.shipping_status,
+          formatDate(order.created_at),
+        ]),
+        styles: { 
+          fontSize: 8,
+          cellPadding: 2,
+        },
+        headStyles: { 
+          fillColor: [66, 153, 225],
+          fontSize: 8,
+          fontStyle: 'bold',
+        },
+        margin: { top: 10, bottom: 20 },
+        rowPageBreak: 'avoid',
+        tableLineWidth: 0.1,
+        tableLineColor: [200, 200, 200],
+      });
+      
+      const pageCount = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text(
+          `Halaman ${i} dari ${pageCount}`,
+          doc.internal.pageSize.width / 2,
+          doc.internal.pageSize.height - 10,
+          { align: 'center' }
+        );
+        doc.text(
+          '© 2025 Kurniasari Order Management',
+          14,
+          doc.internal.pageSize.height - 10
+        );
+      }
+      
+      const filename = `Laporan-${courierName.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+      
+      toast({
+        title: 'Export Berhasil',
+        description: `${courierOrders.length} pesanan ${courierName} berhasil di-export`,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Error exporting courier PDF:', error);
+      toast({
+        title: 'Error',
+        description: 'Terjadi kesalahan saat mengekspor PDF',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
   const formatRupiah = (amount: number) => {
     try {
       return new Intl.NumberFormat('id-ID', {
@@ -589,9 +722,18 @@ const LuarKotaReportPage: React.FC = () => {
                         <Text fontSize="sm" color="gray.600">
                           {courier.count} pesanan
                         </Text>
-                        <Text fontSize="lg" fontWeight="bold" color="purple.600">
+                        <Text fontSize="lg" fontWeight="bold" color="purple.600" mb={3}>
                           {courier.revenue_formatted}
                         </Text>
+                        <Button
+                          size="sm"
+                          leftIcon={<FiDownload />}
+                          colorScheme="blue"
+                          width="full"
+                          onClick={() => handleExportCourierPDF(courier.courier)}
+                        >
+                          Export PDF
+                        </Button>
                       </Box>
                     ))}
                   </SimpleGrid>
