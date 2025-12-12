@@ -598,7 +598,7 @@ const AdminOrderDetailPage: React.FC = () => {
                       )}
                       {order.tipe_pesanan === 'Pesan Antar' && (order.delivery_date || order.delivery_time) && (
                         <Tr>
-                          <Td fontWeight="semibold">Jadwal Pengantaran</Td>
+                          <Td fontWeight="semibold">{order.shipping_area === 'luar-kota' ? 'Tanggal Pengiriman' : 'Jadwal Pengantaran'}</Td>
                           <Td>
                             {(order.delivery_date ? formatDateShort(order.delivery_date) : '-')}
                             {order.delivery_time ? `, ${order.delivery_time}` : ''}
@@ -856,10 +856,10 @@ const AdminOrderDetailPage: React.FC = () => {
                     </Select>
                   </GridItem>
                 )}
-                {formData.tipe_pesanan === 'Pesan Antar' && !isLuarKota && (
+                {formData.tipe_pesanan === 'Pesan Antar' && (
                   <>
                     <GridItem>
-                      <Text fontWeight="semibold">Tanggal Pengantaran</Text>
+                      <Text fontWeight="semibold">{isLuarKota ? 'Tanggal Pengiriman' : 'Tanggal Pengantaran'}</Text>
                       <Input
                         type="date"
                         name="delivery_date"
@@ -867,15 +867,17 @@ const AdminOrderDetailPage: React.FC = () => {
                         onChange={handleFormChange}
                       />
                     </GridItem>
-                    <GridItem>
-                      <Text fontWeight="semibold">Waktu Pengantaran</Text>
-                      <Input
-                        type="time"
-                        name="delivery_time"
-                        value={(formData.delivery_time as string) || ''}
-                        onChange={handleFormChange}
-                      />
-                    </GridItem>
+                    {!isLuarKota && (
+                      <GridItem>
+                        <Text fontWeight="semibold">Waktu Pengantaran</Text>
+                        <Input
+                          type="time"
+                          name="delivery_time"
+                          value={(formData.delivery_time as string) || ''}
+                          onChange={handleFormChange}
+                        />
+                      </GridItem>
+                    )}
                   </>
                 )}
                 {formData.tipe_pesanan === 'Pesan Ambil' && (

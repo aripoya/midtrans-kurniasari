@@ -1052,10 +1052,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
                         <Text><strong>Outlet Pengambilan:</strong> {order.lokasi_pengambilan}</Text>
                       )}
                       {(order.delivery_date || order.delivery_time) && (
-                        <Text><strong>Jadwal Pengantaran:</strong> {
+                        <Text><strong>{order.shipping_area === 'luar-kota' ? 'Tanggal Pengiriman:' : 'Jadwal Pengantaran:'}</strong> {
                           (() => {
                             const date = order.delivery_date ? formatDateShort(order.delivery_date) : '';
                             const time = order.delivery_time || '';
+                            // Untuk luar kota, hanya tampilkan tanggal
+                            if (order.shipping_area === 'luar-kota') {
+                              return date || '-';
+                            }
+                            // Untuk dalam kota, tampilkan tanggal dan waktu
                             return `${date}${date && time ? ', ' : ''}${time}`;
                           })()
                         }</Text>
