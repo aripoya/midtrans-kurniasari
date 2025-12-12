@@ -257,7 +257,7 @@ async function getDalamKotaOrders(env, options = {}) {
 export async function getDalamKotaReport(request, env) {
   try {
     const url = new URL(request.url);
-    const type = url.searchParams.get('type') || 'stats'; // 'stats', 'orders', or 'weekly'
+    const type = (url.searchParams.get('type') || 'stats').trim().toLowerCase(); // 'stats', 'orders', or 'weekly'
 
     if (type === 'weekly') {
       // Return weekly breakdown for a specific month
@@ -318,7 +318,7 @@ export async function getDalamKotaReport(request, env) {
     } else {
       return new Response(JSON.stringify({
         success: false,
-        error: 'Invalid type parameter. Use "stats" or "orders"'
+        error: 'Invalid type parameter. Use "stats", "orders", or "weekly"'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
