@@ -545,7 +545,10 @@ const DalamKotaReportPage: React.FC = () => {
                 </CardHeader>
                 <CardBody>
                   <SimpleGrid columns={{ base: 2, md: 3, lg: 4 }} spacing={4}>
-                    {stats.monthly_trend.map((month) => {
+                    {[...stats.monthly_trend]
+                      .filter((m) => (m.count || 0) > 0 || (m.revenue || 0) > 0)
+                      .sort((a, b) => a.month.localeCompare(b.month))
+                      .map((month) => {
                       const [year, monthNum] = month.month.split('-');
                       return (
                         <Box
@@ -565,7 +568,7 @@ const DalamKotaReportPage: React.FC = () => {
                           <HStack mb={2}>
                             <Icon as={FiCalendar} color="blue.500" />
                             <Text fontWeight="bold" fontSize="sm">
-                              {month.month}
+                              {`${monthNum}-${year}`}
                             </Text>
                           </HStack>
                           <Text fontSize="sm" color="gray.600">
