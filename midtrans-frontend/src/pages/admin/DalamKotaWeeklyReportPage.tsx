@@ -204,11 +204,19 @@ const DalamKotaWeeklyReportPage: React.FC = () => {
                     borderWidth="2px"
                     borderRadius="lg"
                     bg="white"
+                    cursor="pointer"
                     _hover={{
                       borderColor: 'blue.400',
                       boxShadow: 'lg',
                     }}
                     transition="all 0.2s"
+                    onClick={() =>
+                      navigate(
+                        `/admin/dalam-kota-report/weekly/${year}/${month}/orders?from=${encodeURIComponent(
+                          week.week_start
+                        )}&to=${encodeURIComponent(week.week_end)}`
+                      )
+                    }
                   >
                     <VStack align="stretch" spacing={3}>
                       <HStack justify="space-between">
