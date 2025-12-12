@@ -91,14 +91,16 @@ export const NODE_ENV: ApiConfig['NODE_ENV'] = getEnvironmentMode();
 // Frontend should ALWAYS use production backend for proper JWT secrets and database access
 // Do NOT use wrangler dev for backend in production deployment
 export const API_URL: string = (() => {
-  // Prefer same-origin API in production deployments (e.g. https://nota.kurniasari.co.id)
+  const envApiUrl = getEnvVar('VITE_API_URL', '').trim();
+  if (envApiUrl) return envApiUrl;
+
   if (typeof window !== 'undefined' && window.location?.origin) {
     const origin = window.location.origin;
     if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
       return 'http://localhost:8787';
     }
-    return origin;
   }
+
   return 'https://order-management-app-production.wahwooh.workers.dev';
 })();
 
