@@ -534,30 +534,49 @@ const DalamKotaReportPage: React.FC = () => {
               </Card>
             )}
 
-            {/* Monthly Trend */}
+            {/* Monthly Trend - 12 Months */}
             {stats.monthly_trend.length > 0 && (
               <Card>
                 <CardHeader>
-                  <Heading size="md">Tren 6 Bulan Terakhir</Heading>
+                  <Heading size="md">Tren 12 Bulan Terakhir</Heading>
+                  <Text fontSize="sm" color="gray.600" mt={1}>
+                    Klik pada bulan untuk melihat breakdown per minggu
+                  </Text>
                 </CardHeader>
                 <CardBody>
-                  <SimpleGrid columns={{ base: 2, md: 3, lg: 6 }} spacing={4}>
-                    {stats.monthly_trend.map((month) => (
-                      <Box key={month.month} p={4} borderWidth="1px" borderRadius="md">
-                        <HStack mb={2}>
-                          <Icon as={FiCalendar} />
-                          <Text fontWeight="bold" fontSize="sm">
-                            {month.month}
+                  <SimpleGrid columns={{ base: 2, md: 3, lg: 4 }} spacing={4}>
+                    {stats.monthly_trend.map((month) => {
+                      const [year, monthNum] = month.month.split('-');
+                      return (
+                        <Box
+                          key={month.month}
+                          p={4}
+                          borderWidth="1px"
+                          borderRadius="md"
+                          cursor="pointer"
+                          transition="all 0.2s"
+                          _hover={{
+                            borderColor: 'blue.500',
+                            boxShadow: 'md',
+                            transform: 'translateY(-2px)',
+                          }}
+                          onClick={() => navigate(`/admin/dalam-kota-report/weekly/${year}/${monthNum}`)}
+                        >
+                          <HStack mb={2}>
+                            <Icon as={FiCalendar} color="blue.500" />
+                            <Text fontWeight="bold" fontSize="sm">
+                              {month.month}
+                            </Text>
+                          </HStack>
+                          <Text fontSize="sm" color="gray.600">
+                            {month.count} pesanan
                           </Text>
-                        </HStack>
-                        <Text fontSize="sm" color="gray.600">
-                          {month.count} pesanan
-                        </Text>
-                        <Text fontSize="md" fontWeight="bold" color="purple.600">
-                          {month.revenue_formatted}
-                        </Text>
-                      </Box>
-                    ))}
+                          <Text fontSize="md" fontWeight="bold" color="purple.600">
+                            {month.revenue_formatted}
+                          </Text>
+                        </Box>
+                      );
+                    })}
                   </SimpleGrid>
                 </CardBody>
               </Card>
