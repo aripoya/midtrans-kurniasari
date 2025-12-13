@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useLocation, useParams } from 'react-router-dom';
 import {
   Container,
   Card,
@@ -54,6 +54,8 @@ interface ShippingImage {
 
 const PublicOrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const hasSyncedFromRedirect = useRef(false);
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [shippingImages, setShippingImages] = useState<ShippingImage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,11 +156,12 @@ const PublicOrderDetailPage = () => {
 
   // Handle refresh payment status via backend endpoint
   const handleRefreshPayment = async () => {
-    if (!order) return;
+    const orderId = order?.id || id;
+    if (!orderId) return;
     try {
       setRefreshingPayment(true);
       const apiUrl = API_URL || 'https://order-management-app-production.wahwooh.workers.dev';
-      const resp = await fetch(`${apiUrl}/api/orders/${order.id}/refresh-status`, {
+      const resp = await fetch(`${apiUrl}/api/orders/${orderId}/refresh-status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -191,7 +194,7 @@ const PublicOrderDetailPage = () => {
         }
         // Refetch order to update UI
         try {
-          const response = await publicApi.getOrderById(order.id);
+          const response = await publicApi.getOrderById(orderId);
           if (response?.success && response?.data && (response.data as any).id) {
             setOrder(response.data);
           } else {
@@ -223,6 +226,30 @@ const PublicOrderDetailPage = () => {
       setRefreshingPayment(false);
     }
   };
+
+  // If user returns from Midtrans redirect with transaction_status, sync once to update DB/UI
+  useEffect(() => {
+    if (!id) return;
+    if (hasSyncedFromRedirect.current) return;
+    const params = new URLSearchParams(location.search);
+    const txStatus = (params.get('transaction_status') || '').toLowerCase();
+    const statusCode = params.get('status_code') || '';
+
+    const shouldAttemptSync =
+      (txStatus && ['settlement', 'capture', 'pending', 'deny', 'cancel', 'expire'].includes(txStatus)) ||
+      statusCode === '200';
+
+    if (!shouldAttemptSync) return;
+
+    const isAlreadyPaid = ['paid', 'settlement', 'capture'].includes((order?.payment_status || '').toLowerCase());
+    if (isAlreadyPaid) {
+      hasSyncedFromRedirect.current = true;
+      return;
+    }
+
+    hasSyncedFromRedirect.current = true;
+    handleRefreshPayment();
+  }, [id, location.search, order?.payment_status]);
 
   useEffect(() => {
     const fetchOrder = async () => {
