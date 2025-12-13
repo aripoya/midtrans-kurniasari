@@ -33,6 +33,8 @@ import LuarKotaWeeklyOrdersPage from './pages/admin/LuarKotaWeeklyOrdersPage';
 import SafeMigrationPage from './pages/admin/SafeMigrationPage';
 import OutletDashboard from './pages/outlet/OutletDashboard';
 import OutletAdminView from './pages/outlet/OutletAdminView';
+import OutletWeeklyReportPage from './pages/outlet/OutletWeeklyReportPage';
+import OutletWeeklyOrdersPage from './pages/outlet/OutletWeeklyOrdersPage';
 import DeliveryDashboard from './pages/delivery/DeliveryDashboard';
 import DeliveryCalendar from './pages/delivery/DeliveryCalendar';
 import DebugNotificationPage from './pages/DebugNotificationPage';
@@ -88,6 +90,8 @@ const App: React.FC = () => {
                 <Route path="/outlet/dashboard" element={<RoleProtectedRoute allowedRoles={['outlet_manager']}><Layout><OutletDashboard /></Layout></RoleProtectedRoute>} />
                 <Route path="/outlet/admin" element={<RoleProtectedRoute allowedRoles={['outlet_manager']}><Layout><OutletAdminView /></Layout></RoleProtectedRoute>} />
                 <Route path="/outlet/orders/:id" element={<RoleProtectedRoute allowedRoles={['outlet_manager']}><Layout><OrderDetailPage isOutletView={true} /></Layout></RoleProtectedRoute>} />
+                <Route path="/outlet/report/weekly/:year/:month" element={<RoleProtectedRoute allowedRoles={['outlet_manager']}><Layout><OutletWeeklyReportPage /></Layout></RoleProtectedRoute>} />
+                <Route path="/outlet/report/weekly/:year/:month/orders" element={<RoleProtectedRoute allowedRoles={['outlet_manager']}><Layout><OutletWeeklyOrdersPage /></Layout></RoleProtectedRoute>} />
 
                 {/* Deliveryman Routes */}
                 <Route path="/delivery/dashboard" element={<RoleProtectedRoute allowedRoles={['deliveryman']}><Layout><DeliveryDashboard /></Layout></RoleProtectedRoute>} />

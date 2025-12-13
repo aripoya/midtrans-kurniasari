@@ -24,6 +24,7 @@ import { getAdminActivity, getActiveSessions, logoutUser, getAdminStats } from '
 import { getRevenueStats } from './handlers/revenue-stats.js';
 import { getLuarKotaReport } from './handlers/luar-kota-report.js';
 import { getDalamKotaReport } from './handlers/dalam-kota-report.js';
+import { getOutletReport } from './handlers/outlet-report.js';
 import { listMigrationBackups, getMigrationBackup, restoreMigrationBackup } from './handlers/migration-backups.js';
 import { resetAdminPassword } from '../reset-admin-password.js';
 import { handleGetOutlets } from './handlers/outlets';
@@ -184,6 +185,11 @@ router.get('/api/orders/outlet', verifyToken, (request, env) => {
 router.get('/api/orders/outlet-relational', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return getOutletOrdersRelational(request, env);
+});
+
+router.get('/api/outlet/report', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getOutletReport(request, env);
 });
 router.get('/api/orders/delivery', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);

@@ -50,12 +50,14 @@ import {
   Stack,
 } from '@chakra-ui/react';
 import { useAuth } from '../../auth/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FaBox, FaShippingFast, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
+import { FiCalendar } from 'react-icons/fi';
 
 // Import API services
 import { adminApi } from '../../api/adminApi';
-import { getShippingStatusOptions, getShippingStatusConfig } from '../../utils/orderStatusUtils';
+import { outletApi, OutletMonthlyTrendRow } from '../../api/outletApi';
+import { getShippingStatusOptions } from '../../utils/orderStatusUtils';
 import { useRealTimeSync, useNotificationSync } from '../../hooks/useRealTimeSync';
 import { formatDateShort } from '../../utils/formatters';
 import jsPDF from 'jspdf';
@@ -64,9 +66,12 @@ import autoTable from 'jspdf-autotable';
 const OutletDashboard: React.FC = () => {
   const isMobile = useBreakpointValue({ base: true, md: false });
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [, setError] = useState<string | null>(null);
+  const [monthlyTrend, setMonthlyTrend] = useState<OutletMonthlyTrendRow[]>([]);
+  const [monthlyLoading, setMonthlyLoading] = useState<boolean>(false);
   const [stats, setStats] = useState<OrderStats>({
     total: 0,
     pending: 0,
@@ -138,7 +143,7 @@ const OutletDashboard: React.FC = () => {
   const [isUploading, setIsUploading] = useState<boolean>(false);
 
   // Real-time sync hooks
-  const { syncStatus, manualRefresh } = useRealTimeSync({
+  useRealTimeSync({
     role: 'outlet',
     onUpdate: () => {
       console.log('Real-time update detected, refreshing orders...');
@@ -148,7 +153,7 @@ const OutletDashboard: React.FC = () => {
     enabled: true
   });
 
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationSync({
+  useNotificationSync({
     userId: user?.id,
     pollingInterval: 60000 // Poll every 60 seconds (1 minute) - optimized for cost efficiency
   });
@@ -205,6 +210,24 @@ const OutletDashboard: React.FC = () => {
   // Get orders for this outlet
   useEffect(() => {
     fetchOrders();
+  }, []);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        setMonthlyLoading(true);
+        const resp = await outletApi.getMonthlyTrend();
+        if (resp.success && resp.data) {
+          setMonthlyTrend(resp.data.monthly_trend || []);
+        }
+      } catch (e) {
+        // ignore
+      } finally {
+        setMonthlyLoading(false);
+      }
+    };
+
+    run();
   }, []);
   
   // Helper function to check if order is eligible for Status Foto
@@ -555,6 +578,62 @@ const OutletDashboard: React.FC = () => {
             </Stat>
           </Box>
         </SimpleGrid>
+
+        <Box borderWidth="1px" borderRadius="lg" overflow="hidden" bg={cardBgColor}>
+          <Flex p={4} justifyContent="space-between" alignItems="center" borderBottomWidth="1px">
+            <Box>
+              <Heading size="md">Tren 12 Bulan Terakhir</Heading>
+              <Text fontSize="sm" color="gray.600" mt={1}>
+                Klik pada bulan untuk melihat breakdown per minggu
+              </Text>
+            </Box>
+          </Flex>
+
+          <Box p={4}>
+            {monthlyLoading ? (
+              <Flex justify="center" align="center" py={8}>
+                <Spinner />
+                <Text ml={3}>Memuat trend...</Text>
+              </Flex>
+            ) : monthlyTrend.length === 0 ? (
+              <Box py={8} textAlign="center">
+                <Text color="gray.500">Belum ada data trend bulanan</Text>
+              </Box>
+            ) : (
+              <SimpleGrid columns={{ base: 2, md: 3, lg: 4 }} spacing={4}>
+                {[...monthlyTrend]
+                  .filter((m) => (m.count || 0) > 0 || (m.revenue || 0) > 0)
+                  .sort((a, b) => a.month.localeCompare(b.month))
+                  .map((m) => {
+                    const [yy, mm] = (m.month || '').split('-');
+                    return (
+                      <Box
+                        key={m.month}
+                        p={4}
+                        borderWidth="1px"
+                        borderRadius="md"
+                        cursor="pointer"
+                        transition="all 0.2s"
+                        _hover={{
+                          borderColor: 'blue.500',
+                          boxShadow: 'md',
+                          transform: 'translateY(-2px)',
+                        }}
+                        onClick={() => navigate(`/outlet/report/weekly/${yy}/${mm}`)}
+                      >
+                        <HStack mb={2}>
+                          <Icon as={FiCalendar} color="blue.500" />
+                          <Text fontWeight="bold" fontSize="sm">{`${mm}-${yy}`}</Text>
+                        </HStack>
+                        <Text fontSize="sm" color="gray.600">{m.count} pesanan</Text>
+                        <Text fontSize="md" fontWeight="bold" color="purple.600">{m.revenue_formatted}</Text>
+                      </Box>
+                    );
+                  })}
+              </SimpleGrid>
+            )}
+          </Box>
+        </Box>
 
         <Box borderWidth="1px" borderRadius="lg" overflow="hidden" bg={cardBgColor}>
       <Flex p={4} justifyContent="space-between" alignItems="center" borderBottomWidth="1px">
