@@ -10,6 +10,33 @@ function formatRupiah(amount) {
   }
 }
 
+async function ensureSoftDeleteColumns(env) {
+  if (!env?.DB) return;
+
+  try {
+    const cols = await env.DB.prepare(`PRAGMA table_info('orders')`).all();
+    const names = new Set((cols.results || []).map((c) => c.name));
+
+    if (!names.has('deleted_at')) {
+      try {
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN deleted_at TEXT`).run();
+      } catch (e) {
+        if (!e?.message?.includes('duplicate column name')) throw e;
+      }
+    }
+
+    if (!names.has('deleted_by')) {
+      try {
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN deleted_by TEXT`).run();
+      } catch (e) {
+        if (!e?.message?.includes('duplicate column name')) throw e;
+      }
+    }
+  } catch (e) {
+    console.error('[outlet-report] Failed to ensure soft delete columns:', e);
+  }
+}
+
 async function resolveOutletName(env, outletId) {
   if (!outletId) return '';
 
@@ -48,6 +75,7 @@ async function getMonthlyTrend(env, outletName, outletId) {
       SUM(total_amount) as revenue
     FROM orders
     WHERE date(created_at) >= date('now', '-12 months')
+      AND (deleted_at IS NULL OR deleted_at = '')
       AND (
         outlet_id = ?
         OR outlet_id = ?
@@ -101,6 +129,7 @@ async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
       MAX(date(created_at)) as week_end
     FROM orders
     WHERE strftime('%Y-%m', created_at) = ?
+      AND (deleted_at IS NULL OR deleted_at = '')
       AND (
         outlet_id = ?
         OR outlet_id = ?
@@ -157,6 +186,7 @@ async function getOutletOrders(env, outletName, outletId, options = {}) {
     : outletId;
 
   let conditions = [
+    "(deleted_at IS NULL OR deleted_at = '')",
     `(
       outlet_id = ?
       OR outlet_id = ?
@@ -254,6 +284,7 @@ async function getOutletOrders(env, outletName, outletId, options = {}) {
 
 export async function getOutletReport(request, env) {
   try {
+    await ensureSoftDeleteColumns(env);
     const url = new URL(request.url);
     const type = (url.searchParams.get('type') || 'monthly').trim().toLowerCase();
 

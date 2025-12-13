@@ -18,6 +18,33 @@ function formatRupiah(amount) {
   }
 }
 
+async function ensureSoftDeleteColumns(env) {
+  if (!env?.DB) return;
+
+  try {
+    const cols = await env.DB.prepare(`PRAGMA table_info('orders')`).all();
+    const names = new Set((cols.results || []).map((c) => c.name));
+
+    if (!names.has('deleted_at')) {
+      try {
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN deleted_at TEXT`).run();
+      } catch (e) {
+        if (!e?.message?.includes('duplicate column name')) throw e;
+      }
+    }
+
+    if (!names.has('deleted_by')) {
+      try {
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN deleted_by TEXT`).run();
+      } catch (e) {
+        if (!e?.message?.includes('duplicate column name')) throw e;
+      }
+    }
+  } catch (e) {
+    console.error('[dalam-kota-report] Failed to ensure soft delete columns:', e);
+  }
+}
+
 /**
  * Get statistics for dalam kota orders
  */
@@ -30,6 +57,7 @@ async function getDalamKotaStats(env) {
         SUM(total_amount) as total_revenue
       FROM orders
       WHERE shipping_area IN ('dalam-kota', 'dalam_kota')
+        AND (deleted_at IS NULL OR deleted_at = '')
     `).first();
 
     // Orders by payment status
@@ -40,6 +68,7 @@ async function getDalamKotaStats(env) {
         SUM(total_amount) as revenue
       FROM orders
       WHERE shipping_area IN ('dalam-kota', 'dalam_kota')
+        AND (deleted_at IS NULL OR deleted_at = '')
       GROUP BY payment_status
     `).all();
 
@@ -50,6 +79,7 @@ async function getDalamKotaStats(env) {
         COUNT(*) as count
       FROM orders
       WHERE shipping_area IN ('dalam-kota', 'dalam_kota')
+        AND (deleted_at IS NULL OR deleted_at = '')
       GROUP BY shipping_status
     `).all();
 
@@ -61,6 +91,7 @@ async function getDalamKotaStats(env) {
         SUM(total_amount) as revenue
       FROM orders
       WHERE shipping_area IN ('dalam-kota', 'dalam_kota')
+        AND (deleted_at IS NULL OR deleted_at = '')
         AND pickup_method IS NOT NULL
       GROUP BY pickup_method
     `).all();
@@ -73,6 +104,7 @@ async function getDalamKotaStats(env) {
         SUM(total_amount) as revenue
       FROM orders
       WHERE shipping_area IN ('dalam-kota', 'dalam_kota')
+        AND (deleted_at IS NULL OR deleted_at = '')
         AND date(created_at) >= date('now', '-12 months')
       GROUP BY strftime('%Y-%m', created_at)
       ORDER BY month DESC
@@ -131,6 +163,7 @@ async function getWeeklyBreakdown(env, year, month) {
         MAX(date(created_at)) as week_end
       FROM orders
       WHERE shipping_area IN ('dalam-kota', 'dalam_kota')
+        AND (deleted_at IS NULL OR deleted_at = '')
         AND strftime('%Y-%m', created_at) = ?
       GROUP BY strftime('%Y-%W', created_at)
       ORDER BY week ASC
@@ -167,7 +200,7 @@ async function getDalamKotaOrders(env, options = {}) {
 
   try {
     // Build WHERE conditions
-    let conditions = ["shipping_area IN ('dalam-kota', 'dalam_kota')"];
+    let conditions = ["shipping_area IN ('dalam-kota', 'dalam_kota')", "(deleted_at IS NULL OR deleted_at = '')"];
     let params = [];
 
     if (payment_status) {
@@ -256,6 +289,7 @@ async function getDalamKotaOrders(env, options = {}) {
  */
 export async function getDalamKotaReport(request, env) {
   try {
+    await ensureSoftDeleteColumns(env);
     const url = new URL(request.url);
     const type = (url.searchParams.get('type') || 'stats').trim().toLowerCase(); // 'stats', 'orders', or 'weekly'
 

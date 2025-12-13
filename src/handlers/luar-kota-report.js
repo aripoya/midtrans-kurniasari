@@ -19,6 +19,33 @@ function formatRupiah(amount) {
 
 }
 
+async function ensureSoftDeleteColumns(env) {
+  if (!env?.DB) return;
+
+  try {
+    const cols = await env.DB.prepare(`PRAGMA table_info('orders')`).all();
+    const names = new Set((cols.results || []).map((c) => c.name));
+
+    if (!names.has('deleted_at')) {
+      try {
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN deleted_at TEXT`).run();
+      } catch (e) {
+        if (!e?.message?.includes('duplicate column name')) throw e;
+      }
+    }
+
+    if (!names.has('deleted_by')) {
+      try {
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN deleted_by TEXT`).run();
+      } catch (e) {
+        if (!e?.message?.includes('duplicate column name')) throw e;
+      }
+    }
+  } catch (e) {
+    console.error('[luar-kota-report] Failed to ensure soft delete columns:', e);
+  }
+}
+
 /**
  * Get weekly breakdown for a specific month
  */
@@ -36,6 +63,7 @@ async function getWeeklyBreakdown(env, year, month) {
         MAX(date(created_at)) as week_end
       FROM orders
       WHERE shipping_area = 'luar-kota'
+        AND (deleted_at IS NULL OR deleted_at = '')
         AND strftime('%Y-%m', created_at) = ?
       GROUP BY strftime('%Y-%W', created_at)
       ORDER BY week ASC
@@ -67,6 +95,7 @@ async function getLuarKotaStats(env) {
         SUM(total_amount) as total_revenue
       FROM orders
       WHERE shipping_area = 'luar-kota'
+        AND (deleted_at IS NULL OR deleted_at = '')
     `).first();
 
     // Orders by payment status
@@ -77,6 +106,7 @@ async function getLuarKotaStats(env) {
         SUM(total_amount) as revenue
       FROM orders
       WHERE shipping_area = 'luar-kota'
+        AND (deleted_at IS NULL OR deleted_at = '')
       GROUP BY payment_status
     `).all();
 
@@ -87,6 +117,7 @@ async function getLuarKotaStats(env) {
         COUNT(*) as count
       FROM orders
       WHERE shipping_area = 'luar-kota'
+        AND (deleted_at IS NULL OR deleted_at = '')
       GROUP BY shipping_status
     `).all();
 
@@ -98,6 +129,7 @@ async function getLuarKotaStats(env) {
         SUM(total_amount) as revenue
       FROM orders
       WHERE shipping_area = 'luar-kota'
+        AND (deleted_at IS NULL OR deleted_at = '')
         AND courier_service IS NOT NULL
       GROUP BY courier_service
     `).all();
@@ -110,6 +142,7 @@ async function getLuarKotaStats(env) {
         SUM(total_amount) as revenue
       FROM orders
       WHERE shipping_area = 'luar-kota'
+        AND (deleted_at IS NULL OR deleted_at = '')
         AND date(created_at) >= date('now', '-12 months')
       GROUP BY strftime('%Y-%m', created_at)
       ORDER BY month DESC
@@ -167,7 +200,7 @@ async function getLuarKotaOrders(env, options = {}) {
 
   try {
     // Build WHERE conditions
-    let conditions = ["shipping_area = 'luar-kota'"];
+    let conditions = ["shipping_area = 'luar-kota'", "(deleted_at IS NULL OR deleted_at = '')"];
     let params = [];
 
     if (payment_status) {
@@ -257,6 +290,7 @@ async function getLuarKotaOrders(env, options = {}) {
  */
 export async function getLuarKotaReport(request, env) {
   try {
+    await ensureSoftDeleteColumns(env);
     const url = new URL(request.url);
     const type = (url.searchParams.get('type') || 'stats').trim().toLowerCase(); // 'stats', 'orders', or 'weekly'
 
