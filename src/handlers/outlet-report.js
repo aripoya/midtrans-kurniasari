@@ -37,6 +37,10 @@ async function resolveOutletName(env, outletId) {
 }
 
 async function getMonthlyTrend(env, outletName, outletId) {
+  const altOutletId = outletId && outletId.startsWith('outlet_') && !outletId.startsWith('outlet_outlet_')
+    ? `outlet_${outletId}`
+    : outletId;
+
   const monthlyQuery = await env.DB.prepare(`
     SELECT 
       strftime('%Y-%m', created_at) as month,
@@ -45,6 +49,10 @@ async function getMonthlyTrend(env, outletName, outletId) {
     FROM orders
     WHERE date(created_at) >= date('now', '-12 months')
       AND (
+        outlet_id = ?
+        OR outlet_id = ?
+        OR LOWER(outlet_id) LIKE LOWER(?)
+        OR LOWER(outlet_id) LIKE LOWER(?)
         lokasi_pengambilan = ?
         OR lokasi_pengambilan = ?
         OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
@@ -56,6 +64,10 @@ async function getMonthlyTrend(env, outletName, outletId) {
     ORDER BY month DESC
   `)
     .bind(
+      outletId || '',
+      altOutletId || '',
+      `%${outletId || ''}%`,
+      `%${altOutletId || ''}%`,
       outletName,
       outletId || '',
       `%${outletName}%`,
@@ -74,6 +86,10 @@ async function getMonthlyTrend(env, outletName, outletId) {
 }
 
 async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
+  const altOutletId = outletId && outletId.startsWith('outlet_') && !outletId.startsWith('outlet_outlet_')
+    ? `outlet_${outletId}`
+    : outletId;
+
   const monthStr = `${year}-${month.toString().padStart(2, '0')}`;
 
   const weeklyQuery = await env.DB.prepare(`
@@ -86,6 +102,10 @@ async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
     FROM orders
     WHERE strftime('%Y-%m', created_at) = ?
       AND (
+        outlet_id = ?
+        OR outlet_id = ?
+        OR LOWER(outlet_id) LIKE LOWER(?)
+        OR LOWER(outlet_id) LIKE LOWER(?)
         lokasi_pengambilan = ?
         OR lokasi_pengambilan = ?
         OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
@@ -98,6 +118,10 @@ async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
   `)
     .bind(
       monthStr,
+      outletId || '',
+      altOutletId || '',
+      `%${outletId || ''}%`,
+      `%${altOutletId || ''}%`,
       outletName,
       outletId || '',
       `%${outletName}%`,
@@ -128,8 +152,16 @@ async function getOutletOrders(env, outletName, outletId, options = {}) {
     search = null,
   } = options;
 
+  const altOutletId = outletId && outletId.startsWith('outlet_') && !outletId.startsWith('outlet_outlet_')
+    ? `outlet_${outletId}`
+    : outletId;
+
   let conditions = [
     `(
+      outlet_id = ?
+      OR outlet_id = ?
+      OR LOWER(outlet_id) LIKE LOWER(?)
+      OR LOWER(outlet_id) LIKE LOWER(?)
       lokasi_pengambilan = ?
       OR lokasi_pengambilan = ?
       OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
@@ -140,6 +172,10 @@ async function getOutletOrders(env, outletName, outletId, options = {}) {
   ];
 
   const params = [
+    outletId || '',
+    altOutletId || '',
+    `%${outletId || ''}%`,
+    `%${altOutletId || ''}%`,
     outletName,
     outletId || '',
     `%${outletName}%`,
