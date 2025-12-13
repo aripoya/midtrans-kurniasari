@@ -165,7 +165,18 @@ const PublicOrderDetailPage = () => {
         },
       });
 
-      const data = await resp.json();
+      let data: any = null;
+      const contentType = resp.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await resp.json();
+      } else {
+        const text = await resp.text();
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { success: false, error: text || `HTTP ${resp.status}` };
+        }
+      }
       if (resp.ok && data?.success) {
         toast({
           title: 'Status Pembayaran Diperbarui',

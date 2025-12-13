@@ -232,6 +232,12 @@ export interface ResetPasswordRequest {
   password: string;
 }
 
+export interface SyncPaymentStatusResponse {
+  payment_status?: string;
+  transaction_status?: string;
+  midtrans_response?: any;
+}
+
 // Helper function to get admin token
 // Prefer localStorage (used by login), fallback to sessionStorage for compatibility
 const getAdminToken = (): string | null => {
@@ -287,6 +293,54 @@ export const adminApi = {
           error.response?.data?.error ||
           error.message ||
           "Error saat mengambil detail pesanan",
+      };
+    }
+  },
+
+  syncPaymentStatusFromMidtrans: async (orderId: string): Promise<ApiResponse<SyncPaymentStatusResponse>> => {
+    try {
+      const token = getAdminToken();
+      if (!token) {
+        return {
+          success: false,
+          data: null,
+          error: "Sesi login berakhir. Silakan login ulang.",
+        };
+      }
+
+      const response: AxiosResponse = await axios.post(
+        `${API_URL}/api/admin/orders/${orderId}/sync-payment-status`,
+        {},
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data: any = response.data;
+      if (data?.success === false) {
+        return { success: false, data: null, error: data?.error || 'Gagal sinkron status pembayaran' };
+      }
+
+      return {
+        success: true,
+        data: {
+          payment_status: data?.payment_status,
+          transaction_status: data?.transaction_status,
+          midtrans_response: data?.midtrans_response,
+        },
+        error: null,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        data: null,
+        error:
+          error.response?.data?.error ||
+          error.message ||
+          "Error saat sinkron status pembayaran",
       };
     }
   },

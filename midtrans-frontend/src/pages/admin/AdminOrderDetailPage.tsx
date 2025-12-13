@@ -12,7 +12,7 @@ import {
 import QRCodeGenerator from '../../components/QRCodeGenerator';
 import { adminApi, Order, Outlet } from '../../api/adminApi';
 import ShippingImageDisplay from '../../components/ShippingImageDisplay';
-import { formatCurrency, formatDateShort } from '../../utils/formatters';
+import { formatDateShort } from '../../utils/formatters';
 
 type ShippingImages = {
   ready_for_pickup: string | null;
@@ -48,6 +48,7 @@ const AdminOrderDetailPage: React.FC = () => {
   const [formData, setFormData] = useState<Partial<Order>>({});
   const [updateLoading, setUpdateLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [syncPaymentLoading, setSyncPaymentLoading] = useState(false);
   
   // Modal states
   const { isOpen: isStatusOpen, onOpen: onStatusOpen, onClose: onStatusClose } = useDisclosure();
@@ -56,7 +57,6 @@ const AdminOrderDetailPage: React.FC = () => {
   
   // Status update states
   const [newShippingStatus, setNewShippingStatus] = useState('');
-  const [newPaymentStatus, setNewPaymentStatus] = useState('');
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [shippingImages, setShippingImages] = useState<ShippingImages>({
     ready_for_pickup: null,
@@ -349,6 +349,49 @@ const AdminOrderDetailPage: React.FC = () => {
     }
   };
 
+  const handleSyncPaymentFromMidtrans = async () => {
+    if (!id) return;
+    try {
+      setSyncPaymentLoading(true);
+      const resp = await adminApi.syncPaymentStatusFromMidtrans(id);
+      if (!resp.success) throw new Error(resp.error || 'Gagal sinkron status pembayaran');
+
+      const nextPaymentStatus = resp.data?.payment_status;
+      if (nextPaymentStatus) {
+        setOrder((prev) => (prev ? { ...prev, payment_status: nextPaymentStatus } : prev));
+      }
+
+      toast({
+        title: 'Status Pembayaran Diperbarui',
+        description: 'Status terbaru sudah diambil dari Midtrans.',
+        status: 'success',
+        duration: 4000,
+        isClosable: true,
+      });
+
+      try {
+        const orderResponse = await adminApi.getOrderDetails(id);
+        if (orderResponse.success && orderResponse.data) {
+          setOrder(orderResponse.data);
+          setFormData(orderResponse.data);
+        }
+      } catch {
+        // ignore refetch errors; optimistic state already set
+      }
+    } catch (e: any) {
+      toast({
+        title: 'Gagal sinkron pembayaran',
+        description: e?.message || 'Tidak dapat mengambil status pembayaran dari Midtrans.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setSyncPaymentLoading(false);
+      onPaymentClose();
+    }
+  };
+
   // Handle form submission
   const handleFormSubmit = async () => {
     if (!id) return;
@@ -424,12 +467,11 @@ const AdminOrderDetailPage: React.FC = () => {
     
     try {
       setUpdateLoading(true);
-      const status = type === 'shipping' ? newShippingStatus : newPaymentStatus;
       // Only shipping status can be updated manually here
       if (type === 'payment') {
         toast({
           title: 'Tidak dapat diubah',
-          description: 'Status pembayaran disinkronkan dari Midtrans dan tidak bisa diubah manual.',
+          description: 'Gunakan tombol sinkron dari Midtrans untuk memperbarui status pembayaran.',
           status: 'info',
           duration: 4000,
           isClosable: true,
@@ -438,6 +480,8 @@ const AdminOrderDetailPage: React.FC = () => {
         setUpdateLoading(false);
         return;
       }
+
+      const status = newShippingStatus;
 
       const response = await adminApi.updateOrderStatus(id, status);
       
@@ -1144,19 +1188,9 @@ const AdminOrderDetailPage: React.FC = () => {
               {(() => { const n = normalizePaymentStatus(order.payment_status); return (
                 <Text>Status saat ini: <Badge colorScheme={n === 'paid' ? 'green' : n === 'pending' ? 'yellow' : 'red'}>{paymentLabelID(n)}</Badge></Text>
               ); })()}
-              <Box w="full">
-                <Text fontWeight="semibold" mb={2}>Status Baru</Text>
-                <Select 
-                  value={newPaymentStatus}
-                  onChange={(e) => setNewPaymentStatus(e.target.value)}
-                  placeholder="Pilih status baru"
-                >
-                  <option value="pending">Pending</option>
-                  <option value="paid">Paid</option>
-                  <option value="failed">Failed</option>
-                  <option value="cancelled">Cancelled</option>
-                </Select>
-              </Box>
+              <Text fontSize="sm" color="gray.600">
+                Sinkronkan status pembayaran langsung dari Midtrans.
+              </Text>
             </VStack>
           </ModalBody>
           <ModalFooter>
@@ -1165,11 +1199,10 @@ const AdminOrderDetailPage: React.FC = () => {
             </Button>
             <Button 
               colorScheme="blue" 
-              onClick={() => handleStatusUpdate('payment')}
-              isLoading={updateLoading}
-              isDisabled={!newPaymentStatus}
+              onClick={handleSyncPaymentFromMidtrans}
+              isLoading={syncPaymentLoading}
             >
-              Update Status
+              Sinkron dari Midtrans
             </Button>
           </ModalFooter>
         </ModalContent>
