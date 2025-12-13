@@ -349,7 +349,10 @@ const PublicOrderDetailPage = () => {
   const getOrderProgressSteps = () => {
     if (!order) return [];
     
-    const isPaid = ['paid', 'settlement', 'capture'].includes((order.payment_status || '').toLowerCase());
+    const urlParams = new URLSearchParams(location.search);
+    const tx = (urlParams.get('transaction_status') || '').toLowerCase();
+    const effectivePaymentStatus = (tx === 'settlement' || tx === 'capture') ? tx : (order.payment_status || '');
+    const isPaid = ['paid', 'settlement', 'capture'].includes((effectivePaymentStatus || '').toLowerCase());
     const normalizedStatus = normalizeShippingStatus(order.shipping_status);
     const isProcessing = normalizedStatus === 'dikemas' || normalizedStatus === 'siap kirim';
     const isShipping = normalizedStatus === 'dalam pengiriman';
@@ -414,7 +417,11 @@ const PublicOrderDetailPage = () => {
     );
   }
 
-  const isPaid = ['paid', 'settlement', 'capture'].includes((order.payment_status || '').toLowerCase());
+  const urlParams = new URLSearchParams(location.search);
+  const tx = (urlParams.get('transaction_status') || '').toLowerCase();
+  const forcedPaidFromRedirect = tx === 'settlement' || tx === 'capture';
+  const effectivePaymentStatus = forcedPaidFromRedirect ? tx : (order.payment_status || '');
+  const isPaid = ['paid', 'settlement', 'capture'].includes((effectivePaymentStatus || '').toLowerCase());
   const isReceived = order.shipping_status === 'diterima';
   const steps = getOrderProgressSteps();
   
