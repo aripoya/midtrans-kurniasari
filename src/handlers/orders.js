@@ -1047,6 +1047,13 @@ export async function deleteOrder(request, env) {
   }
 
   try {
+    if (!request.user || request.user.role !== 'admin') {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Admin access required' }),
+        { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
+
     // Extract order ID from URL path
     const url = new URL(request.url);
     const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id
@@ -1060,24 +1067,39 @@ export async function deleteOrder(request, env) {
       throw new Error('Database binding not found');
     }
 
-    // Get admin info from token
-    const authHeader = request.headers.get('Authorization');
-    let deletedBy = 'Unknown Admin';
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
+    // Admin info is already decoded by verifyToken middleware
+    const deletedBy = request.user?.name || request.user?.email || request.user?.username || 'Admin';
+
+    // Detect soft-delete columns
+    const pragma = await env.DB.prepare("PRAGMA table_info('orders')").all();
+    const cols = (pragma.results || []).map((r) => String(r.name || ''));
+    const hasDeletedAt = cols.includes('deleted_at');
+    const hasDeletedBy = cols.includes('deleted_by');
+
+    // Ensure columns exist (safe for existing tables)
+    if (!hasDeletedAt) {
       try {
-        const decoded = jwt.verify(token, env.JWT_SECRET);
-        deletedBy = decoded.name || decoded.email || 'Unknown Admin';
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN deleted_at TEXT`).run();
       } catch (e) {
-        console.log('Could not decode admin info from token');
+        const msg = e?.message || String(e);
+        if (!/duplicate column name/i.test(msg)) throw e;
+      }
+    }
+
+    if (!hasDeletedBy) {
+      try {
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN deleted_by TEXT`).run();
+      } catch (e) {
+        const msg = e?.message || String(e);
+        if (!/duplicate column name/i.test(msg)) throw e;
       }
     }
 
     // Check if order exists and is not already deleted
-    const existingOrder = await env.DB.prepare(
-      `SELECT id, customer_name, deleted_at FROM orders WHERE id = ?`
-    ).bind(orderId).first();
+    const existingOrder = await env.DB
+      .prepare(`SELECT id, customer_name, deleted_at FROM orders WHERE id = ?`)
+      .bind(orderId)
+      .first();
 
     if (!existingOrder) {
       return new Response(JSON.stringify({ success: false, error: 'Order not found' }), 
