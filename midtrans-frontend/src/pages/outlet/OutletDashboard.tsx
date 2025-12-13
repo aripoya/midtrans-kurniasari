@@ -142,6 +142,40 @@ const OutletDashboard: React.FC = () => {
   });
   const [isUploading, setIsUploading] = useState<boolean>(false);
 
+  const handleOpenPhotoModal = (order: Order): void => {
+    try {
+      Object.values(uploadedImages).forEach((url) => {
+        if (url && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    } catch (_) {
+      // ignore
+    }
+
+    setSelectedOrder(order);
+    setPhotoFiles({ readyForPickup: null, pickedUp: null, delivered: null });
+    setUploadedImages({ readyForPickup: null, pickedUp: null, delivered: null });
+    onPhotoModalOpen();
+  };
+
+  const handleClosePhotoModal = (): void => {
+    try {
+      Object.values(uploadedImages).forEach((url) => {
+        if (url && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    } catch (_) {
+      // ignore
+    }
+
+    setSelectedOrder(null);
+    setPhotoFiles({ readyForPickup: null, pickedUp: null, delivered: null });
+    setUploadedImages({ readyForPickup: null, pickedUp: null, delivered: null });
+    onPhotoModalClose();
+  };
+
   // Real-time sync hooks
   useRealTimeSync({
     role: 'outlet',
@@ -219,9 +253,25 @@ const OutletDashboard: React.FC = () => {
         const resp = await outletApi.getMonthlyTrend();
         if (resp.success && resp.data) {
           setMonthlyTrend(resp.data.monthly_trend || []);
+        } else {
+          console.error('Outlet monthly trend API returned failure:', resp.error);
+          toast({
+            title: 'Gagal memuat trend bulanan',
+            description: resp.error || 'API laporan outlet tidak dapat diakses atau tidak mengembalikan data.',
+            status: 'error',
+            duration: 7000,
+            isClosable: true,
+          });
         }
       } catch (e) {
-        // ignore
+        console.error('Error fetching outlet monthly trend:', e);
+        toast({
+          title: 'Gagal memuat trend bulanan',
+          description: 'API laporan outlet tidak dapat diakses atau tidak mengembalikan data.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
       } finally {
         setMonthlyLoading(false);
       }
@@ -743,6 +793,15 @@ const OutletDashboard: React.FC = () => {
 
                       {order.payment_status === 'settlement' && (
                         <>
+                          <Button
+                            size="sm"
+                            colorScheme="purple"
+                            variant="outline"
+                            onClick={() => handleOpenPhotoModal(order)}
+                          >
+                            Status Foto
+                          </Button>
+
                           <Select
                             size="sm"
                             width="auto"
@@ -838,6 +897,15 @@ const OutletDashboard: React.FC = () => {
                         </Button>
                         {order.payment_status === 'settlement' && (
                           <HStack spacing={1}>
+                            <Button
+                              size="sm"
+                              colorScheme="purple"
+                              variant="outline"
+                              onClick={() => handleOpenPhotoModal(order)}
+                            >
+                              Status Foto
+                            </Button>
+
                             <Select
                               size="sm"
                               width="160px"
@@ -899,7 +967,7 @@ const OutletDashboard: React.FC = () => {
     </Box>
         
         {/* Status Foto Modal */}
-        <Modal isOpen={isPhotoModalOpen} onClose={onPhotoModalClose} size="xl">
+        <Modal isOpen={isPhotoModalOpen} onClose={handleClosePhotoModal} size="xl">
           <ModalOverlay />
           <ModalContent>
             <ModalHeader>
@@ -1077,7 +1145,7 @@ const OutletDashboard: React.FC = () => {
               )}
             </ModalBody>
             <ModalFooter>
-              <Button colorScheme="gray" onClick={onPhotoModalClose}>
+              <Button colorScheme="gray" onClick={handleClosePhotoModal}>
                 Tutup
               </Button>
             </ModalFooter>

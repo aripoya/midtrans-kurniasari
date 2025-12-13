@@ -36,7 +36,7 @@ async function resolveOutletName(env, outletId) {
   return outletName;
 }
 
-async function getMonthlyTrend(env, outletName) {
+async function getMonthlyTrend(env, outletName, outletId) {
   const monthlyQuery = await env.DB.prepare(`
     SELECT 
       strftime('%Y-%m', created_at) as month,
@@ -46,13 +46,23 @@ async function getMonthlyTrend(env, outletName) {
     WHERE date(created_at) >= date('now', '-12 months')
       AND (
         lokasi_pengambilan = ?
+        OR lokasi_pengambilan = ?
         OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+        OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+        OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
         OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
       )
     GROUP BY strftime('%Y-%m', created_at)
     ORDER BY month DESC
   `)
-    .bind(outletName, `%${outletName}%`, `%${outletName}%`)
+    .bind(
+      outletName,
+      outletId || '',
+      `%${outletName}%`,
+      `%${outletId || ''}%`,
+      `%${outletName}%`,
+      `%${outletId || ''}%`
+    )
     .all();
 
   return (monthlyQuery.results || []).map((row) => ({
@@ -63,7 +73,7 @@ async function getMonthlyTrend(env, outletName) {
   }));
 }
 
-async function getWeeklyBreakdown(env, outletName, year, month) {
+async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
   const monthStr = `${year}-${month.toString().padStart(2, '0')}`;
 
   const weeklyQuery = await env.DB.prepare(`
@@ -77,13 +87,24 @@ async function getWeeklyBreakdown(env, outletName, year, month) {
     WHERE strftime('%Y-%m', created_at) = ?
       AND (
         lokasi_pengambilan = ?
+        OR lokasi_pengambilan = ?
         OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+        OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+        OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
         OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
       )
     GROUP BY strftime('%Y-%W', created_at)
     ORDER BY week ASC
   `)
-    .bind(monthStr, outletName, `%${outletName}%`, `%${outletName}%`)
+    .bind(
+      monthStr,
+      outletName,
+      outletId || '',
+      `%${outletName}%`,
+      `%${outletId || ''}%`,
+      `%${outletName}%`,
+      `%${outletId || ''}%`
+    )
     .all();
 
   return (weeklyQuery.results || []).map((row) => ({
@@ -96,7 +117,7 @@ async function getWeeklyBreakdown(env, outletName, year, month) {
   }));
 }
 
-async function getOutletOrders(env, outletName, options = {}) {
+async function getOutletOrders(env, outletName, outletId, options = {}) {
   const {
     offset = 0,
     limit = 50,
@@ -110,12 +131,22 @@ async function getOutletOrders(env, outletName, options = {}) {
   let conditions = [
     `(
       lokasi_pengambilan = ?
+      OR lokasi_pengambilan = ?
       OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+      OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+      OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
       OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
     )`,
   ];
 
-  const params = [outletName, `%${outletName}%`, `%${outletName}%`];
+  const params = [
+    outletName,
+    outletId || '',
+    `%${outletName}%`,
+    `%${outletId || ''}%`,
+    `%${outletName}%`,
+    `%${outletId || ''}%`,
+  ];
 
   if (payment_status) {
     conditions.push('payment_status = ?');
@@ -236,7 +267,7 @@ export async function getOutletReport(request, env) {
         );
       }
 
-      const weeklyData = await getWeeklyBreakdown(env, outletName, parseInt(year), parseInt(month));
+      const weeklyData = await getWeeklyBreakdown(env, outletName, outletId, parseInt(year), parseInt(month));
       return new Response(
         JSON.stringify({
           success: true,
@@ -263,7 +294,7 @@ export async function getOutletReport(request, env) {
         search: url.searchParams.get('search'),
       };
 
-      const result = await getOutletOrders(env, outletName, options);
+      const result = await getOutletOrders(env, outletName, outletId, options);
       return new Response(
         JSON.stringify({
           success: true,
@@ -278,7 +309,7 @@ export async function getOutletReport(request, env) {
     }
 
     if (type === 'monthly' || type === 'stats') {
-      const monthlyTrend = await getMonthlyTrend(env, outletName);
+      const monthlyTrend = await getMonthlyTrend(env, outletName, outletId);
       return new Response(
         JSON.stringify({
           success: true,
