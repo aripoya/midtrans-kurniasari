@@ -53,7 +53,7 @@ async function getMonthlyTrend(env, outletName, outletId) {
         OR outlet_id = ?
         OR LOWER(outlet_id) LIKE LOWER(?)
         OR LOWER(outlet_id) LIKE LOWER(?)
-        lokasi_pengambilan = ?
+        OR lokasi_pengambilan = ?
         OR lokasi_pengambilan = ?
         OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
         OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
@@ -106,7 +106,7 @@ async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
         OR outlet_id = ?
         OR LOWER(outlet_id) LIKE LOWER(?)
         OR LOWER(outlet_id) LIKE LOWER(?)
-        lokasi_pengambilan = ?
+        OR lokasi_pengambilan = ?
         OR lokasi_pengambilan = ?
         OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
         OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
@@ -162,7 +162,7 @@ async function getOutletOrders(env, outletName, outletId, options = {}) {
       OR outlet_id = ?
       OR LOWER(outlet_id) LIKE LOWER(?)
       OR LOWER(outlet_id) LIKE LOWER(?)
-      lokasi_pengambilan = ?
+      OR lokasi_pengambilan = ?
       OR lokasi_pengambilan = ?
       OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
       OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
