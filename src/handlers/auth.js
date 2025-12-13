@@ -197,26 +197,34 @@ export async function loginUser(request, env) {
                 .first();
         }
 
-        // Create JWT token
+        // Initialize activity logger and get client info
+        const activityLogger = new AdminActivityLogger(env);
+        const { ipAddress, userAgent } = getClientInfo(request);
+        
+        // End all previous active sessions for this user before creating new one
+        await env.DB.prepare(`
+          UPDATE admin_sessions 
+          SET is_active = 0, logout_at = CURRENT_TIMESTAMP
+          WHERE admin_id = ? AND is_active = 1
+        `).bind(user.id).run();
+        
+        // Create new session and log login activity
+        const sessionId = await activityLogger.createSession(user, ipAddress, userAgent);
+        await activityLogger.logLogin(user, ipAddress, userAgent, sessionId);
+
+        // Create JWT token with sessionId for activity tracking
         const token = jwt.sign(
             { 
                 id: user.id, 
                 username: user.username,
                 name: user.name,
                 role: user.role,
-                outlet_id: user.outlet_id
+                outlet_id: user.outlet_id,
+                sessionId: sessionId // Include sessionId for session tracking
             }, 
             env.JWT_SECRET, 
             { expiresIn: '24h' }
         );
-
-        // Initialize activity logger and get client info
-        const activityLogger = new AdminActivityLogger(env);
-        const { ipAddress, userAgent } = getClientInfo(request);
-        
-        // Create session and log login activity
-        const sessionId = await activityLogger.createSession(user, ipAddress, userAgent);
-        await activityLogger.logLogin(user, ipAddress, userAgent, sessionId);
         
         // Update last login timestamp with detailed error handling
         try {

@@ -105,6 +105,9 @@ export async function getDeliveryOverview(request, env) {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
   };
 
   if (request.method === 'OPTIONS') {
@@ -134,14 +137,21 @@ export async function getDeliveryOverview(request, env) {
     `).all();
     const deliveryUsers = deliveryUsersRes.results || [];
 
-    // Build base query for delivery-related orders
+    // Build base query for delivery-related orders with strict filters:
+    // - shipping_area: dalam kota only (accepts variations 'dalam_kota', 'dalam-kota', 'dalam kota')
+    // - pickup_method: Kurir Toko (stored as 'deliveryman' or variants)
+    // - tipe_pesanan: Pesan Antar (accept 'pesan antar' or 'pesan-antar')
     let ordersQuery = `
       SELECT 
-        id, customer_name, shipping_status, pickup_method,
+        id, customer_name, customer_address, shipping_status, pickup_method,
+        shipping_area, tipe_pesanan,
         assigned_deliveryman_id, lokasi_pengambilan AS outlet_name,
         lokasi_pengiriman, delivery_date, delivery_time, created_at
       FROM orders
-      WHERE (pickup_method = 'deliveryman' OR assigned_deliveryman_id IS NOT NULL)
+      WHERE 
+        LOWER(COALESCE(shipping_area, '')) IN ('dalam_kota', 'dalam-kota', 'dalam kota')
+        AND LOWER(COALESCE(pickup_method, '')) IN ('deliveryman', 'kurir toko', 'kurir_toko')
+        AND LOWER(COALESCE(tipe_pesanan, '')) IN ('pesan antar', 'pesan-antar')
     `;
     const params = [];
     if (statusFilter) {
@@ -477,6 +487,18 @@ export async function createOrder(request, env) {
       finalAssignedDeliverymanId = null;
     }
 
+    // For luar kota orders, set lokasi_pengiriman to null
+    const shippingArea = (orderData.shipping_area || '').toLowerCase();
+    const isLuarKota = shippingArea.includes('luar') || shippingArea.includes('luar-kota') || shippingArea.includes('luar_kota');
+    const finalLokasiPengiriman = isLuarKota ? null : (orderData.lokasi_pengiriman || null);
+
+    console.log('📦 [CREATE ORDER] Shipping location logic:', {
+      shipping_area: orderData.shipping_area,
+      isLuarKota,
+      original_lokasi_pengiriman: orderData.lokasi_pengiriman,
+      final_lokasi_pengiriman: finalLokasiPengiriman
+    });
+
     // Attempt insert with outlet_id; on FK error retry without it
     let orderInserted = false;
     try {
@@ -502,7 +524,7 @@ export async function createOrder(request, env) {
           safeMidtransResponse,
           'pending', // Initial shipping status
           customer_address || null,
-          orderData.lokasi_pengiriman || null,
+          finalLokasiPengiriman,
           orderData.lokasi_pengambilan || null,
           orderData.shipping_area || null,
           normalizedPickupMethod || null,
@@ -567,46 +589,41 @@ export async function createOrder(request, env) {
         .bind(orderId)
         .first();
       if (!exists || !orderInserted) {
-        throw new Error('[CREATE ORDER] Order row not found after insert, aborting item insertion to avoid FK failure');
+        throw new Error('[CREATE ORDER] Order row not found after insert, aborting item insertion');
       }
     } catch (verifyErr) {
       console.error('[CREATE ORDER] Post-insert verification failed:', verifyErr?.message || verifyErr);
       throw verifyErr;
     }
 
-    // Statements for inserting into 'order_items' table
-    const dbStatements = [];
-    for (const item of processedItems) {
-      // Ensure we consistently use the correct unit price field
-      const unitPrice = Number(item.product_price ?? item.price);
-      const qty = Number(item.quantity);
-      const subtotal = unitPrice * qty;
-      dbStatements.push(
-        env.DB.prepare(
-          `INSERT INTO order_items (order_id, product_name, product_price, quantity, subtotal)
-           VALUES (?, ?, ?, ?, ?)`
-        ).bind(orderId, item.name, unitPrice, qty, subtotal)
-      );
-    }
-
-    // Prefer sequential insertion to avoid D1 batch/transaction FK quirks
-    if (dbStatements.length > 0) {
-      for (const stmt of dbStatements) {
-        try {
-          await stmt.run();
-        } catch (itemErr) {
-          const msg = itemErr?.message || String(itemErr);
-          console.error('[CREATE ORDER] Inserting single order_item failed:', msg);
-          try {
-            const fkOrderItems = await env.DB.prepare('PRAGMA foreign_key_list(order_items)').all();
-            console.warn('[CREATE ORDER] PRAGMA foreign_key_list(order_items):', fkOrderItems?.results || fkOrderItems);
-            const orderCheck = await env.DB.prepare('SELECT id FROM orders WHERE id = ?').bind(orderId).first();
-            console.warn('[CREATE ORDER] Order existence at item failure:', orderCheck);
-          } catch (diagErr) {
-            console.warn('[CREATE ORDER] Diagnostics after item error failed:', diagErr?.message || diagErr);
-          }
-          // Do NOT fail entire order creation because of item issue; continue
+    // Insert order_items (FK constraints removed from schema for D1 compatibility)
+    if (processedItems.length > 0) {
+      try {
+        console.log(`[CREATE ORDER] Inserting ${processedItems.length} items...`);
+        
+        // Build batch insert statements
+        const insertPromises = [];
+        for (const item of processedItems) {
+          const unitPrice = Number(item.product_price ?? item.price);
+          const qty = Number(item.quantity);
+          const subtotal = unitPrice * qty;
+          
+          insertPromises.push(
+            env.DB.prepare(
+              `INSERT INTO order_items (order_id, product_name, product_price, quantity, subtotal)
+               VALUES (?, ?, ?, ?, ?)`
+            ).bind(orderId, item.name, unitPrice, qty, subtotal).run()
+          );
         }
+        
+        // Execute all inserts in parallel
+        await Promise.all(insertPromises);
+        
+        console.log(`[CREATE ORDER] Successfully inserted ${processedItems.length} items`);
+      } catch (itemErr) {
+        const msg = itemErr?.message || String(itemErr);
+        console.error('[CREATE ORDER] Failed to insert order items:', msg);
+        throw new Error(`Failed to save order items: ${msg}`);
       }
     }
 
@@ -698,15 +715,59 @@ export async function getOrderById(request, env) {
       return new Response(JSON.stringify({ success: false, error: 'Order not found' }), { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
     }
 
+    // Restrict deliveryman visibility: must be assigned OR match delivery filters
+    try {
+      const viewer = request.user;
+      if (viewer && viewer.role === 'deliveryman') {
+        const isAssigned = String(order.assigned_deliveryman_id || '') === String(viewer.id || '');
+        const area = String(order.shipping_area || '').toLowerCase();
+        const method = String(order.pickup_method || '').toLowerCase();
+        const tipe = String(order.tipe_pesanan || '').toLowerCase();
+        const areaOk = area === 'dalam_kota' || area === 'dalam-kota' || area === 'dalam kota';
+        const methodOk = method === 'deliveryman' || method === 'kurir toko' || method === 'kurir_toko';
+        const tipeOk = tipe === 'pesan antar' || tipe === 'pesan-antar';
+        const matchesDeliveryFilters = areaOk && methodOk && tipeOk;
+        if (!isAssigned && !matchesDeliveryFilters) {
+          return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+        }
+      }
+    } catch (_) {}
+
     // Step 2: Fetch order items
     failedQuery = 'fetching order items';
     const { results: rawItems } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(orderId).all();
-    
+
     // Map database fields to frontend-expected field names
-    const items = rawItems.map(item => ({
+    let items = rawItems.map(item => ({
       ...item,
       price: item.product_price // Map product_price to price for frontend compatibility
     }));
+
+    // Fallback: for legacy orders where items might be stored as JSON
+    if ((!items || items.length === 0) && order.items) {
+      try {
+        const rawLegacy = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+        if (Array.isArray(rawLegacy)) {
+          items = rawLegacy.map((it, idx) => {
+            const unitPrice = Number(it.price ?? it.product_price ?? it.unit_price ?? 0);
+            const qty = Number(it.quantity ?? 1);
+            const subtotal = Number(it.subtotal ?? unitPrice * qty);
+            return {
+              id: it.id ?? idx + 1,
+              order_id: orderId,
+              product_name: it.product_name ?? it.name ?? '',
+              product_price: unitPrice,
+              quantity: qty,
+              subtotal,
+              price: unitPrice,
+            };
+          });
+        }
+      } catch (legacyErr) {
+        console.error(`[getOrderById] Failed to parse legacy items JSON for order ${orderId}:`, legacyErr);
+        // keep items as empty array in this case
+      }
+    }
 
     // Step 3: Fetch shipping images (with error handling)
     failedQuery = 'fetching shipping images';
@@ -972,7 +1033,7 @@ export async function getOrderQrisUrl(request, env) {
   }
 }
 
-// Function to delete an order by ID
+// Function to soft delete an order by ID
 export async function deleteOrder(request, env) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -986,6 +1047,13 @@ export async function deleteOrder(request, env) {
   }
 
   try {
+    if (!request.user || request.user.role !== 'admin') {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Admin access required' }),
+        { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
+
     // Extract order ID from URL path
     const url = new URL(request.url);
     const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id
@@ -999,102 +1067,65 @@ export async function deleteOrder(request, env) {
       throw new Error('Database binding not found');
     }
 
-    // Check if order exists before attempting to delete
-    const existingOrder = await env.DB.prepare(
-      `SELECT id FROM orders WHERE id = ?`
-    ).bind(orderId).first();
+    // Admin info is already decoded by verifyToken middleware
+    const deletedBy = request.user?.name || request.user?.email || request.user?.username || 'Admin';
+
+    // Detect soft-delete columns
+    const pragma = await env.DB.prepare("PRAGMA table_info('orders')").all();
+    const cols = (pragma.results || []).map((r) => String(r.name || ''));
+    const hasDeletedAt = cols.includes('deleted_at');
+    const hasDeletedBy = cols.includes('deleted_by');
+
+    // Ensure columns exist (safe for existing tables)
+    if (!hasDeletedAt) {
+      try {
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN deleted_at TEXT`).run();
+      } catch (e) {
+        const msg = e?.message || String(e);
+        if (!/duplicate column name/i.test(msg)) throw e;
+      }
+    }
+
+    if (!hasDeletedBy) {
+      try {
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN deleted_by TEXT`).run();
+      } catch (e) {
+        const msg = e?.message || String(e);
+        if (!/duplicate column name/i.test(msg)) throw e;
+      }
+    }
+
+    // Check if order exists and is not already deleted
+    const existingOrder = await env.DB
+      .prepare(`SELECT id, customer_name, deleted_at FROM orders WHERE id = ?`)
+      .bind(orderId)
+      .first();
 
     if (!existingOrder) {
       return new Response(JSON.stringify({ success: false, error: 'Order not found' }), 
         { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
 
-    // Delete all related data first to maintain referential integrity
-    console.log(`[DELETE] Starting deletion process for order: ${orderId}`);
-    
-    try {
-      // Delete notifications
-      const notifResult = await env.DB.prepare(
-        `DELETE FROM notifications WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${notifResult.meta.changes} notifications`);
-    } catch (e) {
-      console.log(`[DELETE] Notifications table may not exist: ${e.message}`);
-    }
-    
-    try {
-      // First get images for R2 cleanup before deleting DB records
-      let imagesToDelete = [];
-      try {
-        const imageQuery = await env.DB.prepare(
-          `SELECT image_url, cloudflare_id FROM shipping_images WHERE order_id = ?`
-        ).bind(orderId).all();
-        imagesToDelete = imageQuery.results || [];
-      } catch (selectError) {
-        console.log(`[DELETE] Could not select images for cleanup: ${selectError.message}`);
-      }
-      
-      // Delete shipping images from database
-      const imagesResult = await env.DB.prepare(
-        `DELETE FROM shipping_images WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${imagesResult.meta.changes} shipping images from database`);
-      
-      // Clean up R2 storage
-      if (imagesToDelete.length > 0 && env.SHIPPING_IMAGES) {
-        for (const image of imagesToDelete) {
-          try {
-            if (image.cloudflare_id) {
-              await env.SHIPPING_IMAGES.delete(image.cloudflare_id);
-              console.log(`[DELETE] Removed image ${image.cloudflare_id} from R2 storage`);
-            }
-          } catch (r2Error) {
-            console.log(`[DELETE] Failed to delete ${image.cloudflare_id} from R2: ${r2Error.message}`);
-          }
-        }
-      }
-    } catch (e) {
-      console.log(`[DELETE] Critical shipping images deletion error: ${e.message}`);
-      throw e; // This is critical for foreign key constraints
-    }
-    
-    try {
-      // Delete audit logs
-      const auditResult = await env.DB.prepare(
-        `DELETE FROM audit_logs WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${auditResult.meta.changes} audit logs`);
-    } catch (e) {
-      console.log(`[DELETE] Audit logs table may not exist: ${e.message}`);
-    }
-    
-    try {
-      // Delete order update logs
-      const updateLogsResult = await env.DB.prepare(
-        `DELETE FROM order_update_logs WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${updateLogsResult.meta.changes} update logs`);
-    } catch (e) {
-      console.log(`[DELETE] Order update logs table may not exist: ${e.message}`);
-    }
-    
-    try {
-      // Delete order items
-      const itemsResult = await env.DB.prepare(
-        `DELETE FROM order_items WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${itemsResult.meta.changes} order items`);
-    } catch (e) {
-      console.log(`[DELETE] Order items deletion error: ${e.message}`);
-      throw e; // This one is critical
+    if (existingOrder.deleted_at) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Order already deleted' 
+      }), { 
+        status: 400, 
+        headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+      });
     }
 
-    // Finally delete the order
-    const result = await env.DB.prepare(
-      `DELETE FROM orders WHERE id = ?`
-    ).bind(orderId).run();
+    // Soft delete: Mark the order as deleted instead of removing it
+    console.log(`[SOFT DELETE] Marking order as deleted: ${orderId}`);
     
-    console.log(`[DELETE] Successfully deleted order ${orderId}, main record changes: ${result.meta.changes}`);
+    const deletedAt = new Date().toISOString();
+    
+    const result = await env.DB.prepare(
+      `UPDATE orders SET deleted_at = ?, deleted_by = ? WHERE id = ?`
+    ).bind(deletedAt, deletedBy, orderId).run();
+    
+    console.log(`[SOFT DELETE] Successfully soft deleted order ${orderId} by ${deletedBy}`);
 
     return new Response(JSON.stringify({ 
       success: true, 
@@ -1118,12 +1149,223 @@ export async function deleteOrder(request, env) {
   }
 }
 
+// Function to restore a soft-deleted order
+export async function restoreOrder(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const orderId = url.pathname.split('/')[3]; // /api/orders/:id/restore
+
+    if (!orderId) {
+      return new Response(JSON.stringify({ success: false, error: 'Order ID is required' }), 
+        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+    }
+
+    if (!env.DB) {
+      throw new Error('Database binding not found');
+    }
+
+    // Check if order exists and is deleted
+    const existingOrder = await env.DB.prepare(
+      `SELECT id, customer_name, deleted_at, deleted_by FROM orders WHERE id = ?`
+    ).bind(orderId).first();
+
+    if (!existingOrder) {
+      return new Response(JSON.stringify({ success: false, error: 'Order not found' }), 
+        { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+    }
+
+    if (!existingOrder.deleted_at) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Order is not deleted' 
+      }), { 
+        status: 400, 
+        headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+      });
+    }
+
+    // Restore the order by clearing deleted_at and deleted_by
+    const result = await env.DB.prepare(
+      `UPDATE orders SET deleted_at = NULL, deleted_by = NULL WHERE id = ?`
+    ).bind(orderId).run();
+    
+    console.log(`[RESTORE] Successfully restored order ${orderId}`);
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: 'Order successfully restored',
+      orderId: orderId,
+      customerName: existingOrder.customer_name,
+      previouslyDeletedBy: existingOrder.deleted_by
+    }), { 
+      status: 200, 
+      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    });
+
+  } catch (error) {
+    console.error('Restore Order Error:', error.message, error.stack);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Failed to restore order',
+      details: error.message 
+    }), { 
+      status: 500, 
+      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    });
+  }
+}
+
+// Function to get deleted orders (recycle bin)
+export async function getDeletedOrders(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+    const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+
+    if (!env.DB) {
+      throw new Error('Database binding not found');
+    }
+
+    // Query only deleted orders
+    const ordersQuery = `
+      SELECT
+        o.*,
+        o.lokasi_pengiriman AS lokasi_pengiriman_nama,
+        o.lokasi_pengambilan AS lokasi_pengambilan_nama
+      FROM orders o
+      WHERE o.deleted_at IS NOT NULL
+      ORDER BY o.deleted_at DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    const orders = await env.DB.prepare(ordersQuery).bind(limit, offset).all();
+
+    if (!orders || !orders.results) {
+      return new Response(JSON.stringify({ success: false, error: 'Failed to fetch deleted orders' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    // Process orders similar to getAdminOrders but include deleted info
+    const processedOrders = await Promise.all(orders.results.map(async order => {
+      try {
+        const orderItems = await env.DB.prepare(
+          `SELECT product_name, product_price, quantity, subtotal FROM order_items WHERE order_id = ?`
+        ).bind(order.id).all();
+        
+        const rawItems = orderItems?.results || [];
+        const items = rawItems.map(it => ({
+          ...it,
+          price: it.product_price
+        }));
+        
+        let paymentDetails = null;
+        if (order.payment_response) {
+          try {
+            paymentDetails = JSON.parse(order.payment_response);
+          } catch (e) {
+            console.error(`Error parsing payment response for order ${order.id}:`, e);
+          }
+        }
+
+        const { 
+          lokasi_pengiriman_nama, 
+          lokasi_pengambilan_nama,
+          ...restOfOrder 
+        } = order;
+
+        const { pickup_outlet, ...restNoPickup } = restOfOrder;
+
+        const calculatedTotal = items.reduce((sum, item) => {
+          const unit = Number(item.price) || 0;
+          const qty = Number(item.quantity) || 0;
+          const sub = item.subtotal != null ? Number(item.subtotal) : (unit * qty);
+          return sum + sub;
+        }, 0);
+        
+        return {
+          ...restNoPickup,
+          lokasi_pengiriman: lokasi_pengiriman_nama,
+          lokasi_pengambilan: lokasi_pengambilan_nama,
+          items,
+          payment_details: paymentDetails,
+          payment_status: derivePaymentStatusFromData(order),
+          total_amount: calculatedTotal || Number(order.total_amount) || 0
+        };
+      } catch (itemError) {
+        console.error(`Error processing items for order ${order.id}:`, itemError);
+        return {
+          ...order,
+          items: [],
+          total_amount: Number(order.total_amount) || 0,
+          error: 'Failed to fetch items for this order'
+        };
+      }
+    }));
+
+    // Count total deleted orders
+    const countResult = await env.DB.prepare(
+      'SELECT COUNT(*) as total FROM orders WHERE deleted_at IS NOT NULL'
+    ).first();
+    const total = countResult ? countResult.total : 0;
+
+    return new Response(JSON.stringify({
+      success: true,
+      orders: processedOrders,
+      pagination: {
+        total,
+        offset,
+        limit,
+        has_more: offset + limit < total
+      }
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+
+  } catch (error) {
+    console.error('Get Deleted Orders Error:', error.message, error.stack);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Failed to fetch deleted orders',
+      details: error.message 
+    }), { 
+      status: 500, 
+      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    });
+  }
+}
+
 // Get orders assigned to specific deliveryman
 export async function getDeliveryOrders(request, env) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
   };
 
   // Handle OPTIONS request for CORS preflight
@@ -1150,32 +1392,33 @@ export async function getDeliveryOrders(request, env) {
       SELECT outlet_id FROM users WHERE id = ? AND role = 'deliveryman'
     `).bind(deliverymanId).first();
     let outletNameForUser = null;
+    let accessAllOutlets = false;
     if (deliveryUser?.outlet_id) {
-      const outletRow = await env.DB.prepare(`
-        SELECT name FROM outlets_unified WHERE id = ?
-      `).bind(deliveryUser.outlet_id).first();
-      outletNameForUser = outletRow?.name || null;
+      if (String(deliveryUser.outlet_id).toUpperCase() === 'ALL') {
+        accessAllOutlets = true;
+      } else {
+        const outletRow = await env.DB.prepare(`
+          SELECT name FROM outlets_unified WHERE id = ?
+        `).bind(deliveryUser.outlet_id).first();
+        outletNameForUser = outletRow?.name || null;
+      }
     }
 
-    // Build comprehensive query for deliveryman orders
+    // Build comprehensive query for deliveryman orders with strict filters
     let deliveryQuery = `
       SELECT *
       FROM orders
-      WHERE assigned_deliveryman_id = ? 
-         OR pickup_method = 'deliveryman'
+      WHERE 
+        LOWER(COALESCE(shipping_area, '')) IN ('dalam_kota', 'dalam-kota', 'dalam kota')
+        AND LOWER(COALESCE(pickup_method, '')) IN ('deliveryman', 'kurir toko', 'kurir_toko')
+        AND (LOWER(COALESCE(tipe_pesanan, '')) IN ('pesan antar', 'pesan-antar') OR tipe_pesanan IS NULL OR tipe_pesanan = '')
+        AND assigned_deliveryman_id = ?
     `;
-    
+
     let queryParams = [deliverymanId];
-    
-    // Include outlet orders by lokasi_pengambilan that are ready for delivery if user has outlet assignment
-    if (outletNameForUser) {
-      deliveryQuery += ` 
-         OR (lokasi_pengambilan = ? AND shipping_status IN ('siap kirim', 'siap ambil', 'shipping'))
-      `;
-      queryParams.push(outletNameForUser);
-    }
-    
-    deliveryQuery += ` ORDER BY created_at DESC`;
+
+    deliveryQuery += `
+      ORDER BY created_at DESC`;
     
     console.log(`🚚 Delivery query for user ${deliverymanId} (outlet_name: ${outletNameForUser || 'none'}):`, deliveryQuery);
     
@@ -1260,22 +1503,47 @@ export async function getAdminOrders(request, env) {
     const url = new URL(request.url);
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
     const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+    const search = url.searchParams.get('search') || '';
 
     if (!env.DB) {
       throw new Error('Database binding not found');
     }
 
-    const ordersQuery = `
+    // Build query with optional search and exclude deleted orders
+    let ordersQuery = `
       SELECT
         o.*,
         o.lokasi_pengiriman AS lokasi_pengiriman_nama,
         o.lokasi_pengambilan AS lokasi_pengambilan_nama
       FROM orders o
+      WHERE o.deleted_at IS NULL
+    `;
+    
+    const bindings = [];
+    
+    if (search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      ordersQuery += `
+        AND (o.id LIKE ? 
+        OR o.customer_name LIKE ? 
+        OR o.customer_email LIKE ?
+        OR o.shipping_area LIKE ?
+        OR o.lokasi_pengiriman LIKE ?
+        OR o.lokasi_pengambilan LIKE ?
+        OR o.pickup_method LIKE ?
+        OR o.created_by_admin_name LIKE ?)
+      `;
+      bindings.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+    
+    ordersQuery += `
       ORDER BY o.created_at DESC
       LIMIT ? OFFSET ?
     `;
+    
+    bindings.push(limit, offset);
 
-    const orders = await env.DB.prepare(ordersQuery).bind(limit, offset).all();
+    const orders = await env.DB.prepare(ordersQuery).bind(...bindings).all();
 
     if (!orders || !orders.results) {
       return new Response(JSON.stringify({ success: false, error: 'Failed to fetch orders' }), {
@@ -1315,6 +1583,14 @@ export async function getAdminOrders(request, env) {
         // Omit deprecated pickup_outlet from response
         const { pickup_outlet, ...restNoPickup } = restOfOrder;
 
+        // Calculate total_amount from items, fallback to database value
+        const calculatedTotal = items.reduce((sum, item) => {
+          const unit = Number(item.price) || 0;
+          const qty = Number(item.quantity) || 0;
+          const sub = item.subtotal != null ? Number(item.subtotal) : (unit * qty);
+          return sum + sub;
+        }, 0);
+        
         return {
           ...restNoPickup,
           lokasi_pengiriman: lokasi_pengiriman_nama, // Use the name from the JOIN
@@ -1322,24 +1598,37 @@ export async function getAdminOrders(request, env) {
           items,
           payment_details: paymentDetails,
           payment_status: derivePaymentStatusFromData(order),
-          total_amount: items.reduce((sum, item) => {
-            const unit = Number(item.price) || 0;
-            const qty = Number(item.quantity) || 0;
-            const sub = item.subtotal != null ? Number(item.subtotal) : (unit * qty);
-            return sum + sub;
-          }, 0)
+          total_amount: calculatedTotal || Number(order.total_amount) || 0
         };
       } catch (itemError) {
         console.error(`Error processing items for order ${order.id}:`, itemError);
         return {
           ...order,
           items: [],
+          total_amount: Number(order.total_amount) || 0,
           error: 'Failed to fetch items for this order'
         };
       }
     }));
 
-    const countResult = await env.DB.prepare('SELECT COUNT(*) as total FROM orders').first();
+    // Count total with same search filter and exclude deleted orders
+    let countQuery = 'SELECT COUNT(*) as total FROM orders WHERE deleted_at IS NULL';
+    const countBindings = [];
+    
+    if (search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      countQuery += ` AND (id LIKE ? 
+        OR customer_name LIKE ? 
+        OR customer_email LIKE ?
+        OR shipping_area LIKE ?
+        OR lokasi_pengiriman LIKE ?
+        OR lokasi_pengambilan LIKE ?
+        OR pickup_method LIKE ?
+        OR created_by_admin_name LIKE ?)`;
+      countBindings.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+    
+    const countResult = await env.DB.prepare(countQuery).bind(...countBindings).first();
     const total = countResult ? countResult.total : 0;
 
     return new Response(JSON.stringify({
@@ -1816,7 +2105,21 @@ export async function updateOrderDetails(request, env) {
         updateParams.push(normalized); 
       }
       if (tracking_number !== undefined) { updateFields.push('tracking_number = ?'); updateParams.push(tracking_number); }
-      if (courier_service !== undefined) { updateFields.push('courier_service = ?'); updateParams.push(courier_service); }
+      if (courier_service !== undefined) { 
+        updateFields.push('courier_service = ?'); 
+        updateParams.push(courier_service);
+        
+        // Also update assigned_deliveryman_id when courier_service changes
+        // Map courier name to deliveryman ID
+        let deliverymanId = null;
+        if (courier_service && courier_service.toLowerCase() === 'rudi') {
+          deliverymanId = 'usr_1755672750527_49dznt';
+        } else if (courier_service && courier_service.toLowerCase() === 'fendi') {
+          deliverymanId = 'usr_1755672660126_bbil5p';
+        }
+        updateFields.push('assigned_deliveryman_id = ?');
+        updateParams.push(deliverymanId);
+      }
       // Delivery scheduling fields
       if (delivery_date !== undefined) { updateFields.push('delivery_date = ?'); updateParams.push(delivery_date); }
       if (delivery_time !== undefined) { updateFields.push('delivery_time = ?'); updateParams.push(delivery_time); }
@@ -1837,9 +2140,39 @@ export async function updateOrderDetails(request, env) {
       // REDESIGNED SHIPPING INFO LOGIC - REMOVE INVALID VALIDATION
       // lokasi_pengambilan should always be outlet name, lokasi_pengiriman should be customer address
       // No need for locations table validation since these are actual outlet names and customer addresses
+      
+      // For luar kota orders, lokasi_pengiriman should be null
       if (lokasiPengirimanName !== undefined) {
+        // Determine if this is luar kota based on shipping_area (use updated value if provided, else fetch current)
+        let effectiveShippingArea = shipping_area; // Use the updated shipping_area if provided
+        if (effectiveShippingArea === undefined) {
+          // Fetch current shipping_area from DB if not provided in update
+          const currentOrder = await env.DB.prepare('SELECT shipping_area FROM orders WHERE id = ?').bind(orderId).first();
+          effectiveShippingArea = currentOrder?.shipping_area || '';
+        }
+        const isLuarKotaOrder = (effectiveShippingArea || '').toLowerCase().includes('luar');
+        const finalLokasiPengiriman = isLuarKotaOrder ? null : (lokasiPengirimanName || null);
+        
         updateFields.push('lokasi_pengiriman = ?');
-        updateParams.push(lokasiPengirimanName || null);
+        updateParams.push(finalLokasiPengiriman);
+        
+        console.log('📦 [UPDATE ORDER] Shipping location logic:', {
+          orderId,
+          shipping_area: effectiveShippingArea,
+          isLuarKota: isLuarKotaOrder,
+          original_lokasi_pengiriman: lokasiPengirimanName,
+          final_lokasi_pengiriman: finalLokasiPengiriman
+        });
+      }
+
+      // Also handle the case where shipping_area is updated to luar kota but lokasi_pengiriman is not explicitly provided
+      if (shipping_area !== undefined && lokasiPengirimanName === undefined) {
+        const isLuarKotaOrder = (shipping_area || '').toLowerCase().includes('luar');
+        if (isLuarKotaOrder) {
+          updateFields.push('lokasi_pengiriman = ?');
+          updateParams.push(null);
+          console.log('📦 [UPDATE ORDER] Clearing lokasi_pengiriman for luar kota transition:', { orderId, shipping_area });
+        }
       }
 
       if (lokasiPengambilanName !== undefined) {
@@ -1880,7 +2213,8 @@ export async function updateOrderDetails(request, env) {
     }
 
     // Validate and update assigned_deliveryman_id if provided
-    if (typeof rawAssignedDeliverymanId !== 'undefined') {
+    // BUT: Skip if courier_service was already provided (it will auto-map assigned_deliveryman_id)
+    if (typeof rawAssignedDeliverymanId !== 'undefined' && courier_service === undefined) {
       let finalAssignedId = null;
       try {
         if (rawAssignedDeliverymanId) {
@@ -2150,37 +2484,11 @@ export async function getOutletOrders(request, env) {
           // Build query with conditions for outlet matching by name/location
           let outletCondition = '';
           
-          // Primary: exact match on lokasi_pengambilan (canonical outlet scoping)
+          // Filter orders where:
+          // 1. lokasi_pengambilan = outlet name (orders picked up from this outlet)
+          // 2. OR lokasi_pengiriman = outlet name (orders delivered to this outlet's area)
           if (outletName) {
-            outletCondition += `LOWER(o.lokasi_pengambilan) = LOWER('${outletName}')`;
-          }
-          
-          // Fallback: location/name string matching
-          if (outletName) {
-            if (outletCondition) outletCondition += ' OR ';
-            outletCondition += `(LOWER(o.lokasi_pengiriman) LIKE LOWER('%${outletName}%')`;
-            
-            // Add special matching patterns for common outlet names
-            if (outletName.toLowerCase().includes('bonbin')) {
-              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%bonbin%')`;
-              outletCondition += ` OR LOWER(o.shipping_area) LIKE LOWER('%bonbin%')`;
-            }
-            if (outletName.toLowerCase().includes('malioboro')) {
-              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%malioboro%')`;
-              outletCondition += ` OR LOWER(o.shipping_area) LIKE LOWER('%malioboro%')`;
-            }
-            if (outletName.toLowerCase().includes('jogja')) {
-              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%jogja%')`;
-              outletCondition += ` OR LOWER(o.lokasi_pengambilan) LIKE LOWER('%jogja%')`;
-            }
-            
-            // Include shipping_area and pickup location in fallback matching
-            if (outletLocationPattern) {
-              outletCondition += ` OR LOWER(o.lokasi_pengambilan) LIKE LOWER('%${outletLocationPattern}%')`;
-              outletCondition += ` OR LOWER(o.shipping_area) LIKE LOWER('%${outletLocationPattern}%')`;
-            }
-            
-            outletCondition += '))';
+            outletCondition += `LOWER(o.lokasi_pengambilan) = LOWER('${outletName}') OR LOWER(o.lokasi_pengiriman) = LOWER('${outletName}')`;
           }
           
           // If we couldn't build any conditions, use a fallback to show SOME orders

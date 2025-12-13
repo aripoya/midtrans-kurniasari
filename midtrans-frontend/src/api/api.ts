@@ -68,8 +68,8 @@ apiClient.interceptors.request.use(
     const isPublicEndpoint = config.url?.includes('/orders/') || config.url?.includes('/api/orders/') && config.method?.toLowerCase() === 'get';
     
     if (!isPublicOrderEndpoint && !isPublicEndpoint) {
-      // Get token from sessionStorage for protected endpoints
-      const token = sessionStorage.getItem('token');
+      // Get token from localStorage for protected endpoints
+      const token = localStorage.getItem('token');
       
       // If token exists, add it to the Authorization header
       if (token) {

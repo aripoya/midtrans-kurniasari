@@ -1,4 +1,4 @@
-import axios, { AxiosResponse } from "axios";
+import axios, { AxiosResponse, AxiosError } from "axios";
 import { API_URL } from "./config";
 
 
@@ -232,6 +232,12 @@ export interface ResetPasswordRequest {
   password: string;
 }
 
+export interface SyncPaymentStatusResponse {
+  payment_status?: string;
+  transaction_status?: string;
+  midtrans_response?: any;
+}
+
 // Helper function to get admin token
 // Prefer localStorage (used by login), fallback to sessionStorage for compatibility
 const getAdminToken = (): string | null => {
@@ -287,6 +293,54 @@ export const adminApi = {
           error.response?.data?.error ||
           error.message ||
           "Error saat mengambil detail pesanan",
+      };
+    }
+  },
+
+  syncPaymentStatusFromMidtrans: async (orderId: string): Promise<ApiResponse<SyncPaymentStatusResponse>> => {
+    try {
+      const token = getAdminToken();
+      if (!token) {
+        return {
+          success: false,
+          data: null,
+          error: "Sesi login berakhir. Silakan login ulang.",
+        };
+      }
+
+      const response: AxiosResponse = await axios.post(
+        `${API_URL}/api/admin/orders/${orderId}/sync-payment-status`,
+        {},
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data: any = response.data;
+      if (data?.success === false) {
+        return { success: false, data: null, error: data?.error || 'Gagal sinkron status pembayaran' };
+      }
+
+      return {
+        success: true,
+        data: {
+          payment_status: data?.payment_status,
+          transaction_status: data?.transaction_status,
+          midtrans_response: data?.midtrans_response,
+        },
+        error: null,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        data: null,
+        error:
+          error.response?.data?.error ||
+          error.message ||
+          "Error saat sinkron status pembayaran",
       };
     }
   },
@@ -409,20 +463,28 @@ export const adminApi = {
   // Mendapatkan daftar lengkap pesanan untuk admin
   getAdminOrders: async (
     offset: number = 0,
-    limit: number = 50
+    limit: number = 50,
+    search: string = ''
   ): Promise<OrdersResponse> => {
     try {
       console.log("[DEBUG] Fetching admin orders...");
       console.log("[DEBUG] Using endpoint:", `${API_URL}/api/orders/admin`);
       console.log("[DEBUG] Token:", getAdminToken() ? "Present" : "Missing");
+      console.log("[DEBUG] Search term:", search);
+
+      const params: any = {
+        offset,
+        limit,
+      };
+      
+      if (search.trim()) {
+        params.search = search.trim();
+      }
 
       const response: AxiosResponse = await axios.get(
         `${API_URL}/api/orders/admin`,
         {
-          params: {
-            offset,
-            limit,
-          },
+          params,
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${getAdminToken()}`,
@@ -435,14 +497,16 @@ export const adminApi = {
       // Handle different response structures from the API
       if (response.data?.success && Array.isArray(response.data?.orders)) {
         const orders: Order[] = response.data.orders;
+        const pagination = response.data.pagination || {};
         console.log("[DEBUG] Found orders array with length:", orders.length);
+        console.log("[DEBUG] Pagination data:", pagination);
         return {
           success: true,
           data: {
             orders,
-            total: response.data.total || orders.length,
-            offset: response.data.offset || offset,
-            limit: response.data.limit || limit,
+            total: pagination.total || response.data.total || orders.length,
+            offset: pagination.offset || response.data.offset || offset,
+            limit: pagination.limit || response.data.limit || limit,
           },
           error: null,
         };
@@ -521,11 +585,23 @@ export const adminApi = {
       console.log("📸 Image Type:", imageType);
       console.log("📁 File:", imageFile.name);
 
+      // Backend hanya menerima imageType: siap_kirim, pengiriman, diterima, shipment_proof
+      // Lakukan mapping dari nilai di frontend ke nilai backend yang valid
+      const backendImageTypeMap: Record<string, string> = {
+        ready_for_pickup: "siap_kirim",
+        picked_up: "pengiriman",
+        delivered: "diterima",
+        shipment_proof: "shipment_proof",
+        packaged_product: "siap_kirim",
+      };
+
+      const mappedImageType = backendImageTypeMap[imageType] || imageType;
+
       const formData = new FormData();
       formData.append("image", imageFile);
-      formData.append("imageType", imageType);
+      formData.append("imageType", mappedImageType);
       const response: AxiosResponse<any> = await axios.post(
-        `${API_URL}/api/shipping/images/${orderId}/${imageType}`,
+        `${API_URL}/api/orders/${orderId}/shipping-images`,
         formData,
         {
           headers: {
@@ -580,7 +656,7 @@ export const adminApi = {
       console.log(`🔍 [adminApi.getShippingImages] Fetching images for order: ${orderId}`);
       
       const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/shipping/images/${orderId}`,
+        `${API_URL}/api/orders/${orderId}/shipping-images`,
         {
           headers: {
             Authorization: `Bearer ${getAdminToken()}`,
@@ -750,7 +826,7 @@ export const adminApi = {
   getDeliveryOrders: async (): Promise<OrdersResponse> => {
     try {
       const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/orders/delivery`,
+        `${API_URL}/api/orders/delivery?_t=${Date.now()}`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -778,6 +854,8 @@ export const adminApi = {
     try {
       const params: any = {};
       if (status) params.status = status;
+      // cache-busting to ensure fresh data in dashboards
+      params.t = Date.now();
       const response: AxiosResponse = await axios.get(
         `${API_URL}/api/delivery/overview`,
         {
@@ -1206,6 +1284,250 @@ export const adminApi = {
           success: false,
           data: null,
           error: error.response?.data?.error || error.message || "Error getting admin stats",
+        };
+      });
+  },
+
+  getRevenueStats(period: 'monthly' | 'weekly' = 'monthly'): Promise<ApiResponse<any[]>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/revenue-stats?period=${period}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any[]>>) => {
+        return response.data;
+      })
+      .catch((error) => {
+        console.error("Error getting revenue stats:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting revenue stats",
+        };
+      });
+  },
+
+  getLuarKotaStats(): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/luar-kota-report?type=stats`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting luar kota stats:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting luar kota stats",
+        };
+      });
+  },
+
+  getLuarKotaOrders(options: {
+    offset?: number;
+    limit?: number;
+    payment_status?: string;
+    shipping_status?: string;
+    courier_service?: string;
+    date_from?: string;
+    date_to?: string;
+    search?: string;
+  } = {}): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    // Build query parameters
+    const params = new URLSearchParams({ type: 'orders' });
+    if (options.offset !== undefined) params.append('offset', String(options.offset));
+    if (options.limit !== undefined) params.append('limit', String(options.limit));
+    if (options.payment_status) params.append('payment_status', options.payment_status);
+    if (options.shipping_status) params.append('shipping_status', options.shipping_status);
+    if (options.courier_service) params.append('courier_service', options.courier_service);
+    if (options.date_from) params.append('date_from', options.date_from);
+    if (options.date_to) params.append('date_to', options.date_to);
+    if (options.search) params.append('search', options.search);
+
+    return axios
+      .get(`${API_URL}/api/admin/luar-kota-report?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting luar kota orders:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting luar kota orders",
+        };
+      });
+  },
+
+  getLuarKotaWeeklyBreakdown(year: number, month: number): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/luar-kota-report?type=weekly&year=${year}&month=${month}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting weekly breakdown:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting weekly breakdown",
+        };
+      });
+  },
+
+  getDalamKotaStats(): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/dalam-kota-report?type=stats`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting dalam kota stats:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting dalam kota stats",
+        };
+      });
+  },
+
+  getDalamKotaOrders(options: {
+    offset?: number;
+    limit?: number;
+    payment_status?: string;
+    shipping_status?: string;
+    pickup_method?: string;
+    date_from?: string;
+    date_to?: string;
+    search?: string;
+  } = {}): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    // Build query parameters
+    const params = new URLSearchParams({ type: 'orders' });
+    if (options.offset !== undefined) params.append('offset', String(options.offset));
+    if (options.limit !== undefined) params.append('limit', String(options.limit));
+    if (options.payment_status) params.append('payment_status', options.payment_status);
+    if (options.shipping_status) params.append('shipping_status', options.shipping_status);
+    if (options.pickup_method) params.append('pickup_method', options.pickup_method);
+    if (options.date_from) params.append('date_from', options.date_from);
+    if (options.date_to) params.append('date_to', options.date_to);
+    if (options.search) params.append('search', options.search);
+
+    return axios
+      .get(`${API_URL}/api/admin/dalam-kota-report?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting dalam kota orders:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting dalam kota orders",
+        };
+      });
+  },
+
+  getDalamKotaWeeklyBreakdown(year: number, month: number): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/dalam-kota-report?type=weekly&year=${year}&month=${month}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting weekly breakdown:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting weekly breakdown",
         };
       });
   },
