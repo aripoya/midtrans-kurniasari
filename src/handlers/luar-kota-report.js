@@ -16,6 +16,43 @@ function formatRupiah(amount) {
   } catch {
     return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
   }
+
+}
+
+/**
+ * Get weekly breakdown for a specific month
+ */
+async function getWeeklyBreakdown(env, year, month) {
+  try {
+    const monthStr = `${year}-${month.toString().padStart(2, '0')}`;
+
+    const weeklyQuery = await env.DB.prepare(`
+      SELECT 
+        strftime('%Y-%W', created_at) as week,
+        strftime('%d', created_at) as day_start,
+        COUNT(*) as count,
+        SUM(total_amount) as revenue,
+        MIN(date(created_at)) as week_start,
+        MAX(date(created_at)) as week_end
+      FROM orders
+      WHERE shipping_area = 'luar-kota'
+        AND strftime('%Y-%m', created_at) = ?
+      GROUP BY strftime('%Y-%W', created_at)
+      ORDER BY week ASC
+    `).bind(monthStr).all();
+
+    return (weeklyQuery.results || []).map(row => ({
+      week: row.week,
+      week_start: row.week_start,
+      week_end: row.week_end,
+      count: row.count,
+      revenue: row.revenue || 0,
+      revenue_formatted: formatRupiah(row.revenue || 0)
+    }));
+  } catch (error) {
+    console.error('❌ Error getting weekly breakdown:', error);
+    throw error;
+  }
 }
 
 /**
@@ -65,7 +102,7 @@ async function getLuarKotaStats(env) {
       GROUP BY courier_service
     `).all();
 
-    // Monthly trend (last 6 months)
+    // Monthly trend (last 12 months)
     const monthlyQuery = await env.DB.prepare(`
       SELECT 
         strftime('%Y-%m', created_at) as month,
@@ -73,7 +110,7 @@ async function getLuarKotaStats(env) {
         SUM(total_amount) as revenue
       FROM orders
       WHERE shipping_area = 'luar-kota'
-        AND date(created_at) >= date('now', '-6 months')
+        AND date(created_at) >= date('now', '-12 months')
       GROUP BY strftime('%Y-%m', created_at)
       ORDER BY month DESC
     `).all();
@@ -221,7 +258,32 @@ async function getLuarKotaOrders(env, options = {}) {
 export async function getLuarKotaReport(request, env) {
   try {
     const url = new URL(request.url);
-    const type = url.searchParams.get('type') || 'stats'; // 'stats' or 'orders'
+    const type = (url.searchParams.get('type') || 'stats').trim().toLowerCase(); // 'stats', 'orders', or 'weekly'
+
+    if (type === 'weekly') {
+      const year = url.searchParams.get('year');
+      const month = url.searchParams.get('month');
+      if (!year || !month) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Year and month parameters are required'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
+        });
+      }
+
+      const weeklyData = await getWeeklyBreakdown(env, parseInt(year), parseInt(month));
+      return new Response(JSON.stringify({
+        success: true,
+        data: weeklyData,
+        year: parseInt(year),
+        month: parseInt(month)
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
+      });
+    }
 
     if (type === 'stats') {
       // Return statistics
@@ -257,7 +319,7 @@ export async function getLuarKotaReport(request, env) {
     } else {
       return new Response(JSON.stringify({
         success: false,
-        error: 'Invalid type parameter. Use "stats" or "orders"'
+        error: 'Invalid type parameter. Use "stats", "orders", or "weekly"'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }

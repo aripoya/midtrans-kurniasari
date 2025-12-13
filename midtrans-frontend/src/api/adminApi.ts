@@ -1342,6 +1342,35 @@ export const adminApi = {
       });
   },
 
+  getLuarKotaWeeklyBreakdown(year: number, month: number): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/luar-kota-report?type=weekly&year=${year}&month=${month}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting weekly breakdown:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting weekly breakdown",
+        };
+      });
+  },
+
   getDalamKotaStats(): Promise<ApiResponse<any>> {
     const token = getAdminToken();
     if (!token) {
