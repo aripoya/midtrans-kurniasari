@@ -29,6 +29,7 @@ import { listMigrationBackups, getMigrationBackup, restoreMigrationBackup } from
 import { resetAdminPassword } from '../reset-admin-password.js';
 import { handleGetOutlets } from './handlers/outlets';
 import { handleMidtransWebhook, checkTransactionStatus, updateOrderStatusFromMidtrans } from './handlers/webhook.js';
+import { handleAiChat } from './handlers/ai-chat.js';
 
 console.log('Initializing router');
 const router = Router();
@@ -143,6 +144,20 @@ router.get('/api/auth/profile', verifyToken, (request, env) => {
     return getUserProfile(request, env);
 });
 
+// AI Chat endpoint
+router.post('/api/ai/chat', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+
+    return handleAiChat(request, env);
+});
 // Tambahan endpoint /auth/profile tanpa prefix /api untuk mengatasi masalah CORS
 router.get('/auth/profile', verifyToken, (request, env) => {
     console.log('Receiving profile request at /auth/profile (without /api prefix)');
