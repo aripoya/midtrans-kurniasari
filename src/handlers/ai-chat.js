@@ -53,6 +53,67 @@ function addDefaultLimit(sql) {
     return out;
 }
 
+function formatMonthYearMmYyyy(value) {
+    const s = String(value || '').trim();
+    const m = s.match(/^(\d{4})-(\d{2})$/);
+    if (!m) return value;
+    return `${m[2]}-${m[1]}`;
+}
+
+function formatDateDdMmYyyy(value) {
+    const s = String(value || '').trim();
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T].*)?$/);
+    if (!m) return value;
+    return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
+function formatDatesInRow(row) {
+    if (!row || typeof row !== 'object') return row;
+    const out = Array.isArray(row) ? [] : {};
+    for (const [k, v] of Object.entries(row)) {
+        if (typeof v === 'string') {
+            const trimmed = v.trim();
+            const monthYear = trimmed.match(/^(\d{4})-(\d{2})$/);
+            const dateLike = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T].*)?$/);
+            if (dateLike) {
+                out[k] = formatDateDdMmYyyy(trimmed);
+            } else if (monthYear) {
+                out[k] = formatMonthYearMmYyyy(trimmed);
+            } else {
+                out[k] = v;
+            }
+        } else {
+            out[k] = v;
+        }
+    }
+    return out;
+}
+
+function formatDatesDeep(data) {
+    if (data == null) return data;
+    if (Array.isArray(data)) return data.map((x) => formatDatesDeep(x));
+    if (typeof data === 'object') {
+        // If it's a plain row object, format its values, and recurse for nested objects
+        const formattedRow = formatDatesInRow(data);
+        for (const [k, v] of Object.entries(formattedRow)) {
+            if (v && (Array.isArray(v) || typeof v === 'object')) {
+                formattedRow[k] = formatDatesDeep(v);
+            }
+        }
+        return formattedRow;
+    }
+    return data;
+}
+
+function formatDatesInText(text) {
+    if (text == null) return text;
+    const s = String(text);
+    // Format full dates first (YYYY-MM-DD -> DD-MM-YYYY)
+    const withDates = s.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (_, y, m, d) => `${d}-${m}-${y}`);
+    // Then format month periods (YYYY-MM -> MM-YYYY)
+    return withDates.replace(/\b(\d{4})-(\d{2})\b/g, (_, y, m) => `${m}-${y}`);
+}
+
 function isDuplicateOrdersQuestion(text) {
     const t = String(text || '').toLowerCase();
     return (
@@ -115,6 +176,114 @@ function isWeeklyRevenueQuestion(text) {
 function hasLuarKotaKeyword(text) {
     const t = String(text || '').toLowerCase();
     return t.includes('luar kota') || t.includes('luarkota') || t.includes('luar-kota') || t.includes('luar_kota');
+}
+
+function isAverageDailyRevenueQuestion(text) {
+    const t = String(text || '').toLowerCase();
+    const isRevenue = t.includes('pendapatan') || t.includes('penjualan') || t.includes('revenue');
+    const isAverage = t.includes('rata-rata') || t.includes('rata rata') || t.includes('average') || t.includes('avg');
+    const isPerDay = t.includes('per hari') || t.includes('harian');
+    return isRevenue && isAverage && isPerDay;
+}
+
+function parseAverageDailyRange(text) {
+    const t = String(text || '').toLowerCase();
+
+    // Rounding: default integer rupiah
+    let roundDigits = 0;
+    if (t.includes('dua digit') || t.includes('2 digit') || t.includes('2-digit') || t.includes('2 angka')) {
+        roundDigits = 2;
+    }
+
+    if (t.includes('bulan ini') || t.includes('month to date') || t.includes('mtd')) {
+        return { kind: 'month_to_date', roundDigits };
+    }
+    if (t.includes('minggu ini') || t.includes('pekan ini') || t.includes('week to date') || t.includes('wtd')) {
+        return { kind: 'week_to_date', roundDigits };
+    }
+
+    const mDays = t.match(/\b(\d{1,3})\s*hari\b/);
+    if (mDays) {
+        const n = Number(mDays[1]);
+        if (Number.isFinite(n) && n > 0 && n <= 3660) {
+            return { kind: 'last_n_days', nDays: n, roundDigits };
+        }
+    }
+
+    if (t.includes('hingga sekarang') || t.includes('sampai sekarang') || t.includes('sejak awal') || t.includes('dari awal')) {
+        return { kind: 'all_time', roundDigits };
+    }
+
+    // Default: last 30 days
+    return { kind: 'last_n_days', nDays: 30, roundDigits };
+}
+
+function buildAverageDailyRevenueSql(range) {
+    const paidFilter = "LOWER(COALESCE(payment_status, '')) IN ('settlement','paid','capture','success','dibayar')";
+    const notDeleted = "(deleted_at IS NULL OR deleted_at = '')";
+    const roundDigits = Number.isFinite(range?.roundDigits) ? range.roundDigits : 0;
+
+    let startExpr;
+    if (range?.kind === 'month_to_date') {
+        startExpr = "date('now','start of month')";
+    } else if (range?.kind === 'week_to_date') {
+        // Monday as start of week
+        startExpr = "date('now','weekday 1','-7 days')";
+    } else if (range?.kind === 'last_n_days') {
+        const n = Math.max(1, Number(range?.nDays || 30));
+        const offset = n - 1;
+        startExpr = `date('now','-${offset} days')`;
+    } else {
+        // all_time: start from earliest paid order date
+        startExpr = `(
+  SELECT MIN(date(created_at))
+  FROM orders
+  WHERE ${paidFilter}
+    AND ${notDeleted}
+)`;
+    }
+
+    return `WITH bounds AS (
+  SELECT
+    COALESCE(${startExpr}, date('now')) AS start_date,
+    date('now') AS end_date
+), paid_orders AS (
+  SELECT date(created_at) AS d,
+         total_amount AS amount
+  FROM orders, bounds
+  WHERE date(created_at) >= bounds.start_date
+    AND date(created_at) <= bounds.end_date
+    AND ${paidFilter}
+    AND ${notDeleted}
+), agg AS (
+  SELECT
+    COALESCE(SUM(amount),0) AS total_paid,
+    COUNT(*) AS orders_paid,
+    COUNT(DISTINCT d) AS active_days,
+    (SELECT start_date FROM bounds) AS start_date,
+    (SELECT end_date FROM bounds) AS end_date
+  FROM paid_orders
+), days AS (
+  SELECT
+    total_paid,
+    orders_paid,
+    active_days,
+    start_date,
+    end_date,
+    (CAST(julianday(end_date) - julianday(start_date) AS INTEGER) + 1) AS calendar_days
+  FROM agg
+)
+SELECT
+  total_paid,
+  orders_paid,
+  active_days,
+  calendar_days,
+  CASE WHEN calendar_days > 0 THEN ROUND(total_paid * 1.0 / calendar_days, ${roundDigits}) ELSE 0 END AS avg_per_calendar_day,
+  CASE WHEN active_days > 0 THEN ROUND(total_paid * 1.0 / active_days, ${roundDigits}) ELSE 0 END AS avg_per_active_day,
+  start_date,
+  end_date
+FROM days
+LIMIT 1`;
 }
 
 function isAnalysisQuestion(text) {
@@ -547,7 +716,7 @@ export async function handleAiChat(request, env) {
             }
 
             const results = await Promise.all(entries.map(([, sql]) => env.DB.prepare(sql).all()));
-            const byKey = Object.fromEntries(entries.map(([k], idx) => [k, results[idx]?.results || []]));
+            const byKey = Object.fromEntries(entries.map(([k], idx) => [k, formatDatesDeep(results[idx]?.results || [])]));
 
             const sections = [
                 { key: 'summary', title: 'A. Ringkasan 30 hari / bulan ini / hari ini (paid-only)', rows: byKey.summary },
@@ -563,7 +732,7 @@ export async function handleAiChat(request, env) {
 
             return new Response(JSON.stringify({
                 intent: 'analysis',
-                message: 'Berikut analisis A–D berdasarkan data 30 hari terakhir (dengan revenue paid-only).',
+                message: formatDatesInText('Berikut analisis A–D berdasarkan data 30 hari terakhir (dengan revenue paid-only).'),
                 data: { sections },
                 count: sections.length
             }), {
@@ -589,8 +758,8 @@ export async function handleAiChat(request, env) {
             const result = await env.DB.prepare(sql).all();
             return new Response(JSON.stringify({
                 intent: 'query',
-                message: 'Berikut daftar grup pesanan yang memiliki detail item identik pada hari yang sama:',
-                data: result.results,
+                message: formatDatesInText('Berikut daftar grup pesanan yang memiliki detail item identik pada hari yang sama:'),
+                data: formatDatesDeep(result.results),
                 count: result.results?.length || 0
             }), {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -616,13 +785,70 @@ export async function handleAiChat(request, env) {
             const row = result.results?.[0] || {};
             const total = row.total ?? 0;
             const orderCount = row.order_count ?? 0;
-            const startDate = row.start_date;
-            const endDate = row.end_date;
+            const startDate = row.start_date ? formatDateDdMmYyyy(row.start_date) : row.start_date;
+            const endDate = row.end_date ? formatDateDdMmYyyy(row.end_date) : row.end_date;
             const range = startDate && endDate ? `${startDate} s/d ${endDate}` : 'minggu ini';
             return new Response(JSON.stringify({
                 intent: 'query',
-                message: `Total pendapatan minggu ini (${range}) adalah ${total} dari ${orderCount} pesanan (paid-only).`,
-                data: [{ total, order_count: orderCount, start_date: startDate, end_date: endDate }],
+                message: formatDatesInText(`Total pendapatan minggu ini (${range}) adalah ${total} dari ${orderCount} pesanan (paid-only).`),
+                data: formatDatesDeep([{ total, order_count: orderCount, start_date: startDate, end_date: endDate }]),
+                count: 1
+            }), {
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+        }
+
+        // Deterministic average daily revenue (paid-only)
+        if (isAverageDailyRevenueQuestion(message)) {
+            const range = parseAverageDailyRange(message);
+            const sql = buildAverageDailyRevenueSql(range);
+            const validation = validateSqlIsSelectOnly(sql);
+            if (!validation.ok) {
+                return new Response(JSON.stringify({
+                    intent: 'error',
+                    message: `Query tidak diizinkan. ${validation.reason}.`,
+                    data: null
+                }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
+            const result = await env.DB.prepare(sql).all();
+            const row = result.results?.[0] || {};
+
+            const startDate = row.start_date ? formatDateDdMmYyyy(row.start_date) : row.start_date;
+            const endDate = row.end_date ? formatDateDdMmYyyy(row.end_date) : row.end_date;
+            const rangeLabel = startDate && endDate ? `${startDate} s/d ${endDate}` : 'rentang dipilih';
+
+            const totalPaid = row.total_paid ?? 0;
+            const ordersPaid = row.orders_paid ?? 0;
+            const activeDays = row.active_days ?? 0;
+            const calendarDays = row.calendar_days ?? 0;
+            const avgCalendar = row.avg_per_calendar_day ?? 0;
+            const avgActive = row.avg_per_active_day ?? 0;
+
+            return new Response(JSON.stringify({
+                intent: 'query',
+                message: formatDatesInText(
+                    `Rata-rata pendapatan per hari (${rangeLabel}) (paid-only):\n` +
+                    `- Total paid: ${totalPaid} (dari ${ordersPaid} pesanan)\n` +
+                    `- Rata-rata per hari kalender (${calendarDays} hari): ${avgCalendar}\n` +
+                    `- Rata-rata per hari ada transaksi (${activeDays} hari): ${avgActive}`
+                ),
+                data: formatDatesDeep([
+                    {
+                        range_kind: range?.kind,
+                        total_paid: totalPaid,
+                        orders_paid: ordersPaid,
+                        calendar_days: calendarDays,
+                        active_days: activeDays,
+                        avg_per_calendar_day: avgCalendar,
+                        avg_per_active_day: avgActive,
+                        start_date: startDate,
+                        end_date: endDate,
+                    }
+                ]),
                 count: 1
             }), {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -667,11 +893,12 @@ export async function handleAiChat(request, env) {
 
                     const totalAll = rAll.results?.[0]?.total ?? 0;
                     const totalPaid = rPaid.results?.[0]?.total ?? 0;
+                    const ymLabel = formatMonthYearMmYyyy(parsed.ym);
 
                     return new Response(JSON.stringify({
                         intent: 'query',
-                        message: `Pendapatan luar kota bulan ${parsed.ym}: total (semua status pembayaran) ${totalAll}; paid-only ${totalPaid}.`,
-                        data: [{ total_all: totalAll, total_paid: totalPaid, month: parsed.ym, shipping_area: 'luar-kota' }],
+                        message: formatDatesInText(`Pendapatan luar kota bulan ${ymLabel}: total (semua status pembayaran) ${totalAll}; paid-only ${totalPaid}.`),
+                        data: formatDatesDeep([{ total_all: totalAll, total_paid: totalPaid, month: ymLabel, shipping_area: 'luar-kota' }]),
                         count: 1
                     }), {
                         headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -693,10 +920,11 @@ export async function handleAiChat(request, env) {
 
                 const result = await env.DB.prepare(sql).all();
                 const total = result.results?.[0]?.total ?? 0;
+                const ymLabel = formatMonthYearMmYyyy(parsed.ym);
                 return new Response(JSON.stringify({
                     intent: 'query',
-                    message: `Total pendapatan bulan ${parsed.ym} adalah ${total}`,
-                    data: [{ total }],
+                    message: formatDatesInText(`Total pendapatan bulan ${ymLabel} adalah ${total}`),
+                    data: formatDatesDeep([{ total }]),
                     count: 1
                 }), {
                     headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -755,11 +983,13 @@ export async function handleAiChat(request, env) {
 
                 // Execute query
                 const result = await env.DB.prepare(sql).all();
+
+                const responseMessage = formatDatesInText(parsedResponse.explanation || 'Berikut hasil pencarian:');
                 
                 return new Response(JSON.stringify({
                     intent: 'query',
-                    message: parsedResponse.explanation || 'Berikut hasil pencarian:',
-                    data: result.results,
+                    message: responseMessage,
+                    data: formatDatesDeep(result.results),
                     count: result.results?.length || 0
                 }), {
                     headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -777,9 +1007,10 @@ export async function handleAiChat(request, env) {
         }
 
         // Return response untuk intent non-query
+        const nonQueryMessage = formatDatesInText(parsedResponse.explanation || parsedResponse.message || 'OK');
         return new Response(JSON.stringify({
             intent: parsedResponse.intent || 'info',
-            message: parsedResponse.explanation || parsedResponse.message || 'OK',
+            message: nonQueryMessage,
             data: null
         }), {
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
