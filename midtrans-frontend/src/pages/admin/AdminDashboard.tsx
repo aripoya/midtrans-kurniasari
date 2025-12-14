@@ -24,7 +24,6 @@ import {
   Icon,
   Flex,
   Textarea,
-  Code,
   Table,
   Thead,
   Tbody,
@@ -153,15 +152,6 @@ const AdminDashboard: React.FC = () => {
 
     return (
       <VStack align="stretch" spacing={3}>
-        {aiResponse.sql && (
-          <Box>
-            <Text fontSize="sm" fontWeight="semibold" mb={1}>SQL</Text>
-            <Code display="block" whiteSpace="pre-wrap" p={3} borderRadius="md">
-              {aiResponse.sql}
-            </Code>
-          </Box>
-        )}
-
         {rows.length > 0 ? (
           <Box overflowX="auto" borderWidth={1} borderRadius="md">
             <Table size="sm">
