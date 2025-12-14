@@ -953,7 +953,7 @@ export async function handleAiChat(request, env) {
         }
 
         // Step 1: Gunakan AI untuk parse intent dan generate SQL
-        const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+        const aiResponse = await env.AI.run('@cf/qwen/qwen3-30b-a3b-fp8', {
             messages: [
                 { role: 'system', content: SYSTEM_PROMPT },
                 { role: 'user', content: message }
