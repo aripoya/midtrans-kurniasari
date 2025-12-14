@@ -103,6 +103,18 @@ export interface ApiResponse<T = any> {
   error: string | null;
 }
 
+export type AiChatIntent = "query" | "info" | "greeting" | "error";
+
+export interface AiChatResponse {
+  intent: AiChatIntent;
+  message?: string;
+  sql?: string;
+  data?: any;
+  count?: number;
+  success?: boolean;
+  error?: string;
+}
+
 export interface LoginResponse {
   success: boolean;
   token?: string;
@@ -814,6 +826,36 @@ export const adminApi = {
   // Logout admin
   logout: (): void => {
     localStorage.removeItem("token");
+  },
+
+  aiChat: async (message: string): Promise<ApiResponse<AiChatResponse>> => {
+    try {
+      const token = getAdminToken();
+      if (!token) {
+        return { success: false, data: null, error: "Token tidak ditemukan. Silakan login ulang." };
+      }
+
+      const response: AxiosResponse = await axios.post(
+        `${API_URL}/api/ai/chat`,
+        { message },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      return { success: true, data: response.data as AiChatResponse, error: null };
+    } catch (error: any) {
+      const msg =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        "Gagal memanggil AI";
+
+      return { success: false, data: null, error: msg };
+    }
   },
 
   // Verifica si el usuario está autenticado como admin

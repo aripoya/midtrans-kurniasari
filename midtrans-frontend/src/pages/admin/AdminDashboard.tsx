@@ -23,6 +23,14 @@ import {
   AlertIcon,
   Icon,
   Flex,
+  Textarea,
+  Code,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
@@ -56,6 +64,13 @@ interface RevenueData {
   orders: number;
 }
 
+type ChatRole = 'user' | 'assistant';
+
+interface ChatItem {
+  role: ChatRole;
+  content: string;
+}
+
 const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [monthlyRevenue, setMonthlyRevenue] = useState<RevenueData[]>([]);
@@ -64,6 +79,12 @@ const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
+
+  const [aiInput, setAiInput] = useState<string>('');
+  const [aiLoading, setAiLoading] = useState<boolean>(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiResponse, setAiResponse] = useState<any>(null);
+  const [chatHistory, setChatHistory] = useState<ChatItem[]>([]);
 
   useEffect(() => {
     fetchDashboardStats();
@@ -92,6 +113,85 @@ const AdminDashboard: React.FC = () => {
     } finally {
       setChartLoading(false);
     }
+  };
+
+  const handleSendAi = async () => {
+    const message = aiInput.trim();
+    if (!message) return;
+
+    setAiError(null);
+    setAiLoading(true);
+    setChatHistory((prev) => [...prev, { role: 'user', content: message }]);
+    setAiInput('');
+
+    try {
+      const res = await adminApi.aiChat(message);
+      if (!res.success || !res.data) {
+        const errMsg = res.error || 'Gagal memanggil AI';
+        setAiError(errMsg);
+        setChatHistory((prev) => [...prev, { role: 'assistant', content: errMsg }]);
+        return;
+      }
+
+      setAiResponse(res.data);
+      const assistantText = res.data.message || 'OK';
+      setChatHistory((prev) => [...prev, { role: 'assistant', content: assistantText }]);
+    } catch (e: any) {
+      const errMsg = e?.message || 'Gagal memanggil AI';
+      setAiError(errMsg);
+      setChatHistory((prev) => [...prev, { role: 'assistant', content: errMsg }]);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const renderAiResult = () => {
+    if (!aiResponse) return null;
+
+    const rows: any[] = Array.isArray(aiResponse.data) ? aiResponse.data : [];
+    const keys = rows.length > 0 ? Object.keys(rows[0] || {}) : [];
+
+    return (
+      <VStack align="stretch" spacing={3}>
+        {aiResponse.sql && (
+          <Box>
+            <Text fontSize="sm" fontWeight="semibold" mb={1}>SQL</Text>
+            <Code display="block" whiteSpace="pre-wrap" p={3} borderRadius="md">
+              {aiResponse.sql}
+            </Code>
+          </Box>
+        )}
+
+        {rows.length > 0 ? (
+          <Box overflowX="auto" borderWidth={1} borderRadius="md">
+            <Table size="sm">
+              <Thead>
+                <Tr>
+                  {keys.slice(0, 8).map((k) => (
+                    <Th key={k}>{k}</Th>
+                  ))}
+                </Tr>
+              </Thead>
+              <Tbody>
+                {rows.slice(0, 20).map((r, idx) => (
+                  <Tr key={idx}>
+                    {keys.slice(0, 8).map((k) => (
+                      <Td key={k} maxW="240px" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
+                        {r?.[k] === null || r?.[k] === undefined ? '' : String(r[k])}
+                      </Td>
+                    ))}
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </Box>
+        ) : (
+          <Box>
+            <Text fontSize="sm" color="gray.600">Tidak ada data untuk ditampilkan</Text>
+          </Box>
+        )}
+      </VStack>
+    );
   };
 
   const fetchDashboardStats = async () => {
@@ -518,6 +618,66 @@ const AdminDashboard: React.FC = () => {
           </VStack>
         </Alert>
       )}
+
+      <Card mt={6}>
+        <CardHeader>
+          <Heading size="md">AI Assistant</Heading>
+        </CardHeader>
+        <CardBody>
+          <VStack align="stretch" spacing={4}>
+            {aiError && (
+              <Alert status="error" borderRadius="md">
+                <AlertIcon />
+                {aiError}
+              </Alert>
+            )}
+
+            <Box maxH="220px" overflowY="auto" borderWidth={1} borderRadius="md" p={3}>
+              <VStack align="stretch" spacing={2}>
+                {chatHistory.length === 0 ? (
+                  <Text color="gray.500" fontSize="sm">
+                    Tanyakan misalnya: "tampilkan 5 pesanan terbaru", "cari pesanan Budi", "pesanan hari ini"
+                  </Text>
+                ) : (
+                  chatHistory.map((item, idx) => (
+                    <Box key={idx}>
+                      <Text fontSize="xs" color="gray.500" mb={1}>
+                        {item.role === 'user' ? 'Kamu' : 'AI'}
+                      </Text>
+                      <Text whiteSpace="pre-wrap">{item.content}</Text>
+                    </Box>
+                  ))
+                )}
+              </VStack>
+            </Box>
+
+            <HStack align="start" spacing={3}>
+              <Textarea
+                value={aiInput}
+                onChange={(e) => setAiInput(e.target.value)}
+                placeholder="Tulis pertanyaan untuk AI..."
+                rows={3}
+              />
+              <Button
+                colorScheme="teal"
+                onClick={handleSendAi}
+                isLoading={aiLoading}
+                loadingText="Memproses"
+              >
+                Kirim
+              </Button>
+            </HStack>
+
+            {aiResponse && (
+              <Box>
+                <Divider mb={4} />
+                <Heading size="sm" mb={2}>Hasil</Heading>
+                {renderAiResult()}
+              </Box>
+            )}
+          </VStack>
+        </CardBody>
+      </Card>
     </Container>
   );
 };
