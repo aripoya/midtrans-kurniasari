@@ -112,6 +112,11 @@ function isWeeklyRevenueQuestion(text) {
     return t.includes('minggu') || t.includes('pekan') || t.includes('week');
 }
 
+function hasLuarKotaKeyword(text) {
+    const t = String(text || '').toLowerCase();
+    return t.includes('luar kota') || t.includes('luarkota') || t.includes('luar-kota') || t.includes('luar_kota');
+}
+
 function isAnalysisQuestion(text) {
     const t = String(text || '').toLowerCase();
     return (
@@ -315,6 +320,25 @@ function buildMonthlyRevenueSql(ym) {
     return `SELECT COALESCE(SUM(total_amount), 0) AS total
 FROM orders
 WHERE strftime('%Y-%m', created_at) = '${ym}'
+  AND LOWER(COALESCE(payment_status, '')) IN ('settlement','paid','capture','success','dibayar')
+  AND (deleted_at IS NULL OR deleted_at = '')
+LIMIT 1`;
+}
+
+function buildMonthlyRevenueLuarKotaAllSql(ym) {
+    return `SELECT COALESCE(SUM(total_amount), 0) AS total
+FROM orders
+WHERE strftime('%Y-%m', created_at) = '${ym}'
+  AND shipping_area = 'luar-kota'
+  AND (deleted_at IS NULL OR deleted_at = '')
+LIMIT 1`;
+}
+
+function buildMonthlyRevenueLuarKotaPaidSql(ym) {
+    return `SELECT COALESCE(SUM(total_amount), 0) AS total
+FROM orders
+WHERE strftime('%Y-%m', created_at) = '${ym}'
+  AND shipping_area = 'luar-kota'
   AND LOWER(COALESCE(payment_status, '')) IN ('settlement','paid','capture','success','dibayar')
   AND (deleted_at IS NULL OR deleted_at = '')
 LIMIT 1`;
@@ -609,6 +633,51 @@ export async function handleAiChat(request, env) {
         if (isMonthlyRevenueQuestion(message)) {
             const parsed = parseMonthYearFromText(message);
             if (parsed) {
+                if (hasLuarKotaKeyword(message)) {
+                    const sqlAll = buildMonthlyRevenueLuarKotaAllSql(parsed.ym);
+                    const sqlPaid = buildMonthlyRevenueLuarKotaPaidSql(parsed.ym);
+
+                    const v1 = validateSqlIsSelectOnly(sqlAll);
+                    if (!v1.ok) {
+                        return new Response(JSON.stringify({
+                            intent: 'error',
+                            message: `Query tidak diizinkan. ${v1.reason}.`,
+                            data: null
+                        }), {
+                            status: 400,
+                            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                        });
+                    }
+                    const v2 = validateSqlIsSelectOnly(sqlPaid);
+                    if (!v2.ok) {
+                        return new Response(JSON.stringify({
+                            intent: 'error',
+                            message: `Query tidak diizinkan. ${v2.reason}.`,
+                            data: null
+                        }), {
+                            status: 400,
+                            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                        });
+                    }
+
+                    const [rAll, rPaid] = await Promise.all([
+                        env.DB.prepare(sqlAll).all(),
+                        env.DB.prepare(sqlPaid).all(),
+                    ]);
+
+                    const totalAll = rAll.results?.[0]?.total ?? 0;
+                    const totalPaid = rPaid.results?.[0]?.total ?? 0;
+
+                    return new Response(JSON.stringify({
+                        intent: 'query',
+                        message: `Pendapatan luar kota bulan ${parsed.ym}: total (semua status pembayaran) ${totalAll}; paid-only ${totalPaid}.`,
+                        data: [{ total_all: totalAll, total_paid: totalPaid, month: parsed.ym, shipping_area: 'luar-kota' }],
+                        count: 1
+                    }), {
+                        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                    });
+                }
+
                 const sql = buildMonthlyRevenueSql(parsed.ym);
                 const validation = validateSqlIsSelectOnly(sql);
                 if (!validation.ok) {
