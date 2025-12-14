@@ -53,6 +53,53 @@ function addDefaultLimit(sql) {
     return out;
 }
 
+function isDuplicateOrdersQuestion(text) {
+    const t = String(text || '').toLowerCase();
+    return (
+        t.includes('pesanan') &&
+        (t.includes('detail') || t.includes('item')) &&
+        (t.includes('sama') || t.includes('duplikat') || t.includes('kembar')) &&
+        (t.includes('hari') || t.includes('tanggal'))
+    );
+}
+
+function buildDuplicateOrdersSql() {
+    // Find groups of orders created on the same day with identical order_items details.
+    // Uses a stable item signature per order via an ordered subquery + GROUP_CONCAT.
+    return `WITH item_sigs AS (
+  SELECT order_id,
+         GROUP_CONCAT(item_sig, '||') AS sig
+  FROM (
+    SELECT order_id,
+           printf('%s:%s:%s:%s',
+             COALESCE(product_name,''),
+             COALESCE(product_price,''),
+             COALESCE(quantity,''),
+             COALESCE(subtotal,'')
+           ) AS item_sig
+    FROM order_items
+    ORDER BY order_id, product_name, product_price, quantity, subtotal
+  )
+  GROUP BY order_id
+), order_with_sig AS (
+  SELECT o.id AS order_id,
+         DATE(o.created_at) AS order_date,
+         s.sig AS sig
+  FROM orders o
+  JOIN item_sigs s ON s.order_id = o.id
+  WHERE (o.deleted_at IS NULL OR o.deleted_at = '')
+)
+SELECT order_date,
+       sig AS detail_signature,
+       COUNT(*) AS orders_count,
+       GROUP_CONCAT(order_id, ', ') AS order_ids
+FROM order_with_sig
+GROUP BY order_date, sig
+HAVING COUNT(*) >= 2
+ORDER BY order_date DESC, orders_count DESC
+LIMIT 20`;
+}
+
 function addSoftDeleteFilterForOrders(sql) {
     let out = (sql || '').trim();
     if (!out) return out;
@@ -111,7 +158,9 @@ function validateSqlIsSelectOnly(sql) {
     const lower = raw.toLowerCase();
 
     if (!raw) return { ok: false, reason: 'SQL kosong' };
-    if (!lower.startsWith('select')) return { ok: false, reason: 'Hanya SELECT yang diperbolehkan' };
+    if (!lower.startsWith('select') && !lower.startsWith('with')) {
+        return { ok: false, reason: 'Hanya SELECT yang diperbolehkan' };
+    }
     if (raw.includes(';')) return { ok: false, reason: 'Query tidak boleh mengandung ;' };
 
     const forbidden = [
@@ -152,6 +201,7 @@ INSTRUKSI PENTING:
 1. Ketika admin bertanya tentang data, generate SQL query yang sesuai
 2. Response dalam format JSON dengan struktur:
    {"intent": "query|info|greeting", "sql": "SELECT ...", "explanation": "penjelasan singkat"}
+2b. Output WAJIB HANYA JSON (tanpa markdown, tanpa code block, tanpa penjelasan tambahan di luar JSON)
 3. Untuk intent "query", WAJIB sertakan SQL yang valid untuk SQLite
 4. Gunakan LIKE dengan % untuk pencarian nama (case-insensitive)
 5. Format tanggal di database: YYYY-MM-DD
@@ -159,6 +209,9 @@ INSTRUKSI PENTING:
 7. Jangan gunakan JOIN kecuali benar-benar diperlukan
 8. Saat query dari tabel orders, selalu tambahkan filter: (deleted_at IS NULL OR deleted_at = '')
    (WAJIB pakai tanda kurung kalau digabung dengan kondisi lain memakai AND/OR)
+
+CATATAN PENTING:
+- Kolom primary key tabel orders adalah "id" (bukan order_id). order_items memakai order_id yang mereferensi orders.id.
 
 Contoh:
 - "pesanan hari ini" → SELECT * FROM orders WHERE DATE(created_at) = DATE('now') LIMIT 20
@@ -211,6 +264,32 @@ export async function handleAiChat(request, env) {
             });
         }
 
+        // Deterministic handling for common complex question to avoid LLM SQL mistakes
+        if (isDuplicateOrdersQuestion(message)) {
+            const sql = buildDuplicateOrdersSql();
+            const validation = validateSqlIsSelectOnly(sql);
+            if (!validation.ok) {
+                return new Response(JSON.stringify({
+                    intent: 'error',
+                    message: `Query tidak diizinkan. ${validation.reason}.`,
+                    data: null
+                }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
+            const result = await env.DB.prepare(sql).all();
+            return new Response(JSON.stringify({
+                intent: 'query',
+                message: 'Berikut daftar grup pesanan yang memiliki detail item identik pada hari yang sama:',
+                data: result.results,
+                count: result.results?.length || 0
+            }), {
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+        }
+
         // Step 1: Gunakan AI untuk parse intent dan generate SQL
         const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
             messages: [
@@ -233,7 +312,7 @@ export async function handleAiChat(request, env) {
             // Fallback jika AI tidak return JSON valid
             return new Response(JSON.stringify({
                 intent: 'info',
-                message: aiResponse.response,
+                message: 'Maaf, AI tidak dapat memproses pertanyaan ini. Coba tulis ulang dengan lebih spesifik.',
                 data: null
             }), {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -253,7 +332,6 @@ export async function handleAiChat(request, env) {
                     return new Response(JSON.stringify({
                         intent: 'error',
                         message: `Query tidak diizinkan. ${validation.reason}.`,
-                        sql,
                         data: null
                     }), {
                         status: 400,
@@ -267,7 +345,6 @@ export async function handleAiChat(request, env) {
                 return new Response(JSON.stringify({
                     intent: 'query',
                     message: parsedResponse.explanation || 'Berikut hasil pencarian:',
-                    sql,
                     data: result.results,
                     count: result.results?.length || 0
                 }), {
@@ -278,7 +355,6 @@ export async function handleAiChat(request, env) {
                 return new Response(JSON.stringify({
                     intent: 'error',
                     message: `Error menjalankan query: ${dbError.message}`,
-                    sql: String(parsedResponse.sql || '').trim(),
                     data: null
                 }), {
                     headers: { 'Content-Type': 'application/json', ...corsHeaders }
@@ -289,7 +365,7 @@ export async function handleAiChat(request, env) {
         // Return response untuk intent non-query
         return new Response(JSON.stringify({
             intent: parsedResponse.intent || 'info',
-            message: parsedResponse.explanation || aiResponse.response,
+            message: parsedResponse.explanation || parsedResponse.message || 'OK',
             data: null
         }), {
             headers: { 'Content-Type': 'application/json', ...corsHeaders }
