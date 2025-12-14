@@ -160,6 +160,7 @@ function buildMonthlyRevenueSql(ym) {
     return `SELECT COALESCE(SUM(total_amount), 0) AS total
 FROM orders
 WHERE strftime('%Y-%m', created_at) = '${ym}'
+  AND LOWER(COALESCE(payment_status, '')) IN ('settlement','paid','capture','success')
   AND (deleted_at IS NULL OR deleted_at = '')
 LIMIT 1`;
 }
