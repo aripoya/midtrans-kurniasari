@@ -182,7 +182,13 @@ function isAverageDailyRevenueQuestion(text) {
     const t = String(text || '').toLowerCase();
     const isRevenue = t.includes('pendapatan') || t.includes('penjualan') || t.includes('revenue');
     const isAverage = t.includes('rata-rata') || t.includes('rata rata') || t.includes('average') || t.includes('avg');
-    const isPerDay = t.includes('per hari') || t.includes('harian');
+    const isPerDay =
+        t.includes('per hari') ||
+        t.includes('perhari') ||
+        t.includes('per-hari') ||
+        t.includes('harian') ||
+        t.includes('per day') ||
+        t.includes('daily');
     // Accept questions that omit the word 'pendapatan' but clearly ask for daily average within a month context
     const isMonthlyContext = t.includes('bulan') && /\b(20\d{2})\b/.test(t);
     return (isRevenue && isAverage && isPerDay) || (isAverage && isPerDay && isMonthlyContext);
