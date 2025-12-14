@@ -114,6 +114,21 @@ function formatDatesInText(text) {
     return withDates.replace(/\b(\d{4})-(\d{2})\b/g, (_, y, m) => `${m}-${y}`);
 }
 
+function extractAiText(aiResponse) {
+    if (aiResponse == null) return '';
+    if (typeof aiResponse === 'string') return aiResponse;
+    if (typeof aiResponse?.response === 'string') return aiResponse.response;
+    const choiceContent = aiResponse?.choices?.[0]?.message?.content;
+    if (typeof choiceContent === 'string') return choiceContent;
+    const outputText = aiResponse?.result?.response;
+    if (typeof outputText === 'string') return outputText;
+    try {
+        return JSON.stringify(aiResponse);
+    } catch {
+        return String(aiResponse);
+    }
+}
+
 function isDuplicateOrdersQuestion(text) {
     const t = String(text || '').toLowerCase();
     return (
@@ -963,8 +978,9 @@ export async function handleAiChat(request, env) {
 
         let parsedResponse;
         try {
+            const aiText = extractAiText(aiResponse);
             // Extract JSON from AI response
-            const jsonMatch = aiResponse.response.match(/\{[\s\S]*\}/);
+            const jsonMatch = aiText.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 parsedResponse = JSON.parse(jsonMatch[0]);
             } else {
