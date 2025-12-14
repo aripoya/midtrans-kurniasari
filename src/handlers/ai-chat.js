@@ -100,6 +100,70 @@ ORDER BY order_date DESC, orders_count DESC
 LIMIT 20`;
 }
 
+function isMonthlyRevenueQuestion(text) {
+    const t = String(text || '').toLowerCase();
+    if (!(t.includes('pendapatan') || t.includes('penjualan') || t.includes('revenue'))) return false;
+    return t.includes('bulan');
+}
+
+function parseMonthYearFromText(text) {
+    const t = String(text || '').toLowerCase();
+    const monthMap = {
+        januari: '01',
+        february: '02',
+        februari: '02',
+        maret: '03',
+        march: '03',
+        april: '04',
+        mei: '05',
+        may: '05',
+        juni: '06',
+        june: '06',
+        juli: '07',
+        july: '07',
+        agustus: '08',
+        august: '08',
+        september: '09',
+        oktober: '10',
+        october: '10',
+        november: '11',
+        desember: '12',
+        december: '12',
+    };
+
+    let month = null;
+    for (const [k, v] of Object.entries(monthMap)) {
+        if (t.includes(k)) {
+            month = v;
+            break;
+        }
+    }
+
+    if (!month) {
+        const m = t.match(/\bbulan\s+(\d{1,2})\b/);
+        if (m) {
+            const n = Number(m[1]);
+            if (Number.isFinite(n) && n >= 1 && n <= 12) {
+                month = String(n).padStart(2, '0');
+            }
+        }
+    }
+
+    const y = t.match(/\b(20\d{2})\b/);
+    const year = y ? y[1] : String(new Date().getFullYear());
+
+    if (!month) return null;
+    return { year, month, ym: `${year}-${month}` };
+}
+
+function buildMonthlyRevenueSql(ym) {
+    return `SELECT COALESCE(SUM(total_amount), 0) AS total
+FROM orders
+WHERE strftime('%Y-%m', created_at) = '${ym}'
+  AND (deleted_at IS NULL OR deleted_at = '')
+LIMIT 1`;
+}
+
 function addSoftDeleteFilterForOrders(sql) {
     let out = (sql || '').trim();
     if (!out) return out;
@@ -288,6 +352,36 @@ export async function handleAiChat(request, env) {
             }), {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
             });
+        }
+
+        // Deterministic monthly revenue so result is always numeric (0 when no orders)
+        if (isMonthlyRevenueQuestion(message)) {
+            const parsed = parseMonthYearFromText(message);
+            if (parsed) {
+                const sql = buildMonthlyRevenueSql(parsed.ym);
+                const validation = validateSqlIsSelectOnly(sql);
+                if (!validation.ok) {
+                    return new Response(JSON.stringify({
+                        intent: 'error',
+                        message: `Query tidak diizinkan. ${validation.reason}.`,
+                        data: null
+                    }), {
+                        status: 400,
+                        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                    });
+                }
+
+                const result = await env.DB.prepare(sql).all();
+                const total = result.results?.[0]?.total ?? 0;
+                return new Response(JSON.stringify({
+                    intent: 'query',
+                    message: `Total pendapatan bulan ${parsed.ym} adalah ${total}`,
+                    data: [{ total }],
+                    count: 1
+                }), {
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
         }
 
         // Step 1: Gunakan AI untuk parse intent dan generate SQL
