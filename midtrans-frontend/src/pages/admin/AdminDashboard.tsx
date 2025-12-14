@@ -23,6 +23,7 @@ import {
   AlertIcon,
   Icon,
   Flex,
+  Link,
   Textarea,
   Table,
   Thead,
@@ -150,6 +151,16 @@ const AdminDashboard: React.FC = () => {
     const rows: any[] = Array.isArray(aiResponse.data) ? aiResponse.data : [];
     const keys = rows.length > 0 ? Object.keys(rows[0] || {}) : [];
 
+    const isOrderIdKey = (k: string) => {
+      const key = String(k || '').toLowerCase();
+      return key === 'id' || key === 'order_id' || key === 'orderid';
+    };
+
+    const isOrderIdValue = (v: unknown) => {
+      const s = String(v ?? '');
+      return /^ORDER-[A-Za-z0-9-]+$/.test(s);
+    };
+
     return (
       <VStack align="stretch" spacing={3}>
         {rows.length > 0 ? (
@@ -167,7 +178,25 @@ const AdminDashboard: React.FC = () => {
                   <Tr key={idx}>
                     {keys.slice(0, 8).map((k) => (
                       <Td key={k} maxW="240px" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
-                        {r?.[k] === null || r?.[k] === undefined ? '' : String(r[k])}
+                        {(() => {
+                          const val = r?.[k];
+                          if (isOrderIdKey(k) && isOrderIdValue(val)) {
+                            const orderId = String(val);
+                            return (
+                              <Link
+                                as={RouterLink}
+                                to={`/admin/orders/${orderId}`}
+                                color="teal.600"
+                                fontWeight="semibold"
+                                isExternal={false}
+                              >
+                                {orderId}
+                              </Link>
+                            );
+                          }
+
+                          return val === null || val === undefined ? '' : String(val);
+                        })()}
                       </Td>
                     ))}
                   </Tr>
