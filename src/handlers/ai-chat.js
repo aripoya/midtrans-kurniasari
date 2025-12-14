@@ -183,16 +183,23 @@ function isAverageDailyRevenueQuestion(text) {
     const isRevenue = t.includes('pendapatan') || t.includes('penjualan') || t.includes('revenue');
     const isAverage = t.includes('rata-rata') || t.includes('rata rata') || t.includes('average') || t.includes('avg');
     const isPerDay = t.includes('per hari') || t.includes('harian');
-    return isRevenue && isAverage && isPerDay;
+    // Accept questions that omit the word 'pendapatan' but clearly ask for daily average within a month context
+    const isMonthlyContext = t.includes('bulan') && /\b(20\d{2})\b/.test(t);
+    return (isRevenue && isAverage && isPerDay) || (isAverage && isPerDay && isMonthlyContext);
 }
 
 function parseAverageDailyRange(text) {
     const t = String(text || '').toLowerCase();
 
-    // Rounding: default integer rupiah
-    let roundDigits = 0;
+    // Rounding: default 2 decimals (to match dashboard card that shows ,33 etc)
+    let roundDigits = 2;
     if (t.includes('dua digit') || t.includes('2 digit') || t.includes('2-digit') || t.includes('2 angka')) {
         roundDigits = 2;
+    }
+
+    const parsedMonth = parseMonthYearFromText(text);
+    if (parsedMonth && t.includes('bulan')) {
+        return { kind: 'specific_month', ym: parsedMonth.ym, roundDigits };
     }
 
     if (t.includes('bulan ini') || t.includes('month to date') || t.includes('mtd')) {
@@ -224,6 +231,13 @@ function buildAverageDailyRevenueSql(range) {
     const roundDigits = Number.isFinite(range?.roundDigits) ? range.roundDigits : 0;
 
     let startExpr;
+    let endExpr = "date('now')";
+    if (range?.kind === 'specific_month' && range?.ym) {
+        const ym = String(range.ym);
+        // If month is current month => end at today (MTD), otherwise end at last day of that month
+        startExpr = `date('${ym}-01')`;
+        endExpr = `(CASE WHEN strftime('%Y-%m','now') = '${ym}' THEN date('now') ELSE date('${ym}-01','+1 month','-1 day') END)`;
+    } else
     if (range?.kind === 'month_to_date') {
         startExpr = "date('now','start of month')";
     } else if (range?.kind === 'week_to_date') {
@@ -246,7 +260,7 @@ function buildAverageDailyRevenueSql(range) {
     return `WITH bounds AS (
   SELECT
     COALESCE(${startExpr}, date('now')) AS start_date,
-    date('now') AS end_date
+    ${endExpr} AS end_date
 ), paid_orders AS (
   SELECT date(created_at) AS d,
          total_amount AS amount
