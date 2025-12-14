@@ -84,6 +84,28 @@ function addSoftDeleteFilterForOrders(sql) {
     return `${head} WHERE (deleted_at IS NULL OR deleted_at = '')${tail}`;
 }
 
+function normalizeSoftDeleteFilterForOrders(sql) {
+    let out = (sql || '').trim();
+    if (!out) return out;
+    if (!/\bfrom\s+orders\b/i.test(out)) return out;
+
+    // Ensure the soft-delete clause is always parenthesized to avoid AND/OR precedence bugs
+    out = out.replace(
+        /\bwhere\s+deleted_at\s+is\s+null\s+or\s+deleted_at\s*=\s*''/gi,
+        "WHERE (deleted_at IS NULL OR deleted_at = '')"
+    );
+    out = out.replace(
+        /\band\s+deleted_at\s+is\s+null\s+or\s+deleted_at\s*=\s*''/gi,
+        "AND (deleted_at IS NULL OR deleted_at = '')"
+    );
+    out = out.replace(
+        /\bor\s+deleted_at\s+is\s+null\s+or\s+deleted_at\s*=\s*''/gi,
+        "OR (deleted_at IS NULL OR deleted_at = '')"
+    );
+
+    return out;
+}
+
 function validateSqlIsSelectOnly(sql) {
     const raw = (sql || '').trim();
     const lower = raw.toLowerCase();
@@ -136,11 +158,12 @@ INSTRUKSI PENTING:
 6. Batasi hasil dengan LIMIT 20 jika tidak disebutkan
 7. Jangan gunakan JOIN kecuali benar-benar diperlukan
 8. Saat query dari tabel orders, selalu tambahkan filter: (deleted_at IS NULL OR deleted_at = '')
+   (WAJIB pakai tanda kurung kalau digabung dengan kondisi lain memakai AND/OR)
 
 Contoh:
 - "pesanan hari ini" → SELECT * FROM orders WHERE DATE(created_at) = DATE('now') LIMIT 20
 - "cari pesanan Budi" → SELECT * FROM orders WHERE customer_name LIKE '%Budi%' LIMIT 20
-- "total penjualan bulan ini" → SELECT SUM(total_amount) as total FROM orders WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')
+- "total penjualan bulan ini" → SELECT SUM(total_amount) as total FROM orders WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now') AND (deleted_at IS NULL OR deleted_at = '')
 `;
 
 export async function handleAiChat(request, env) {
@@ -221,6 +244,7 @@ export async function handleAiChat(request, env) {
         if (parsedResponse.intent === 'query' && parsedResponse.sql) {
             try {
                 let sql = String(parsedResponse.sql || '').trim();
+                sql = normalizeSoftDeleteFilterForOrders(sql);
                 sql = addSoftDeleteFilterForOrders(sql);
                 sql = addDefaultLimit(sql);
 
