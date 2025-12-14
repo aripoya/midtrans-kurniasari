@@ -2782,8 +2782,10 @@ export default {
 
             console.log('About to call router.handle');
             // Add timeout protection to the router.handle call
+            const pathname = new URL(request.url).pathname;
+            const timeoutMs = pathname === '/api/ai/chat' || pathname === '/api/ai/chat/' ? 15000 : 5000;
             const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Router handling timeout after 5s')), 5000);
+                setTimeout(() => reject(new Error('Router handling timeout')), timeoutMs);
             });
 
             try {

@@ -103,7 +103,7 @@ export interface ApiResponse<T = any> {
   error: string | null;
 }
 
-export type AiChatIntent = "query" | "info" | "greeting" | "error";
+export type AiChatIntent = "query" | "info" | "greeting" | "error" | "analysis";
 
 export interface AiChatResponse {
   intent: AiChatIntent;

@@ -148,67 +148,110 @@ const AdminDashboard: React.FC = () => {
   const renderAiResult = () => {
     if (!aiResponse) return null;
 
-    const rows: any[] = Array.isArray(aiResponse.data) ? aiResponse.data : [];
-    const keys = rows.length > 0 ? Object.keys(rows[0] || {}) : [];
+    const renderTable = (rows: any[]) => {
+      const keys = rows.length > 0 ? Object.keys(rows[0] || {}) : [];
 
-    const isOrderIdKey = (k: string) => {
-      const key = String(k || '').toLowerCase();
-      return key === 'id' || key === 'order_id' || key === 'orderid';
-    };
-
-    const isOrderIdValue = (v: unknown) => {
-      const s = String(v ?? '');
-      return /^ORDER-[A-Za-z0-9-]+$/.test(s);
-    };
-
-    return (
-      <VStack align="stretch" spacing={3}>
-        {rows.length > 0 ? (
-          <Box overflowX="auto" borderWidth={1} borderRadius="md">
-            <Table size="sm">
-              <Thead>
-                <Tr>
-                  {keys.slice(0, 8).map((k) => (
-                    <Th key={k}>{k}</Th>
-                  ))}
-                </Tr>
-              </Thead>
-              <Tbody>
-                {rows.slice(0, 20).map((r, idx) => (
-                  <Tr key={idx}>
-                    {keys.slice(0, 8).map((k) => (
-                      <Td key={k} maxW="240px" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
-                        {(() => {
-                          const val = r?.[k];
-                          if (isOrderIdKey(k) && isOrderIdValue(val)) {
-                            const orderId = String(val);
-                            return (
-                              <Link
-                                as={RouterLink}
-                                to={`/admin/orders/${orderId}`}
-                                color="teal.600"
-                                fontWeight="semibold"
-                                isExternal={false}
-                              >
-                                {orderId}
-                              </Link>
-                            );
-                          }
-
-                          return val === null || val === undefined ? '' : String(val);
-                        })()}
-                      </Td>
-                    ))}
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
-          </Box>
-        ) : (
+      if (rows.length === 0) {
+        return (
           <Box>
             <Text fontSize="sm" color="gray.600">Tidak ada data untuk ditampilkan</Text>
           </Box>
-        )}
+        );
+      }
+
+      return (
+        <Box overflowX="auto" borderWidth={1} borderRadius="md">
+          <Table size="sm">
+            <Thead>
+              <Tr>
+                {keys.slice(0, 8).map((k) => (
+                  <Th key={k}>{k}</Th>
+                ))}
+              </Tr>
+            </Thead>
+            <Tbody>
+              {rows.slice(0, 20).map((r, idx) => (
+                <Tr key={idx}>
+                  {keys.slice(0, 8).map((k) => (
+                    <Td key={k} maxW="240px" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis">
+                      {(() => {
+                        const val = r?.[k];
+
+                        const key = String(k || '').toLowerCase();
+                        const isOrderIdKey = key === 'id' || key === 'order_id' || key === 'orderid' || key === 'order_ids';
+
+                        const renderOrderLink = (orderId: string, index: number) => (
+                          <Link
+                            key={`${orderId}-${index}`}
+                            as={RouterLink}
+                            to={`/admin/orders/${orderId}`}
+                            color="teal.600"
+                            fontWeight="semibold"
+                            isExternal={false}
+                          >
+                            {orderId}
+                          </Link>
+                        );
+
+                        if (isOrderIdKey) {
+                          const s = String(val ?? '');
+                          if (/^ORDER-[A-Za-z0-9-]+$/.test(s)) {
+                            return renderOrderLink(s, 0);
+                          }
+
+                          if (s.includes('ORDER-')) {
+                            const parts = s.split(',').map((p) => p.trim()).filter(Boolean);
+                            const orderParts = parts.filter((p) => /^ORDER-[A-Za-z0-9-]+$/.test(p));
+                            if (orderParts.length > 0) {
+                              return (
+                                <>
+                                  {orderParts.map((oid, i) => (
+                                    <React.Fragment key={oid}>
+                                      {i > 0 ? <Text as="span">, </Text> : null}
+                                      {renderOrderLink(oid, i)}
+                                    </React.Fragment>
+                                  ))}
+                                </>
+                              );
+                            }
+                          }
+                        }
+
+                        return val === null || val === undefined ? '' : String(val);
+                      })()}
+                    </Td>
+                  ))}
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </Box>
+      );
+    };
+
+
+    if (aiResponse.intent === 'analysis') {
+      const sections: any[] = Array.isArray(aiResponse.data?.sections) ? aiResponse.data.sections : [];
+      return (
+        <VStack align="stretch" spacing={4}>
+          {sections.length === 0 ? (
+            <Text fontSize="sm" color="gray.600">Tidak ada data analisis untuk ditampilkan</Text>
+          ) : (
+            sections.map((s, idx) => (
+              <Box key={s?.key || idx}>
+                <Text fontSize="sm" fontWeight="semibold" mb={2}>{s?.title || `Section ${idx + 1}`}</Text>
+                {renderTable(Array.isArray(s?.rows) ? s.rows : [])}
+              </Box>
+            ))
+          )}
+        </VStack>
+      );
+    }
+
+    const rows: any[] = Array.isArray(aiResponse.data) ? aiResponse.data : [];
+    return (
+      <VStack align="stretch" spacing={3}>
+        {renderTable(rows)}
       </VStack>
     );
   };
