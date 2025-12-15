@@ -236,6 +236,81 @@ function isAmbiguousTotalRevenueQuestion(text) {
     return asksTotal && !hasExplicitPeriod && !isAverageLike;
 }
 
+function isOrdersCountTodayQuestion(text) {
+    const t = String(text || '').toLowerCase();
+    const hasOrders = t.includes('pesanan') || t.includes('order');
+    const hasToday = t.includes('hari ini') || t.includes('hariini') || t.includes('today');
+    const asksCount = t.includes('berapa') || t.includes('jumlah') || t.includes('total') || t.includes('yang masuk');
+    return hasOrders && hasToday && asksCount;
+}
+
+function isOrdersCountYesterdayQuestion(text) {
+    const t = String(text || '').toLowerCase();
+    const hasOrders = t.includes('pesanan') || t.includes('order');
+    const hasYesterday = t.includes('kemarin') || t.includes('kemaren') || t.includes('yesterday');
+    const asksCount = t.includes('berapa') || t.includes('jumlah') || t.includes('total') || t.includes('yang masuk');
+    return hasOrders && hasYesterday && asksCount;
+}
+
+function isShortYesterdayFollowUp(text) {
+    const t = String(text || '').toLowerCase().trim();
+    const hasYesterday = t.includes('kemarin') || t.includes('kemaren') || t.includes('yesterday');
+    if (!hasYesterday) return false;
+    const wc = t.split(/\s+/).filter(Boolean).length;
+    const looksLikeRevenue = t.includes('pendapatan') || t.includes('penjualan') || t.includes('revenue');
+    return wc <= 5 && !looksLikeRevenue;
+}
+
+function isOrdersCountAdminNightShiftYesterdayQuestion(text) {
+    const t = String(text || '').toLowerCase();
+    const hasOrders = t.includes('pesanan') || t.includes('order');
+    const hasAdmin = t.includes('admin');
+    const hasShift = t.includes('shift');
+    const hasNight = t.includes('malam');
+    const hasYesterday = t.includes('kemarin') || t.includes('kemaren') || t.includes('yesterday');
+    return hasOrders && hasAdmin && hasShift && hasNight && hasYesterday;
+}
+
+function buildOrdersCountTodaySql() {
+    const notDeleted = "(deleted_at IS NULL OR deleted_at = '')";
+    return `SELECT
+  date('now','localtime') AS day,
+  COUNT(*) AS orders_count
+FROM orders
+WHERE DATE(created_at,'localtime') = DATE('now','localtime')
+  AND ${notDeleted}
+LIMIT 1`;
+}
+
+function buildOrdersCountYesterdaySql() {
+    const notDeleted = "(deleted_at IS NULL OR deleted_at = '')";
+    return `SELECT
+  date('now','localtime','-1 day') AS day,
+  COUNT(*) AS orders_count
+FROM orders
+WHERE DATE(created_at,'localtime') = DATE('now','localtime','-1 day')
+  AND ${notDeleted}
+LIMIT 1`;
+}
+
+function buildOrdersCountAdminNightShiftYesterdaySql() {
+    const notDeleted = "(deleted_at IS NULL OR deleted_at = '')";
+    const start = "datetime('now','localtime','-1 day','start of day','+18 hours')";
+    const end = "datetime('now','localtime','start of day','+6 hours')";
+    const adminFilter = "(created_by_admin_id IS NOT NULL OR COALESCE(created_by_admin_name,'') != '')";
+    return `SELECT
+  date('now','localtime','-1 day') AS day,
+  ${start} AS shift_start_wib,
+  ${end} AS shift_end_wib,
+  COUNT(*) AS orders_count
+FROM orders
+WHERE datetime(created_at,'localtime') >= ${start}
+  AND datetime(created_at,'localtime') < ${end}
+  AND ${adminFilter}
+  AND ${notDeleted}
+LIMIT 1`;
+}
+
 function isDateTrendComparisonQuestion(text) {
     const t = String(text || '').toLowerCase();
     const hasTrendKeyword =
@@ -849,6 +924,105 @@ export async function handleAiChat(request, env) {
         if (!message) {
             return new Response(JSON.stringify({ error: 'Message is required' }), {
                 status: 400,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+        }
+
+        if (isOrdersCountTodayQuestion(message)) {
+            const sql = buildOrdersCountTodaySql();
+            const validation = validateSqlIsSelectOnly(sql);
+            if (!validation.ok) {
+                return new Response(JSON.stringify({
+                    intent: 'error',
+                    message: `Query tidak diizinkan. ${validation.reason}.`,
+                    data: null
+                }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
+            const result = await env.DB.prepare(sql).all();
+            const row = result.results?.[0] || {};
+            const day = row.day ? formatDateDdMmYyyy(row.day) : row.day;
+            const ordersCount = row.orders_count ?? 0;
+
+            return new Response(JSON.stringify({
+                intent: 'query',
+                message: formatDatesInText(`Jumlah pesanan yang masuk hari ini (${day}) adalah ${ordersCount}.`),
+                data: formatDatesDeep([{ day, orders_count: ordersCount }]),
+                count: 1
+            }), {
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+        }
+
+        if (isOrdersCountYesterdayQuestion(message) || isShortYesterdayFollowUp(message)) {
+            const sql = buildOrdersCountYesterdaySql();
+            const validation = validateSqlIsSelectOnly(sql);
+            if (!validation.ok) {
+                return new Response(JSON.stringify({
+                    intent: 'error',
+                    message: `Query tidak diizinkan. ${validation.reason}.`,
+                    data: null
+                }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
+            const result = await env.DB.prepare(sql).all();
+            const row = result.results?.[0] || {};
+            const day = row.day ? formatDateDdMmYyyy(row.day) : row.day;
+            const ordersCount = row.orders_count ?? 0;
+
+            return new Response(JSON.stringify({
+                intent: 'query',
+                message: formatDatesInText(`Jumlah pesanan yang masuk kemarin (${day}) adalah ${ordersCount}.`),
+                data: formatDatesDeep([{ day, orders_count: ordersCount }]),
+                count: 1
+            }), {
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+        }
+
+        if (isOrdersCountAdminNightShiftYesterdayQuestion(message)) {
+            const sql = buildOrdersCountAdminNightShiftYesterdaySql();
+            const validation = validateSqlIsSelectOnly(sql);
+            if (!validation.ok) {
+                return new Response(JSON.stringify({
+                    intent: 'error',
+                    message: `Query tidak diizinkan. ${validation.reason}.`,
+                    data: null
+                }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
+            const result = await env.DB.prepare(sql).all();
+            const row = result.results?.[0] || {};
+            const day = row.day ? formatDateDdMmYyyy(row.day) : row.day;
+            const ordersCount = row.orders_count ?? 0;
+
+            return new Response(JSON.stringify({
+                intent: 'query',
+                message: formatDatesInText(
+                    `Jumlah pesanan yang dibuat oleh admin pada shift malam kemarin (${day}) adalah ${ordersCount}. ` +
+                    `Definisi shift malam: 18:00–06:00 WIB.`
+                ),
+                data: formatDatesDeep([
+                    {
+                        day,
+                        shift: 'malam',
+                        shift_wib: '18:00-06:00',
+                        orders_count: ordersCount,
+                        shift_start_wib: row.shift_start_wib,
+                        shift_end_wib: row.shift_end_wib,
+                    }
+                ]),
+                count: 1
+            }), {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
             });
         }
