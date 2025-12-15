@@ -188,6 +188,21 @@ function isWeeklyRevenueQuestion(text) {
     return t.includes('minggu') || t.includes('pekan') || t.includes('week');
 }
 
+function isTotalRevenueToDateQuestion(text) {
+    const t = String(text || '').toLowerCase();
+    const isRevenue = t.includes('pendapatan') || t.includes('penjualan') || t.includes('revenue');
+    if (!isRevenue) return false;
+
+    return (
+        t.includes('hingga hari ini') ||
+        t.includes('sampai hari ini') ||
+        t.includes('hingga sekarang') ||
+        t.includes('sampai sekarang') ||
+        t.includes('to date') ||
+        t.includes('s/d hari ini')
+    );
+}
+
 function hasLuarKotaKeyword(text) {
     const t = String(text || '').toLowerCase();
     return t.includes('luar kota') || t.includes('luarkota') || t.includes('luar-kota') || t.includes('luar_kota');
@@ -244,6 +259,21 @@ function parseAverageDailyRange(text) {
 
     // Default: last 30 days
     return { kind: 'last_n_days', nDays: 30, roundDigits };
+}
+
+function buildTotalRevenueToDateSql() {
+    const paidFilter = "LOWER(COALESCE(payment_status, '')) IN ('settlement','paid','capture','success','dibayar')";
+    const notDeleted = "(deleted_at IS NULL OR deleted_at = '')";
+
+    return `SELECT
+  COALESCE(SUM(total_amount),0) AS total,
+  COUNT(*) AS order_count,
+  MIN(date(created_at)) AS start_date,
+  date('now') AS end_date
+FROM orders
+WHERE ${paidFilter}
+  AND ${notDeleted}
+  AND date(created_at) <= date('now')`;
 }
 
 function buildAverageDailyRevenueSql(range) {
@@ -826,6 +856,39 @@ export async function handleAiChat(request, env) {
             return new Response(JSON.stringify({
                 intent: 'query',
                 message: formatDatesInText(`Total pendapatan minggu ini (${range}) adalah ${total} dari ${orderCount} pesanan (paid-only).`),
+                data: formatDatesDeep([{ total, order_count: orderCount, start_date: startDate, end_date: endDate }]),
+                count: 1
+            }), {
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+        }
+
+        if (isTotalRevenueToDateQuestion(message)) {
+            const sql = buildTotalRevenueToDateSql();
+            const validation = validateSqlIsSelectOnly(sql);
+            if (!validation.ok) {
+                return new Response(JSON.stringify({
+                    intent: 'error',
+                    message: `Query tidak diizinkan. ${validation.reason}.`,
+                    data: null
+                }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
+            const result = await env.DB.prepare(sql).all();
+            const row = result.results?.[0] || {};
+
+            const total = row.total ?? 0;
+            const orderCount = row.order_count ?? 0;
+            const startDate = row.start_date ? formatDateDdMmYyyy(row.start_date) : row.start_date;
+            const endDate = row.end_date ? formatDateDdMmYyyy(row.end_date) : row.end_date;
+            const range = startDate && endDate ? `${startDate} s/d ${endDate}` : 'hingga hari ini';
+
+            return new Response(JSON.stringify({
+                intent: 'query',
+                message: formatDatesInText(`Total pendapatan hingga hari ini (${range}) adalah ${total} dari ${orderCount} pesanan (paid-only).`),
                 data: formatDatesDeep([{ total, order_count: orderCount, start_date: startDate, end_date: endDate }]),
                 count: 1
             }), {
