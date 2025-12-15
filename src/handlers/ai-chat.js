@@ -203,6 +203,39 @@ function isTotalRevenueToDateQuestion(text) {
     );
 }
 
+function isAmbiguousTotalRevenueQuestion(text) {
+    const t = String(text || '').toLowerCase();
+    const isRevenue = t.includes('pendapatan') || t.includes('penjualan') || t.includes('revenue');
+    if (!isRevenue) return false;
+
+    // We only want very short/ambiguous “total revenue” questions with no explicit period.
+    const asksTotal = t.includes('total');
+    if (!asksTotal) return false;
+
+    const hasExplicitPeriod =
+        t.includes('bulan') ||
+        t.includes('minggu') ||
+        t.includes('pekan') ||
+        t.includes('hari ini') ||
+        t.includes('hingga') ||
+        t.includes('sampai') ||
+        t.includes('to date') ||
+        t.includes('mtd') ||
+        t.includes('wtd');
+
+    const isAverageLike =
+        t.includes('rata-rata') ||
+        t.includes('rata rata') ||
+        t.includes('avg') ||
+        t.includes('average') ||
+        t.includes('per hari') ||
+        t.includes('perhari') ||
+        t.includes('per-hari') ||
+        t.includes('harian');
+
+    return asksTotal && !hasExplicitPeriod && !isAverageLike;
+}
+
 function hasLuarKotaKeyword(text) {
     const t = String(text || '').toLowerCase();
     return t.includes('luar kota') || t.includes('luarkota') || t.includes('luar-kota') || t.includes('luar_kota');
@@ -734,18 +767,6 @@ export async function handleAiChat(request, env) {
             });
         }
 
-        if (!env?.AI) {
-            return new Response(JSON.stringify({
-                success: false,
-                intent: 'error',
-                message: 'Workers AI binding (env.AI) belum dikonfigurasi di Worker',
-                data: null
-            }), {
-                status: 500,
-                headers: { 'Content-Type': 'application/json', ...corsHeaders }
-            });
-        }
-
         let body;
         try {
             body = await request.json();
@@ -758,6 +779,43 @@ export async function handleAiChat(request, env) {
         if (!message) {
             return new Response(JSON.stringify({ error: 'Message is required' }), {
                 status: 400,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+        }
+
+        // Ambiguous short revenue question like: "Total pendapatan?" -> default to total revenue to date (paid-only)
+        if (isAmbiguousTotalRevenueQuestion(message)) {
+            const sql = buildTotalRevenueToDateSql();
+            const validation = validateSqlIsSelectOnly(sql);
+            if (!validation.ok) {
+                return new Response(JSON.stringify({
+                    intent: 'error',
+                    message: `Query tidak diizinkan. ${validation.reason}.`,
+                    data: null
+                }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
+            const result = await env.DB.prepare(sql).all();
+            const row = result.results?.[0] || {};
+
+            const total = row.total ?? 0;
+            const orderCount = row.order_count ?? 0;
+            const startDate = row.start_date ? formatDateDdMmYyyy(row.start_date) : row.start_date;
+            const endDate = row.end_date ? formatDateDdMmYyyy(row.end_date) : row.end_date;
+            const range = startDate && endDate ? `${startDate} s/d ${endDate}` : 'hingga hari ini';
+
+            return new Response(JSON.stringify({
+                intent: 'query',
+                message: formatDatesInText(
+                    `Pertanyaan kamu belum menyebut periode. Aku pakai default: hingga hari ini (${range}). ` +
+                    `Total pendapatan adalah ${total} dari ${orderCount} pesanan (paid-only).`
+                ),
+                data: formatDatesDeep([{ total, order_count: orderCount, start_date: startDate, end_date: endDate }]),
+                count: 1
+            }), {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
             });
         }
@@ -1028,6 +1086,18 @@ export async function handleAiChat(request, env) {
                     headers: { 'Content-Type': 'application/json', ...corsHeaders }
                 });
             }
+        }
+
+        if (!env?.AI) {
+            return new Response(JSON.stringify({
+                success: false,
+                intent: 'error',
+                message: 'Workers AI binding (env.AI) belum dikonfigurasi di Worker',
+                data: null
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
         }
 
         // Step 1: Gunakan AI untuk parse intent dan generate SQL
