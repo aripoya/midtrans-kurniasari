@@ -236,6 +236,76 @@ function isAmbiguousTotalRevenueQuestion(text) {
     return asksTotal && !hasExplicitPeriod && !isAverageLike;
 }
 
+function isDateTrendComparisonQuestion(text) {
+    const t = String(text || '').toLowerCase();
+    const hasTrendKeyword =
+        t.includes('trend') ||
+        t.includes('tren') ||
+        t.includes('penurunan') ||
+        t.includes('turun') ||
+        t.includes('kenaikan') ||
+        t.includes('naik') ||
+        t.includes('selisih') ||
+        t.includes('perbandingan') ||
+        t.includes('banding');
+
+    const hasDateKeyword = t.includes('tanggal') || t.includes('tgl');
+    const nums = String(text || '').match(/\b\d{1,2}\b/g) || [];
+    const dayNums = nums.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n >= 1 && n <= 31);
+    return hasTrendKeyword && hasDateKeyword && dayNums.length >= 2;
+}
+
+function parseDayNumbersFromText(text) {
+    const t = String(text || '').toLowerCase();
+    const afterTanggal = [];
+    const mTanggal = t.match(/(?:tanggal|tgl)\s*([0-9]{1,2}(?:\s*(?:,|dan|&|ke|\-|s\/d|sd)\s*[0-9]{1,2})*)/);
+    if (mTanggal && mTanggal[1]) {
+        const nums = mTanggal[1].match(/\b\d{1,2}\b/g) || [];
+        for (const x of nums) afterTanggal.push(Number(x));
+    }
+
+    if (afterTanggal.length > 0) {
+        return afterTanggal
+            .filter((n) => Number.isFinite(n) && n >= 1 && n <= 31)
+            .filter((n, idx, arr) => arr.indexOf(n) === idx);
+    }
+
+    const allNums = (String(text || '').match(/\b\d{1,2}\b/g) || []).map((x) => Number(x));
+    return allNums
+        .filter((n) => Number.isFinite(n) && n >= 1 && n <= 31)
+        .filter((n, idx, arr) => arr.indexOf(n) === idx);
+}
+
+function daysInMonth(year, month) {
+    const y = Number(year);
+    const m = Number(month);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return 31;
+    return new Date(y, m, 0).getDate();
+}
+
+function buildDailyStatsForDatesSql(ym, datesCount) {
+    const paidFilter = "LOWER(COALESCE(payment_status, '')) IN ('settlement','paid','capture','success','dibayar')";
+    const notDeleted = "(deleted_at IS NULL OR deleted_at = '')";
+    const placeholders = Array.from({ length: datesCount }, () => '?').join(',');
+
+    return `SELECT
+  DATE(created_at) AS day,
+  COUNT(*) AS orders_total,
+  COALESCE(SUM(CASE WHEN ${paidFilter} THEN 1 ELSE 0 END),0) AS orders_paid,
+  COALESCE(SUM(CASE WHEN ${paidFilter} THEN total_amount ELSE 0 END),0) AS revenue_paid
+FROM orders
+WHERE strftime('%Y-%m', created_at) = ?
+  AND ${notDeleted}
+  AND DATE(created_at) IN (${placeholders})
+GROUP BY DATE(created_at)
+ORDER BY day ASC`;
+}
+
+function formatPct(value) {
+    if (!Number.isFinite(value)) return null;
+    return Math.round(value * 100) / 100;
+}
+
 function hasLuarKotaKeyword(text) {
     const t = String(text || '').toLowerCase();
     return t.includes('luar kota') || t.includes('luarkota') || t.includes('luar-kota') || t.includes('luar_kota');
@@ -815,6 +885,114 @@ export async function handleAiChat(request, env) {
                 ),
                 data: formatDatesDeep([{ total, order_count: orderCount, start_date: startDate, end_date: endDate }]),
                 count: 1
+            }), {
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+        }
+
+        if (isDateTrendComparisonQuestion(message)) {
+            const parsedYm = parseMonthYearFromText(message);
+            const year = parsedYm?.year || String(new Date().getFullYear());
+            const month = parsedYm?.month || String(new Date().getMonth() + 1).padStart(2, '0');
+            const ym = `${year}-${month}`;
+
+            const dayNums = parseDayNumbersFromText(message);
+            const dim = daysInMonth(year, month);
+            const validDays = dayNums.filter((d) => d >= 1 && d <= dim);
+            if (validDays.length < 2) {
+                return new Response(JSON.stringify({
+                    intent: 'info',
+                    message: 'Maaf, tanggal yang kamu sebutkan tidak valid untuk bulan yang dipilih.',
+                    data: null
+                }), {
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
+            const dates = validDays
+                .slice(0, 6)
+                .map((d) => `${ym}-${String(d).padStart(2, '0')}`);
+
+            const sql = buildDailyStatsForDatesSql(ym, dates.length);
+            const validation = validateSqlIsSelectOnly(sql);
+            if (!validation.ok) {
+                return new Response(JSON.stringify({
+                    intent: 'error',
+                    message: `Query tidak diizinkan. ${validation.reason}.`,
+                    data: null
+                }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
+            const result = await env.DB.prepare(sql).bind(ym, ...dates).all();
+            const byDay = new Map();
+            for (const r of (result.results || [])) {
+                byDay.set(String(r.day), {
+                    day: String(r.day),
+                    orders_total: r.orders_total ?? 0,
+                    orders_paid: r.orders_paid ?? 0,
+                    revenue_paid: r.revenue_paid ?? 0,
+                });
+            }
+
+            const rows = dates.map((d) => {
+                const row = byDay.get(d) || { day: d, orders_total: 0, orders_paid: 0, revenue_paid: 0 };
+                return {
+                    day: formatDateDdMmYyyy(row.day),
+                    orders_total: row.orders_total,
+                    orders_paid: row.orders_paid,
+                    revenue_paid: row.revenue_paid,
+                };
+            });
+
+            const base = rows[0];
+            const comparisons = rows.slice(1).map((target) => {
+                const deltaOrders = (target.orders_total ?? 0) - (base.orders_total ?? 0);
+                const deltaRevenue = (target.revenue_paid ?? 0) - (base.revenue_paid ?? 0);
+                const pctOrders = (base.orders_total ?? 0) > 0 ? formatPct((deltaOrders / base.orders_total) * 100) : null;
+                const pctRevenue = (base.revenue_paid ?? 0) > 0 ? formatPct((deltaRevenue / base.revenue_paid) * 100) : null;
+                return {
+                    from: base.day,
+                    to: target.day,
+                    delta_orders_total: deltaOrders,
+                    delta_revenue_paid: deltaRevenue,
+                    pct_orders_total: pctOrders,
+                    pct_revenue_paid: pctRevenue,
+                };
+            });
+
+            const wantsRevenue = /pendapatan|penjualan|revenue/i.test(message);
+            const wantsOrders = /pesanan|order|jumlah/i.test(message);
+            const showOrders = wantsOrders || !wantsRevenue;
+            const showRevenue = wantsRevenue || !wantsOrders;
+
+            const lines = [];
+            lines.push(`Perbandingan tanggal (bulan ${formatMonthYearMmYyyy(ym)}):`);
+            lines.push(`Tanggal acuan: ${base.day}`);
+            if (showOrders) lines.push(`- Jumlah pesanan: ${base.orders_total}`);
+            if (showRevenue) lines.push(`- Pendapatan (paid-only): ${base.revenue_paid}`);
+            for (const c of comparisons) {
+                lines.push(``);
+                lines.push(`Bandingkan ke ${c.to}:`);
+                if (showOrders) {
+                    const sign = c.delta_orders_total > 0 ? '+' : '';
+                    const pct = c.pct_orders_total == null ? '' : ` (${c.pct_orders_total}% )`;
+                    lines.push(`- Selisih jumlah pesanan: ${sign}${c.delta_orders_total}${pct}`);
+                }
+                if (showRevenue) {
+                    const sign = c.delta_revenue_paid > 0 ? '+' : '';
+                    const pct = c.pct_revenue_paid == null ? '' : ` (${c.pct_revenue_paid}% )`;
+                    lines.push(`- Selisih pendapatan paid-only: ${sign}${c.delta_revenue_paid}${pct}`);
+                }
+            }
+
+            return new Response(JSON.stringify({
+                intent: 'query',
+                message: formatDatesInText(lines.join('\n')),
+                data: formatDatesDeep({ days: rows, comparisons }),
+                count: rows.length
             }), {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
             });
