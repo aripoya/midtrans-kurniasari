@@ -293,20 +293,14 @@ WHERE DATE(created_at,'localtime') = DATE('now','localtime','-1 day')
 LIMIT 1`;
 }
 
-function buildOrdersCountAdminNightShiftYesterdaySql() {
+function buildOrdersCountByAdminNameYesterdaySql(adminNameLike) {
     const notDeleted = "(deleted_at IS NULL OR deleted_at = '')";
-    const start = "datetime('now','localtime','-1 day','start of day','+18 hours')";
-    const end = "datetime('now','localtime','start of day','+6 hours')";
-    const adminFilter = "(created_by_admin_id IS NOT NULL OR COALESCE(created_by_admin_name,'') != '')";
     return `SELECT
   date('now','localtime','-1 day') AS day,
-  ${start} AS shift_start_wib,
-  ${end} AS shift_end_wib,
   COUNT(*) AS orders_count
 FROM orders
-WHERE datetime(created_at,'localtime') >= ${start}
-  AND datetime(created_at,'localtime') < ${end}
-  AND ${adminFilter}
+WHERE DATE(created_at,'localtime') = DATE('now','localtime','-1 day')
+  AND LOWER(COALESCE(created_by_admin_name,'')) LIKE ?
   AND ${notDeleted}
 LIMIT 1`;
 }
@@ -957,6 +951,43 @@ export async function handleAiChat(request, env) {
             });
         }
 
+        if (isOrdersCountAdminNightShiftYesterdayQuestion(message)) {
+            const sql = buildOrdersCountByAdminNameYesterdaySql('%shift malam%');
+            const validation = validateSqlIsSelectOnly(sql);
+            if (!validation.ok) {
+                return new Response(JSON.stringify({
+                    intent: 'error',
+                    message: `Query tidak diizinkan. ${validation.reason}.`,
+                    data: null
+                }), {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
+                });
+            }
+
+            const result = await env.DB.prepare(sql).bind('%shift malam%').all();
+            const row = result.results?.[0] || {};
+            const day = row.day ? formatDateDdMmYyyy(row.day) : row.day;
+            const ordersCount = row.orders_count ?? 0;
+
+            return new Response(JSON.stringify({
+                intent: 'query',
+                message: formatDatesInText(
+                    `Jumlah pesanan yang dibuat oleh admin SHIFT MALAM kemarin (${day}) adalah ${ordersCount}.`
+                ),
+                data: formatDatesDeep([
+                    {
+                        day,
+                        admin_shift: 'SHIFT MALAM',
+                        orders_count: ordersCount,
+                    }
+                ]),
+                count: 1
+            }), {
+                headers: { 'Content-Type': 'application/json', ...corsHeaders }
+            });
+        }
+
         if (isOrdersCountYesterdayQuestion(message) || isShortYesterdayFollowUp(message)) {
             const sql = buildOrdersCountYesterdaySql();
             const validation = validateSqlIsSelectOnly(sql);
@@ -980,47 +1011,6 @@ export async function handleAiChat(request, env) {
                 intent: 'query',
                 message: formatDatesInText(`Jumlah pesanan yang masuk kemarin (${day}) adalah ${ordersCount}.`),
                 data: formatDatesDeep([{ day, orders_count: ordersCount }]),
-                count: 1
-            }), {
-                headers: { 'Content-Type': 'application/json', ...corsHeaders }
-            });
-        }
-
-        if (isOrdersCountAdminNightShiftYesterdayQuestion(message)) {
-            const sql = buildOrdersCountAdminNightShiftYesterdaySql();
-            const validation = validateSqlIsSelectOnly(sql);
-            if (!validation.ok) {
-                return new Response(JSON.stringify({
-                    intent: 'error',
-                    message: `Query tidak diizinkan. ${validation.reason}.`,
-                    data: null
-                }), {
-                    status: 400,
-                    headers: { 'Content-Type': 'application/json', ...corsHeaders }
-                });
-            }
-
-            const result = await env.DB.prepare(sql).all();
-            const row = result.results?.[0] || {};
-            const day = row.day ? formatDateDdMmYyyy(row.day) : row.day;
-            const ordersCount = row.orders_count ?? 0;
-
-            return new Response(JSON.stringify({
-                intent: 'query',
-                message: formatDatesInText(
-                    `Jumlah pesanan yang dibuat oleh admin pada shift malam kemarin (${day}) adalah ${ordersCount}. ` +
-                    `Definisi shift malam: 18:00–06:00 WIB.`
-                ),
-                data: formatDatesDeep([
-                    {
-                        day,
-                        shift: 'malam',
-                        shift_wib: '18:00-06:00',
-                        orders_count: ordersCount,
-                        shift_start_wib: row.shift_start_wib,
-                        shift_end_wib: row.shift_end_wib,
-                    }
-                ]),
                 count: 1
             }), {
                 headers: { 'Content-Type': 'application/json', ...corsHeaders }
