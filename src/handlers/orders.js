@@ -735,7 +735,10 @@ export async function getOrderById(request, env) {
 
     // Step 2: Fetch order items
     failedQuery = 'fetching order items';
-    const { results: rawItems } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(orderId).all();
+    const { results: rawItems } = await env.DB
+      .prepare('SELECT * FROM order_items WHERE TRIM(order_id) = TRIM(?)')
+      .bind(orderId)
+      .all();
 
     // Map database fields to frontend-expected field names
     let items = rawItems.map(item => ({
@@ -766,6 +769,54 @@ export async function getOrderById(request, env) {
       } catch (legacyErr) {
         console.error(`[getOrderById] Failed to parse legacy items JSON for order ${orderId}:`, legacyErr);
         // keep items as empty array in this case
+      }
+    }
+
+    if (!items || items.length === 0) {
+      try {
+        const candidates = [];
+        for (const [k, v] of Object.entries(order || {})) {
+          const key = String(k || '').toLowerCase();
+          if (!key.includes('item')) continue;
+          if (v == null) continue;
+          candidates.push(v);
+        }
+
+        const parsedArrays = [];
+        for (const c of candidates) {
+          try {
+            const obj = typeof c === 'string' ? JSON.parse(c) : c;
+            if (Array.isArray(obj)) {
+              parsedArrays.push(obj);
+              continue;
+            }
+            if (obj && typeof obj === 'object') {
+              if (Array.isArray(obj.items)) parsedArrays.push(obj.items);
+              if (Array.isArray(obj.item_details)) parsedArrays.push(obj.item_details);
+              if (Array.isArray(obj.order_items)) parsedArrays.push(obj.order_items);
+            }
+          } catch (_) {}
+        }
+
+        const picked = parsedArrays.find((a) => Array.isArray(a) && a.length > 0);
+        if (picked && picked.length > 0) {
+          items = picked.map((it, idx) => {
+            const unitPrice = Number(it.price ?? it.product_price ?? it.unit_price ?? 0);
+            const qty = Number(it.quantity ?? it.qty ?? 1);
+            const subtotal = Number(it.subtotal ?? unitPrice * qty);
+            return {
+              id: it.id ?? idx + 1,
+              order_id: orderId,
+              product_name: it.product_name ?? it.name ?? it.title ?? '',
+              product_price: unitPrice,
+              quantity: qty,
+              subtotal,
+              price: unitPrice,
+            };
+          });
+        }
+      } catch (legacyErr2) {
+        console.error(`[getOrderById] Legacy item fallback failed for order ${orderId}:`, legacyErr2);
       }
     }
 
