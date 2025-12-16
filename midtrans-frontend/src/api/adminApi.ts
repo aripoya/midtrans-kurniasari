@@ -105,6 +105,13 @@ export interface ApiResponse<T = any> {
 
 export type AiChatIntent = "query" | "info" | "greeting" | "error" | "analysis";
 
+export type AiChatRole = 'user' | 'assistant';
+
+export interface AiChatHistoryItem {
+  role: AiChatRole;
+  content: string;
+}
+
 export interface AiChatResponse {
   intent: AiChatIntent;
   message?: string;
@@ -828,7 +835,7 @@ export const adminApi = {
     localStorage.removeItem("token");
   },
 
-  aiChat: async (message: string): Promise<ApiResponse<AiChatResponse>> => {
+  aiChat: async (message: string, history?: AiChatHistoryItem[]): Promise<ApiResponse<AiChatResponse>> => {
     try {
       const token = getAdminToken();
       if (!token) {
@@ -837,7 +844,7 @@ export const adminApi = {
 
       const response: AxiosResponse = await axios.post(
         `${API_URL}/api/ai/chat`,
-        { message },
+        { message, history },
         {
           headers: {
             "Content-Type": "application/json",

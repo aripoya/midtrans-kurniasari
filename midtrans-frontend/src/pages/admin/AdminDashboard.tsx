@@ -44,7 +44,7 @@ import {
   FiPlus,
   FiList,
 } from 'react-icons/fi';
-import { adminApi } from '../../api/adminApi';
+import { adminApi, type AiChatHistoryItem } from '../../api/adminApi';
 import RevenueChart from '../../components/RevenueChart';
 
 interface DashboardStats {
@@ -64,12 +64,7 @@ interface RevenueData {
   orders: number;
 }
 
-type ChatRole = 'user' | 'assistant';
-
-interface ChatItem {
-  role: ChatRole;
-  content: string;
-}
+type ChatItem = AiChatHistoryItem;
 
 const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -121,11 +116,12 @@ const AdminDashboard: React.FC = () => {
 
     setAiError(null);
     setAiLoading(true);
-    setChatHistory((prev) => [...prev, { role: 'user', content: message }]);
+    const outgoingHistory: ChatItem[] = [...chatHistory, { role: 'user', content: message }];
+    setChatHistory(outgoingHistory);
     setAiInput('');
 
     try {
-      const res = await adminApi.aiChat(message);
+      const res = await adminApi.aiChat(message, outgoingHistory);
       if (!res.success || !res.data) {
         const errMsg = res.error || 'Gagal memanggil AI';
         setAiError(errMsg);

@@ -862,6 +862,44 @@ function validateSqlIsSelectOnly(sql) {
     return { ok: true };
 }
 
+function normalizeChatHistory(history) {
+    if (!Array.isArray(history)) return [];
+    return history
+        .slice(-50)
+        .map((h) => ({
+            role: h?.role === 'assistant' ? 'assistant' : 'user',
+            content: String(h?.content ?? ''),
+        }))
+        .filter((h) => h.content.trim().length > 0);
+}
+
+function isGenericTotalFollowUp(text) {
+    const t = String(text || '').toLowerCase().trim();
+    if (!t) return false;
+    const wc = t.split(/\s+/).filter(Boolean).length;
+    if (wc > 5) return false;
+    const hasTotal = t.includes('total') || t.includes('jumlah');
+    const hasAsk = t.includes('berapa') || t.includes('brp') || t.includes('nya');
+    const mentionsRevenue = t.includes('pendapatan') || t.includes('penjualan') || t.includes('revenue');
+    const mentionsOrders = t.includes('pesanan') || t.includes('order');
+    return hasTotal && hasAsk && !mentionsRevenue && !mentionsOrders;
+}
+
+function resolveFollowUpMessage(message, history) {
+    const msg = String(message || '').trim();
+    if (!isGenericTotalFollowUp(msg)) return msg;
+
+    for (let i = history.length - 1; i >= 0; i--) {
+        const h = history[i];
+        if (h?.role === 'user') {
+            const prev = String(h.content || '').trim();
+            if (prev && prev !== msg) return prev;
+        }
+    }
+
+    return msg;
+}
+
 const SYSTEM_PROMPT = `Kamu adalah AI Assistant untuk sistem manajemen pesanan Kurnia Sari.
 Tugasmu adalah membantu admin mencari dan menganalisis data pesanan.
 
@@ -913,7 +951,9 @@ export async function handleAiChat(request, env) {
             body = {};
         }
 
-        const { message } = body;
+        const history = normalizeChatHistory(body?.history);
+        const rawMessage = body?.message;
+        const message = resolveFollowUpMessage(rawMessage, history);
         
         if (!message) {
             return new Response(JSON.stringify({ error: 'Message is required' }), {
