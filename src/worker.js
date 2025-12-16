@@ -22,6 +22,7 @@ import { migrateAdminActivity } from './handlers/migrate-admin-activity.js';
 import { migrateSoftDelete, getSoftDeleteMigrationStatus } from './handlers/migrate-soft-delete.js';
 import { getAdminActivity, getActiveSessions, logoutUser, getAdminStats } from './handlers/admin-activity.js';
 import { getRevenueStats } from './handlers/revenue-stats.js';
+import { determineOutletFromLocation } from './handlers/outlet-assignment.js';
 import { getLuarKotaReport } from './handlers/luar-kota-report.js';
 import { getDalamKotaReport } from './handlers/dalam-kota-report.js';
 import { getOutletReport } from './handlers/outlet-report.js';
@@ -134,6 +135,31 @@ router.post('/api/admin/orders/:id/backfill-items', verifyToken, async (request,
     }
 
     if (isOutletManager) {
+        try {
+            const orderRow = await env.DB.prepare(
+                'SELECT id, outlet_id, lokasi_pengiriman, lokasi_pengambilan, shipping_area FROM orders WHERE id = ?'
+            ).bind(orderId).first();
+
+            const currentOutletId = (orderRow?.outlet_id == null) ? null : String(orderRow.outlet_id).trim();
+            const needsOutletAssignment = !currentOutletId;
+
+            if (needsOutletAssignment) {
+                const derivedOutletId = determineOutletFromLocation(
+                    orderRow?.lokasi_pengiriman,
+                    orderRow?.lokasi_pengambilan,
+                    orderRow?.shipping_area
+                );
+
+                if (derivedOutletId && request?.user?.outlet_id && derivedOutletId === request.user.outlet_id) {
+                    await env.DB.prepare(
+                        'UPDATE orders SET outlet_id = ?, updated_at = datetime("now") WHERE id = ?'
+                    ).bind(derivedOutletId, orderId).run();
+                }
+            }
+        } catch (e) {
+            console.error('[backfill-items] Failed to auto-assign outlet for outlet_manager:', e);
+        }
+
         const access = await requireOrderAccess(request, env, orderId);
         if (!access?.success) {
             return new Response(JSON.stringify({ success: false, error: access?.message || 'Access denied' }), {
@@ -323,7 +349,7 @@ router.post('/api/admin/orders/:id/sync-payment-status', verifyToken, async (req
     request.corsHeaders = corsHeaders(request);
     const adminCheck = requireAdmin(request);
     if (!adminCheck.success) {
-        return new Response(JSON.stringify({ success: false, error: adminCheck.error }), {
+        return new Response(JSON.stringify({ success: false, error: adminCheck.message }), {
             status: 403,
             headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
         });
