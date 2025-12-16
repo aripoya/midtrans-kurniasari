@@ -2837,7 +2837,14 @@ export default {
             console.log('About to call router.handle');
             // Add timeout protection to the router.handle call
             const pathname = new URL(request.url).pathname;
-            const timeoutMs = pathname === '/api/ai/chat' || pathname === '/api/ai/chat/' ? 15000 : 5000;
+            let timeoutMs = 5000;
+            if (pathname === '/api/ai/chat' || pathname === '/api/ai/chat/') {
+                timeoutMs = 15000;
+            } else if (pathname.includes('/backfill-items')) {
+                timeoutMs = 20000;
+            } else if (pathname.startsWith('/api/admin/')) {
+                timeoutMs = 15000;
+            }
             const timeoutPromise = new Promise((_, reject) => {
                 setTimeout(() => reject(new Error('Router handling timeout')), timeoutMs);
             });
