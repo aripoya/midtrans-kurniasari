@@ -858,6 +858,48 @@ export async function getOrderById(request, env) {
       }
     }
 
+    if ((!items || items.length === 0) && env.MIDTRANS_SERVER_KEY) {
+      try {
+        const serverKey = env.MIDTRANS_SERVER_KEY;
+        const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
+        const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
+        const makeStatusUrl = (prod) => prod
+          ? `https://api.midtrans.com/v2/${orderId}/status`
+          : `https://api.sandbox.midtrans.com/v2/${orderId}/status`;
+
+        const firstUrl = makeStatusUrl(isProduction);
+        const secondUrl = makeStatusUrl(!isProduction);
+        let resp = await fetch(firstUrl, { headers: { Accept: 'application/json', Authorization: authHeader } });
+        let statusData = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          const resp2 = await fetch(secondUrl, { headers: { Accept: 'application/json', Authorization: authHeader } });
+          const statusData2 = await resp2.json().catch(() => ({}));
+          resp = resp2;
+          statusData = statusData2;
+        }
+
+        const midtransItems = Array.isArray(statusData?.item_details) ? statusData.item_details : [];
+        if (midtransItems.length > 0) {
+          items = midtransItems.map((it, idx) => {
+            const unitPrice = Number(it.price ?? it.product_price ?? it.unit_price ?? 0);
+            const qty = Number(it.quantity ?? it.qty ?? 1);
+            const subtotal = Number(it.subtotal ?? unitPrice * qty);
+            return {
+              id: it.id ?? idx + 1,
+              order_id: orderId,
+              product_name: it.name ?? it.product_name ?? it.title ?? '',
+              product_price: unitPrice,
+              quantity: qty,
+              subtotal,
+              price: unitPrice,
+            };
+          });
+        }
+      } catch (midtransErr) {
+        console.error(`[getOrderById] Midtrans item fallback failed for order ${orderId}:`, midtransErr);
+      }
+    }
+
     // Step 3: Fetch shipping images (with error handling)
     failedQuery = 'fetching shipping images';
     let shipping_images = [];
