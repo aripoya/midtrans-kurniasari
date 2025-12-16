@@ -815,6 +815,27 @@ export async function getOrderById(request, env) {
           } catch (_) {}
         }
 
+        if (parsedArrays.length === 0) {
+          for (const v of Object.values(order || {})) {
+            if (typeof v !== 'string') continue;
+            const s = v.trim();
+            if (!(s.startsWith('{') || s.startsWith('['))) continue;
+            if (s.length < 2) continue;
+            try {
+              const obj = JSON.parse(s);
+              if (Array.isArray(obj)) {
+                parsedArrays.push(obj);
+                continue;
+              }
+              if (obj && typeof obj === 'object') {
+                if (Array.isArray(obj.items)) parsedArrays.push(obj.items);
+                if (Array.isArray(obj.item_details)) parsedArrays.push(obj.item_details);
+                if (Array.isArray(obj.order_items)) parsedArrays.push(obj.order_items);
+              }
+            } catch (_) {}
+          }
+        }
+
         const picked = parsedArrays.find((a) => Array.isArray(a) && a.length > 0);
         if (picked && picked.length > 0) {
           items = picked.map((it, idx) => {
