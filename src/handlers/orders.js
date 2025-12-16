@@ -961,6 +961,80 @@ export async function getOrderById(request, env) {
   }
 }
 
+export async function backfillOrderItems(request, env) {
+  const corsHeaders = request.corsHeaders || {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    if (!env.DB) {
+      return new Response(JSON.stringify({ success: false, error: 'Database not available' }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+    }
+
+    const orderId = request?.params?.id || new URL(request.url).pathname.split('/').slice(-2)[0];
+    if (!orderId) {
+      return new Response(JSON.stringify({ success: false, error: 'Order ID is required' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const force = !!(body?.force || body?.overwrite);
+    const clearExisting = body?.clearExisting != null ? !!body.clearExisting : force;
+
+    const rawItems =
+      (Array.isArray(body?.item_details) && body.item_details) ||
+      (Array.isArray(body?.items) && body.items) ||
+      (Array.isArray(body?.midtrans?.item_details) && body.midtrans.item_details) ||
+      (Array.isArray(body?.data?.item_details) && body.data.item_details) ||
+      (Array.isArray(body?.transaction?.item_details) && body.transaction.item_details) ||
+      [];
+
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      return new Response(JSON.stringify({ success: false, error: 'No items provided' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+    }
+
+    const orderExists = await env.DB.prepare('SELECT 1 as ok FROM orders WHERE id = ?').bind(orderId).first();
+    if (!orderExists) {
+      return new Response(JSON.stringify({ success: false, error: 'Order not found' }), { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+    }
+
+    const { results: existing } = await env.DB.prepare('SELECT id FROM order_items WHERE TRIM(order_id) = TRIM(?) LIMIT 1').bind(orderId).all();
+    const hasExisting = Array.isArray(existing) && existing.length > 0;
+    if (hasExisting && !force && !clearExisting) {
+      return new Response(JSON.stringify({ success: true, message: 'Order already has items. Set force=true to overwrite.' }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+    }
+
+    if (hasExisting && clearExisting) {
+      await env.DB.prepare('DELETE FROM order_items WHERE TRIM(order_id) = TRIM(?)').bind(orderId).run();
+    }
+
+    let inserted = 0;
+    for (const it of rawItems) {
+      const name = String(it?.name ?? it?.product_name ?? it?.title ?? '').trim();
+      const unitPrice = Number(it?.price ?? it?.product_price ?? it?.unit_price ?? 0);
+      const qty = Number(it?.quantity ?? it?.qty ?? 1);
+      if (!name || !Number.isFinite(unitPrice) || unitPrice <= 0 || !Number.isFinite(qty) || qty <= 0) {
+        continue;
+      }
+      const subtotal = Number(it?.subtotal ?? unitPrice * qty);
+      await env.DB.prepare(
+        'INSERT INTO order_items (order_id, product_name, product_price, quantity, subtotal) VALUES (?, ?, ?, ?, ?)'
+      ).bind(orderId, name, unitPrice, qty, subtotal).run();
+      inserted += 1;
+    }
+
+    return new Response(JSON.stringify({ success: true, order_id: orderId, inserted }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+  } catch (e) {
+    console.error('[backfillOrderItems] Error:', e);
+    return new Response(JSON.stringify({ success: false, error: 'Failed to backfill items' }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+  }
+}
+
 async function updateOrderStatusFromMidtrans(orderId, env) {
   const serverKey = env.MIDTRANS_SERVER_KEY;
   const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';

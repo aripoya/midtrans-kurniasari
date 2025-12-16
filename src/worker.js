@@ -1,7 +1,7 @@
 // Trigger redeploy to update secrets (v1)
 import { Router } from 'itty-router';
 import jwt from 'jsonwebtoken';
-import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDetails, refreshOrderStatus, getAdminOrders, deleteOrder, restoreOrder, getDeletedOrders, getOutletOrders, getDeliveryOrders, markOrderAsReceived, getDeliveryOverview, getOrderQrisUrl, proxyOrderQrisImage } from './handlers/orders.js';
+import { createOrder, getOrders, getOrderById, updateOrderStatus, updateOrderDetails, refreshOrderStatus, getAdminOrders, deleteOrder, restoreOrder, getDeletedOrders, getOutletOrders, getDeliveryOrders, markOrderAsReceived, getDeliveryOverview, getOrderQrisUrl, proxyOrderQrisImage, backfillOrderItems } from './handlers/orders.js';
 import { debugOutletOrderFiltering, fixOutletOrderAssignment } from './handlers/debug-outlet.js';
 import { debugDeliverySync, fixDeliveryAssignment } from './handlers/debug-delivery.js';
 import { getAssignmentOptions } from './handlers/assignment-options.js';
@@ -121,6 +121,19 @@ router.get('/api/admin/users-schema', verifyToken, async (request, env) => {
             headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
         });
     }
+});
+
+router.post('/api/admin/orders/:id/backfill-items', verifyToken, async (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, error: adminCheck.error }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+        });
+    }
+
+    return backfillOrderItems(request, env);
 });
 
 
