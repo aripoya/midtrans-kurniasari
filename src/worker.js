@@ -11,7 +11,7 @@ import { getUserNotifications, markNotificationRead, markAllNotificationsRead } 
 import { getProducts, createProduct, updateProduct, deleteProduct } from './handlers/products.js';
 // Legacy shipping handler removed - using direct Cloudflare Images endpoints instead
 import { registerUser, loginUser, getUserProfile, getOutlets, createOutlet } from './handlers/auth.js';
-import { verifyToken, handleMiddlewareError, requireAdmin } from './handlers/middleware.js';
+import { verifyToken, handleMiddlewareError, requireAdmin, requireOrderAccess } from './handlers/middleware.js';
 import { getUsers, createUser, updateUser, deleteUser, resetUserPassword } from './handlers/user-management.js'; // Import user management handlers
 import { resetOutletPassword, checkDatabaseSchema, createCustomersTable, testLogin, getTableSchema, analyzeOutletLocations, createRealOutlets, mapOrdersToOutlets, resetAdminPasswordForDebug, debugDeliveryAssignments, addEmailColumnToUsers, addUpdatedAtColumnToUsers, debugCreateOrderUpdateLogsTable, modifyUpdateOrderStatus, debugOrderDetails, debugOutletSync } from './handlers/debug.js';
 import { migrateExistingOrdersToOutlets, getMigrationStatus } from './handlers/migrate-outlets.js';
@@ -125,15 +125,30 @@ router.get('/api/admin/users-schema', verifyToken, async (request, env) => {
 
 router.post('/api/admin/orders/:id/backfill-items', verifyToken, async (request, env) => {
     request.corsHeaders = corsHeaders(request);
-    const adminCheck = requireAdmin(request);
-    if (!adminCheck.success) {
-        return new Response(JSON.stringify({ success: false, error: adminCheck.error }), {
-            status: 403,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
-        });
+    const isAdmin = request?.user?.role === 'admin';
+    const isOutletManager = request?.user?.role === 'outlet_manager';
+    const orderId = request?.params?.id;
+
+    if (isAdmin) {
+        return backfillOrderItems(request, env);
     }
 
-    return backfillOrderItems(request, env);
+    if (isOutletManager) {
+        const access = await requireOrderAccess(request, env, orderId);
+        if (!access?.success) {
+            return new Response(JSON.stringify({ success: false, error: access?.message || 'Access denied' }), {
+                status: access?.status || 403,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+            });
+        }
+        return backfillOrderItems(request, env);
+    }
+
+    const adminCheck = requireAdmin(request);
+    return new Response(JSON.stringify({ success: false, error: adminCheck?.message || 'Admin access required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
+    });
 });
 
 
