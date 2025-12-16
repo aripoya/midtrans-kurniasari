@@ -774,6 +774,25 @@ export async function getOrderById(request, env) {
 
     if (!items || items.length === 0) {
       try {
+        const parsedArrays = [];
+
+        const extraJsonFields = [order?.payment_response, order?.midtrans_response];
+        for (const f of extraJsonFields) {
+          if (f == null) continue;
+          try {
+            const obj = typeof f === 'string' ? JSON.parse(f) : f;
+            if (Array.isArray(obj)) {
+              parsedArrays.push(obj);
+              continue;
+            }
+            if (obj && typeof obj === 'object') {
+              if (Array.isArray(obj.items)) parsedArrays.push(obj.items);
+              if (Array.isArray(obj.item_details)) parsedArrays.push(obj.item_details);
+              if (Array.isArray(obj.order_items)) parsedArrays.push(obj.order_items);
+            }
+          } catch (_) {}
+        }
+
         const candidates = [];
         for (const [k, v] of Object.entries(order || {})) {
           const key = String(k || '').toLowerCase();
@@ -781,8 +800,6 @@ export async function getOrderById(request, env) {
           if (v == null) continue;
           candidates.push(v);
         }
-
-        const parsedArrays = [];
         for (const c of candidates) {
           try {
             const obj = typeof c === 'string' ? JSON.parse(c) : c;
