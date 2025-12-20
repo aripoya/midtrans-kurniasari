@@ -77,19 +77,22 @@ async function getMonthlyTrend(env, outletName, outletId) {
     WHERE date(created_at) >= date('now', '-12 months')
       AND (deleted_at IS NULL OR deleted_at = '')
       AND (
-        outlet_id = ?
-        OR outlet_id = ?
-        OR LOWER(outlet_id) LIKE LOWER(?)
-        OR LOWER(outlet_id) LIKE LOWER(?)
-        OR lokasi_pengambilan = ?
-        OR lokasi_pengambilan = ?
-        OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
-        OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
-        OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
-        OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
+        (outlet_id = ? OR outlet_id = ? OR LOWER(outlet_id) LIKE LOWER(?) OR LOWER(outlet_id) LIKE LOWER(?))
+        OR (
+          (outlet_id IS NULL OR outlet_id = '')
+          AND (
+            lokasi_pengambilan = ?
+            OR lokasi_pengambilan = ?
+            OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+            OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+            OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
+            OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
+          )
+        )
       )
     GROUP BY strftime('%Y-%m', created_at)
     ORDER BY month DESC
+    LIMIT 12
   `)
     .bind(
       outletId || '',
@@ -131,16 +134,18 @@ async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
     WHERE strftime('%Y-%m', created_at) = ?
       AND (deleted_at IS NULL OR deleted_at = '')
       AND (
-        outlet_id = ?
-        OR outlet_id = ?
-        OR LOWER(outlet_id) LIKE LOWER(?)
-        OR LOWER(outlet_id) LIKE LOWER(?)
-        OR lokasi_pengambilan = ?
-        OR lokasi_pengambilan = ?
-        OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
-        OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
-        OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
-        OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
+        (outlet_id = ? OR outlet_id = ? OR LOWER(outlet_id) LIKE LOWER(?) OR LOWER(outlet_id) LIKE LOWER(?))
+        OR (
+          (outlet_id IS NULL OR outlet_id = '')
+          AND (
+            lokasi_pengambilan = ?
+            OR lokasi_pengambilan = ?
+            OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+            OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+            OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
+            OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
+          )
+        )
       )
     GROUP BY strftime('%Y-%W', created_at)
     ORDER BY week ASC
@@ -188,16 +193,18 @@ async function getOutletOrders(env, outletName, outletId, options = {}) {
   let conditions = [
     "(deleted_at IS NULL OR deleted_at = '')",
     `(
-      outlet_id = ?
-      OR outlet_id = ?
-      OR LOWER(outlet_id) LIKE LOWER(?)
-      OR LOWER(outlet_id) LIKE LOWER(?)
-      OR lokasi_pengambilan = ?
-      OR lokasi_pengambilan = ?
-      OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
-      OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
-      OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
-      OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
+      (outlet_id = ? OR outlet_id = ? OR LOWER(outlet_id) LIKE LOWER(?) OR LOWER(outlet_id) LIKE LOWER(?))
+      OR (
+        (outlet_id IS NULL OR outlet_id = '')
+        AND (
+          lokasi_pengambilan = ?
+          OR lokasi_pengambilan = ?
+          OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+          OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
+          OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
+          OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
+        )
+      )
     )`,
   ];
 
@@ -308,16 +315,18 @@ async function getOutletOrderItems(env, outletName, outletId, dateFrom, dateTo) 
       AND date(o.created_at) <= date(?)
       AND (o.deleted_at IS NULL OR o.deleted_at = '')
       AND (
-        o.outlet_id = ?
-        OR o.outlet_id = ?
-        OR LOWER(o.outlet_id) LIKE LOWER(?)
-        OR LOWER(o.outlet_id) LIKE LOWER(?)
-        OR o.lokasi_pengambilan = ?
-        OR o.lokasi_pengambilan = ?
-        OR LOWER(o.lokasi_pengambilan) LIKE LOWER(?)
-        OR LOWER(o.lokasi_pengambilan) LIKE LOWER(?)
-        OR LOWER(o.lokasi_pengiriman) LIKE LOWER(?)
-        OR LOWER(o.lokasi_pengiriman) LIKE LOWER(?)
+        (o.outlet_id = ? OR o.outlet_id = ? OR LOWER(o.outlet_id) LIKE LOWER(?) OR LOWER(o.outlet_id) LIKE LOWER(?))
+        OR (
+          (o.outlet_id IS NULL OR o.outlet_id = '')
+          AND (
+            o.lokasi_pengambilan = ?
+            OR o.lokasi_pengambilan = ?
+            OR LOWER(o.lokasi_pengambilan) LIKE LOWER(?)
+            OR LOWER(o.lokasi_pengambilan) LIKE LOWER(?)
+            OR LOWER(o.lokasi_pengiriman) LIKE LOWER(?)
+            OR LOWER(o.lokasi_pengiriman) LIKE LOWER(?)
+          )
+        )
       )
     ORDER BY o.created_at DESC, oi.id ASC
   `;
