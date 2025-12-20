@@ -195,6 +195,11 @@ const OutletWeeklyReportPage: React.FC = () => {
         });
 
         const orders = Array.from(ordersMap.values());
+        console.log('=== Grouped Orders ===');
+        console.log('Total orders:', orders.length);
+        console.log('First order:', orders[0]);
+        console.log('First order items:', orders[0]?.items);
+        console.log('First order items length:', orders[0]?.items?.length);
         setOrderDetails(orders);
         onOpen();
       }
