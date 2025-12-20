@@ -212,6 +212,8 @@ const OutletDashboard: React.FC = () => {
 
       const apiUrl = `${baseApiUrl}?type=orders&date_from=${dateFrom}&date_to=${dateTo}&limit=200`;
       
+      console.log('Dashboard fetching orders:', { dateFrom, dateTo, apiUrl });
+      
       const response = await fetch(apiUrl, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -223,6 +225,7 @@ const OutletDashboard: React.FC = () => {
       }
       
       const data: ApiResponse<{ orders: Order[] }> = await response.json();
+      console.log('Dashboard orders response:', data);
       
       if (data.success && data.data) {
         const fetchedOrders = data.data.orders || [];
