@@ -166,15 +166,16 @@ const OutletWeeklyReportPage: React.FC = () => {
     
     try {
       const response = await outletApi.getOrderItems(week.week_start, week.week_end);
-      console.log('API Response:', response);
-      console.log('Response Data:', response.data);
+      console.log('=== API Response ===');
+      console.log('Success:', response.success);
+      console.log('Data length:', response.data?.length);
+      console.log('First item sample:', response.data?.[0]);
       
-      if (response.success && response.data) {
+      if (response.success && response.data && response.data.length > 0) {
         // Group items by order
         const ordersMap = new Map<string, OrderWithItems>();
         
         response.data.forEach(item => {
-          console.log('Processing item:', item);
           if (!ordersMap.has(item.order_id)) {
             ordersMap.set(item.order_id, {
               id: item.order_id,
