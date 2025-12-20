@@ -196,14 +196,21 @@ const OutletDashboard: React.FC = () => {
   const fetchOrders = async (): Promise<void> => {
     try {
       setLoading(true);
-      // Use relative path in development (proxy) and full URL in production
+      
+      // Get current month and year for filtering (December 2025)
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1; // 1-12
+      const dateFrom = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
+      const lastDay = new Date(currentYear, currentMonth, 0).getDate();
+      const dateTo = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      
+      // Use outlet report API with date filter
       const baseApiUrl = import.meta.env.DEV 
-        ? '/api/orders/outlet-relational' 
-        : `${import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev'}/api/orders/outlet-relational`;
+        ? '/api/outlet/report' 
+        : `${import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev'}/api/outlet/report`;
 
-      // Request a larger perPage from backend so older orders are also returned,
-      // then use client-side pagination (10/20 per page) on the full list.
-      const apiUrl = `${baseApiUrl}?page=1&perPage=200`;
+      const apiUrl = `${baseApiUrl}?type=orders&date_from=${dateFrom}&date_to=${dateTo}&limit=200`;
       
       const response = await fetch(apiUrl, {
         headers: {
