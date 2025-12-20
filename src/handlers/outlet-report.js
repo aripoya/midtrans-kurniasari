@@ -256,6 +256,7 @@ async function getOutletOrders(env, outletName, outletId, options = {}) {
   const ordersQuery = `
     SELECT 
       id,
+      outlet_id,
       customer_name,
       customer_phone,
       customer_address,
