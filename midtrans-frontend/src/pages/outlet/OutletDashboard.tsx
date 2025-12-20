@@ -224,11 +224,11 @@ const OutletDashboard: React.FC = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const data: ApiResponse<{ orders: Order[] }> = await response.json();
+      const data: any = await response.json();
       console.log('Dashboard orders response:', data);
       
-      if (data.success && data.data) {
-        const fetchedOrders = data.data.orders || [];
+      if (data.success) {
+        const fetchedOrders = data.orders || [];
         setOrders(fetchedOrders);
         
         // Calculate stats with proper typing
