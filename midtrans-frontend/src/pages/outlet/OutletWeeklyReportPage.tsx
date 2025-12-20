@@ -214,6 +214,10 @@ const OutletWeeklyReportPage: React.FC = () => {
   const exportToPDF = () => {
     if (!selectedWeek || orderDetails.length === 0) return;
 
+    console.log('=== Exporting PDF ===');
+    console.log('Order details:', orderDetails);
+    console.log('First order items:', orderDetails[0]?.items);
+
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
