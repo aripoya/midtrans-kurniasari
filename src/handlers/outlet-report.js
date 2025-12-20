@@ -77,7 +77,7 @@ async function getMonthlyTrend(env, outletName, outletId) {
     WHERE date(created_at) >= date('now', '-12 months')
       AND (deleted_at IS NULL OR deleted_at = '')
       AND (
-        (outlet_id = ? OR outlet_id = ? OR LOWER(outlet_id) LIKE LOWER(?) OR LOWER(outlet_id) LIKE LOWER(?))
+        (outlet_id = ? OR outlet_id = ?)
         OR (
           (outlet_id IS NULL OR outlet_id = '')
           AND (
@@ -97,8 +97,6 @@ async function getMonthlyTrend(env, outletName, outletId) {
     .bind(
       outletId || '',
       altOutletId || '',
-      `%${outletId || ''}%`,
-      `%${altOutletId || ''}%`,
       outletName,
       outletId || '',
       `%${outletName}%`,
@@ -134,7 +132,7 @@ async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
     WHERE strftime('%Y-%m', created_at) = ?
       AND (deleted_at IS NULL OR deleted_at = '')
       AND (
-        (outlet_id = ? OR outlet_id = ? OR LOWER(outlet_id) LIKE LOWER(?) OR LOWER(outlet_id) LIKE LOWER(?))
+        (outlet_id = ? OR outlet_id = ?)
         OR (
           (outlet_id IS NULL OR outlet_id = '')
           AND (
@@ -154,8 +152,6 @@ async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
       monthStr,
       outletId || '',
       altOutletId || '',
-      `%${outletId || ''}%`,
-      `%${altOutletId || ''}%`,
       outletName,
       outletId || '',
       `%${outletName}%`,
@@ -193,7 +189,7 @@ async function getOutletOrders(env, outletName, outletId, options = {}) {
   let conditions = [
     "(deleted_at IS NULL OR deleted_at = '')",
     `(
-      (outlet_id = ? OR outlet_id = ? OR LOWER(outlet_id) LIKE LOWER(?) OR LOWER(outlet_id) LIKE LOWER(?))
+      (outlet_id = ? OR outlet_id = ?)
       OR (
         (outlet_id IS NULL OR outlet_id = '')
         AND (
@@ -211,8 +207,6 @@ async function getOutletOrders(env, outletName, outletId, options = {}) {
   const params = [
     outletId || '',
     altOutletId || '',
-    `%${outletId || ''}%`,
-    `%${altOutletId || ''}%`,
     outletName,
     outletId || '',
     `%${outletName}%`,
@@ -316,7 +310,7 @@ async function getOutletOrderItems(env, outletName, outletId, dateFrom, dateTo) 
       AND date(o.created_at) <= date(?)
       AND (o.deleted_at IS NULL OR o.deleted_at = '')
       AND (
-        (o.outlet_id = ? OR o.outlet_id = ? OR LOWER(o.outlet_id) LIKE LOWER(?) OR LOWER(o.outlet_id) LIKE LOWER(?))
+        (o.outlet_id = ? OR o.outlet_id = ?)
         OR (
           (o.outlet_id IS NULL OR o.outlet_id = '')
           AND (
@@ -338,8 +332,6 @@ async function getOutletOrderItems(env, outletName, outletId, dateFrom, dateTo) 
       dateTo,
       outletId || '',
       altOutletId || '',
-      `%${outletId || ''}%`,
-      `%${altOutletId || ''}%`,
       outletName,
       outletId || '',
       `%${outletName}%`,
