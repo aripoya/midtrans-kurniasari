@@ -176,21 +176,26 @@ const OutletWeeklyReportPage: React.FC = () => {
         const ordersMap = new Map<string, OrderWithItems>();
         
         response.data.forEach(item => {
-          if (!ordersMap.has(item.order_id)) {
-            ordersMap.set(item.order_id, {
-              id: item.order_id,
+          const orderId = item.order_id || item.order?.id;
+          
+          if (!orderId) {
+            console.warn('Item without order_id:', item);
+            return;
+          }
+          
+          if (!ordersMap.has(orderId)) {
+            ordersMap.set(orderId, {
+              id: orderId,
               customer_name: item.order?.customer_name || 'Pelanggan',
               created_at: item.order?.created_at || new Date().toISOString(),
-              total_amount: 0, // Will be calculated from items
+              total_amount: item.order?.total_amount || 0,
               items: []
             });
           }
           
-          const order = ordersMap.get(item.order_id);
+          const order = ordersMap.get(orderId);
           if (order) {
             order.items.push(item);
-            // Calculate total amount by summing up all item total_prices
-            order.total_amount = order.items.reduce((sum, i) => sum + (i.total_price || 0), 0);
           }
         });
 
