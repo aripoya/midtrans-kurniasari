@@ -174,16 +174,23 @@ const OutletWeeklyReportPage: React.FC = () => {
           if (!ordersMap.has(item.order_id)) {
             ordersMap.set(item.order_id, {
               id: item.order_id,
-              customer_name: item.order.customer_name,
-              created_at: item.order.created_at,
-              total_amount: item.order.total_amount,
+              customer_name: item.order?.customer_name || 'Pelanggan',
+              created_at: item.order?.created_at || new Date().toISOString(),
+              total_amount: 0, // Will be calculated from items
               items: []
             });
           }
-          ordersMap.get(item.order_id)?.items.push(item);
+          
+          const order = ordersMap.get(item.order_id);
+          if (order) {
+            order.items.push(item);
+            // Calculate total amount by summing up all item total_prices
+            order.total_amount = order.items.reduce((sum, i) => sum + (i.total_price || 0), 0);
+          }
         });
 
-        setOrderDetails(Array.from(ordersMap.values()));
+        const orders = Array.from(ordersMap.values());
+        setOrderDetails(orders);
         onOpen();
       }
     } catch (error) {
@@ -234,7 +241,7 @@ const OutletWeeklyReportPage: React.FC = () => {
     doc.text('Detail Pesanan', 15, 80);
     
     // Prepare data for the table
-    const tableData = [];
+    const tableData: Array<any[]> = [];
     
     orderDetails.forEach(order => {
       // Add order header
