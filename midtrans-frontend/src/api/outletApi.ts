@@ -184,7 +184,7 @@ export const outletApi = {
       }
 
       const response = await axios.get(
-        `${API_URL}/api/orders/items?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`,
+        `${API_URL}/api/outlet/report?type=items&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

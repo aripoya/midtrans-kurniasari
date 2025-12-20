@@ -282,6 +282,82 @@ async function getOutletOrders(env, outletName, outletId, options = {}) {
   };
 }
 
+async function getOutletOrderItems(env, outletName, outletId, dateFrom, dateTo) {
+  const altOutletId = outletId && outletId.startsWith('outlet_') && !outletId.startsWith('outlet_outlet_')
+    ? `outlet_${outletId}`
+    : outletId;
+
+  const query = `
+    SELECT 
+      oi.id,
+      oi.order_id,
+      oi.product_name,
+      oi.product_price as price,
+      oi.quantity,
+      oi.subtotal as total_price,
+      o.id as order_id_check,
+      o.customer_name,
+      o.customer_phone,
+      o.total_amount,
+      o.payment_status,
+      o.shipping_status,
+      o.created_at
+    FROM order_items oi
+    INNER JOIN orders o ON oi.order_id = o.id
+    WHERE date(o.created_at) >= date(?)
+      AND date(o.created_at) <= date(?)
+      AND (o.deleted_at IS NULL OR o.deleted_at = '')
+      AND (
+        o.outlet_id = ?
+        OR o.outlet_id = ?
+        OR LOWER(o.outlet_id) LIKE LOWER(?)
+        OR LOWER(o.outlet_id) LIKE LOWER(?)
+        OR o.lokasi_pengambilan = ?
+        OR o.lokasi_pengambilan = ?
+        OR LOWER(o.lokasi_pengambilan) LIKE LOWER(?)
+        OR LOWER(o.lokasi_pengambilan) LIKE LOWER(?)
+        OR LOWER(o.lokasi_pengiriman) LIKE LOWER(?)
+        OR LOWER(o.lokasi_pengiriman) LIKE LOWER(?)
+      )
+    ORDER BY o.created_at DESC, oi.id ASC
+  `;
+
+  const result = await env.DB.prepare(query)
+    .bind(
+      dateFrom,
+      dateTo,
+      outletId || '',
+      altOutletId || '',
+      `%${outletId || ''}%`,
+      `%${altOutletId || ''}%`,
+      outletName,
+      outletId || '',
+      `%${outletName}%`,
+      `%${outletId || ''}%`,
+      `%${outletName}%`,
+      `%${outletId || ''}%`
+    )
+    .all();
+
+  return (result.results || []).map((item) => ({
+    id: item.id,
+    order_id: item.order_id,
+    product_name: item.product_name,
+    quantity: item.quantity,
+    price: item.price || 0,
+    total_price: item.total_price || 0,
+    order: {
+      id: item.order_id,
+      customer_name: item.customer_name,
+      customer_phone: item.customer_phone,
+      total_amount: item.total_amount,
+      payment_status: item.payment_status,
+      shipping_status: item.shipping_status,
+      created_at: item.created_at,
+    },
+  }));
+}
+
 export async function getOutletReport(request, env) {
   try {
     await ensureSoftDeleteColumns(env);
@@ -341,6 +417,37 @@ export async function getOutletReport(request, env) {
           data: weeklyData,
           year: parseInt(year),
           month: parseInt(month),
+          outlet: outletName,
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) },
+        }
+      );
+    }
+
+    if (type === 'items') {
+      const dateFrom = url.searchParams.get('date_from');
+      const dateTo = url.searchParams.get('date_to');
+
+      if (!dateFrom || !dateTo) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'date_from and date_to parameters are required',
+          }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) },
+          }
+        );
+      }
+
+      const items = await getOutletOrderItems(env, outletName, outletId, dateFrom, dateTo);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: items,
           outlet: outletName,
         }),
         {
