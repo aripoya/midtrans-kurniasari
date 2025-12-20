@@ -115,7 +115,13 @@ export const outletApi = {
     date_from?: string;
     date_to?: string;
     search?: string;
-  } = {}): Promise<ApiResponse<any>> => {
+  } = {}): Promise<ApiResponse<{
+    orders: OutletOrderRow[];
+    total: number;
+    offset: number;
+    limit: number;
+    has_more: boolean;
+  }>> => {
     try {
       const token = getToken();
       if (!token) {
@@ -148,6 +154,55 @@ export const outletApi = {
         success: false,
         data: null,
         error: err.response?.data?.error || err.message || 'Failed to load orders',
+      };
+    }
+  },
+
+  getOrderItems: async (dateFrom: string, dateTo: string): Promise<ApiResponse<Array<{
+    id: string;
+    order_id: string;
+    product_id: string;
+    product_name: string;
+    quantity: number;
+    price: number;
+    total_price: number;
+    created_at: string;
+    order: {
+      id: string;
+      customer_name: string;
+      customer_phone: string;
+      total_amount: number;
+      payment_status: string;
+      shipping_status: string;
+      created_at: string;
+    };
+  }>>> => {
+    try {
+      const token = getToken();
+      if (!token) {
+        return { success: false, data: null, error: 'No token available' };
+      }
+
+      const response = await axios.get(
+        `${API_URL}/api/orders/items?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data?.success) {
+        return { success: true, data: response.data.data, error: null };
+      }
+
+      return { success: false, data: null, error: response.data?.error || 'Gagal memuat detail pesanan' };
+    } catch (error: any) {
+      const err = error as AxiosError<any>;
+      return {
+        success: false,
+        data: null,
+        error: err.response?.data?.error || err.message || 'Gagal memuat detail pesanan',
       };
     }
   },
