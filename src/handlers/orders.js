@@ -1614,7 +1614,8 @@ export async function getDeliveryOrders(request, env) {
       SELECT *
       FROM orders
       WHERE 
-        LOWER(COALESCE(shipping_area, '')) IN ('dalam_kota', 'dalam-kota', 'dalam kota')
+        (deleted_at IS NULL OR deleted_at = '')
+        AND LOWER(COALESCE(shipping_area, '')) IN ('dalam_kota', 'dalam-kota', 'dalam kota')
         AND LOWER(COALESCE(pickup_method, '')) IN ('deliveryman', 'kurir toko', 'kurir_toko')
         AND (LOWER(COALESCE(tipe_pesanan, '')) IN ('pesan antar', 'pesan-antar') OR tipe_pesanan IS NULL OR tipe_pesanan = '')
         AND assigned_deliveryman_id = ?
