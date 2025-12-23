@@ -22,7 +22,7 @@ export interface OrderData {
   customer_address: string;
   lokasi_pengiriman?: string;
   lokasi_pengambilan?: string;
-  shipping_area: 'dalam_kota' | 'luar_kota';
+  shipping_area: 'dalam-kota' | 'luar-kota';
   pickup_method: string;
   courier_service?: string | null;
   shipping_notes?: string | null;
