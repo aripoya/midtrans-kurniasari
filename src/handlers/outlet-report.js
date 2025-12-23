@@ -37,19 +37,21 @@ async function ensureSoftDeleteColumns(env) {
   }
 }
 
-async function resolveOutletName(env, outletId) {
-  if (!outletId) return '';
+async function resolveOutletInfo(env, outletId) {
+  if (!outletId) return { name: '', locationAlias: '' };
 
   let outletName = '';
+  let locationAlias = '';
   try {
-    let outletInfo = await env.DB.prepare(`SELECT name FROM outlets_unified WHERE id = ?`).bind(outletId).first();
+    let outletInfo = await env.DB.prepare(`SELECT name, location_alias FROM outlets_unified WHERE id = ?`).bind(outletId).first();
 
     if (!outletInfo && outletId.startsWith('outlet_') && !outletId.startsWith('outlet_outlet_')) {
       const alternateId = `outlet_${outletId}`;
-      outletInfo = await env.DB.prepare(`SELECT name FROM outlets_unified WHERE id = ?`).bind(alternateId).first();
+      outletInfo = await env.DB.prepare(`SELECT name, location_alias FROM outlets_unified WHERE id = ?`).bind(alternateId).first();
     }
 
     outletName = outletInfo?.name || '';
+    locationAlias = outletInfo?.location_alias || '';
 
     if (!outletName) {
       outletName = outletId.replace(/^outlet_/, '').replace(/_/g, ' ');
@@ -60,13 +62,21 @@ async function resolveOutletName(env, outletId) {
     outletName = outletName.charAt(0).toUpperCase() + outletName.slice(1);
   }
 
-  return outletName;
+  return { name: outletName, locationAlias };
+}
+
+async function resolveOutletName(env, outletId) {
+  const info = await resolveOutletInfo(env, outletId);
+  return info.name;
 }
 
 async function getMonthlyTrend(env, outletName, outletId) {
   const altOutletId = outletId && outletId.startsWith('outlet_') && !outletId.startsWith('outlet_outlet_')
     ? `outlet_${outletId}`
     : outletId;
+
+  const outletInfo = await resolveOutletInfo(env, outletId);
+  const locationAlias = outletInfo.locationAlias;
 
   const monthlyQuery = await env.DB.prepare(`
     SELECT 
@@ -76,14 +86,21 @@ async function getMonthlyTrend(env, outletName, outletId) {
     FROM orders
     WHERE date(created_at) >= date('now', '-12 months')
       AND (deleted_at IS NULL OR deleted_at = '')
-      AND (outlet_id = ? OR outlet_id = ?)
+      AND (
+        outlet_id = ? OR outlet_id = ?
+        OR (outlet_id IS NULL OR outlet_id = '') AND (
+          lokasi_pengambilan = ? OR lokasi_pengiriman = ?
+        )
+      )
     GROUP BY strftime('%Y-%m', created_at)
     ORDER BY month DESC
     LIMIT 12
   `)
     .bind(
       outletId || '',
-      altOutletId || ''
+      altOutletId || '',
+      locationAlias || '',
+      locationAlias || ''
     )
     .all();
 
@@ -101,6 +118,8 @@ async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
     : outletId;
 
   const monthStr = `${year}-${month.toString().padStart(2, '0')}`;
+  const outletInfo = await resolveOutletInfo(env, outletId);
+  const locationAlias = outletInfo.locationAlias;
 
   const weeklyQuery = await env.DB.prepare(`
     SELECT 
@@ -114,6 +133,9 @@ async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
       AND (deleted_at IS NULL OR deleted_at = '')
       AND (
         outlet_id = ? OR outlet_id = ?
+        OR (outlet_id IS NULL OR outlet_id = '') AND (
+          lokasi_pengambilan = ? OR lokasi_pengiriman = ?
+        )
       )
     GROUP BY strftime('%Y-%W', created_at)
     ORDER BY week ASC
@@ -121,7 +143,9 @@ async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
     .bind(
       monthStr,
       outletId || '',
-      altOutletId || ''
+      altOutletId || '',
+      locationAlias || '',
+      locationAlias || ''
     )
     .all();
 
@@ -150,14 +174,24 @@ async function getOutletOrders(env, outletName, outletId, options = {}) {
     ? `outlet_${outletId}`
     : outletId;
 
+  const outletInfo = await resolveOutletInfo(env, outletId);
+  const locationAlias = outletInfo.locationAlias;
+
   let conditions = [
     "(deleted_at IS NULL OR deleted_at = '')",
-    "(outlet_id = ? OR outlet_id = ?)",
+    `(
+      outlet_id = ? OR outlet_id = ?
+      OR (outlet_id IS NULL OR outlet_id = '') AND (
+        lokasi_pengambilan = ? OR lokasi_pengiriman = ?
+      )
+    )`,
   ];
 
   const params = [
     outletId || '',
     altOutletId || '',
+    locationAlias || '',
+    locationAlias || '',
   ];
 
   if (payment_status) {
@@ -234,6 +268,9 @@ async function getOutletOrderItems(env, outletName, outletId, dateFrom, dateTo) 
     ? `outlet_${outletId}`
     : outletId;
 
+  const outletInfo = await resolveOutletInfo(env, outletId);
+  const locationAlias = outletInfo.locationAlias;
+
   const query = `
     SELECT 
       oi.id,
@@ -254,7 +291,12 @@ async function getOutletOrderItems(env, outletName, outletId, dateFrom, dateTo) 
     WHERE date(o.created_at) >= date(?)
       AND date(o.created_at) <= date(?)
       AND (o.deleted_at IS NULL OR o.deleted_at = '')
-      AND (o.outlet_id = ? OR o.outlet_id = ?)
+      AND (
+        o.outlet_id = ? OR o.outlet_id = ?
+        OR (o.outlet_id IS NULL OR o.outlet_id = '') AND (
+          o.lokasi_pengambilan = ? OR o.lokasi_pengiriman = ?
+        )
+      )
     ORDER BY o.created_at DESC, oi.id ASC
   `;
 
@@ -263,7 +305,9 @@ async function getOutletOrderItems(env, outletName, outletId, dateFrom, dateTo) 
       dateFrom,
       dateTo,
       outletId || '',
-      altOutletId || ''
+      altOutletId || '',
+      locationAlias || '',
+      locationAlias || ''
     )
     .all();
 
