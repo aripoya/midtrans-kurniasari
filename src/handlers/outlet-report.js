@@ -76,33 +76,14 @@ async function getMonthlyTrend(env, outletName, outletId) {
     FROM orders
     WHERE date(created_at) >= date('now', '-12 months')
       AND (deleted_at IS NULL OR deleted_at = '')
-      AND (
-        (outlet_id = ? OR outlet_id = ?)
-        OR (
-          (outlet_id IS NULL OR outlet_id = '')
-          AND (
-            lokasi_pengambilan = ?
-            OR lokasi_pengambilan = ?
-            OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
-            OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
-            OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
-            OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
-          )
-        )
-      )
+      AND (outlet_id = ? OR outlet_id = ?)
     GROUP BY strftime('%Y-%m', created_at)
     ORDER BY month DESC
     LIMIT 12
   `)
     .bind(
       outletId || '',
-      altOutletId || '',
-      outletName,
-      outletId || '',
-      `%${outletName}%`,
-      `%${outletId || ''}%`,
-      `%${outletName}%`,
-      `%${outletId || ''}%`
+      altOutletId || ''
     )
     .all();
 
@@ -132,18 +113,7 @@ async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
     WHERE strftime('%Y-%m', created_at) = ?
       AND (deleted_at IS NULL OR deleted_at = '')
       AND (
-        (outlet_id = ? OR outlet_id = ?)
-        OR (
-          (outlet_id IS NULL OR outlet_id = '')
-          AND (
-            lokasi_pengambilan = ?
-            OR lokasi_pengambilan = ?
-            OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
-            OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
-            OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
-            OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
-          )
-        )
+        outlet_id = ? OR outlet_id = ?
       )
     GROUP BY strftime('%Y-%W', created_at)
     ORDER BY week ASC
@@ -151,13 +121,7 @@ async function getWeeklyBreakdown(env, outletName, outletId, year, month) {
     .bind(
       monthStr,
       outletId || '',
-      altOutletId || '',
-      outletName,
-      outletId || '',
-      `%${outletName}%`,
-      `%${outletId || ''}%`,
-      `%${outletName}%`,
-      `%${outletId || ''}%`
+      altOutletId || ''
     )
     .all();
 
@@ -188,31 +152,12 @@ async function getOutletOrders(env, outletName, outletId, options = {}) {
 
   let conditions = [
     "(deleted_at IS NULL OR deleted_at = '')",
-    `(
-      (outlet_id = ? OR outlet_id = ?)
-      OR (
-        (outlet_id IS NULL OR outlet_id = '')
-        AND (
-          lokasi_pengambilan = ?
-          OR lokasi_pengambilan = ?
-          OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
-          OR LOWER(lokasi_pengambilan) LIKE LOWER(?)
-          OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
-          OR LOWER(lokasi_pengiriman) LIKE LOWER(?)
-        )
-      )
-    )`,
+    "(outlet_id = ? OR outlet_id = ?)",
   ];
 
   const params = [
     outletId || '',
     altOutletId || '',
-    outletName,
-    outletId || '',
-    `%${outletName}%`,
-    `%${outletId || ''}%`,
-    `%${outletName}%`,
-    `%${outletId || ''}%`,
   ];
 
   if (payment_status) {
@@ -309,20 +254,7 @@ async function getOutletOrderItems(env, outletName, outletId, dateFrom, dateTo) 
     WHERE date(o.created_at) >= date(?)
       AND date(o.created_at) <= date(?)
       AND (o.deleted_at IS NULL OR o.deleted_at = '')
-      AND (
-        (o.outlet_id = ? OR o.outlet_id = ?)
-        OR (
-          (o.outlet_id IS NULL OR o.outlet_id = '')
-          AND (
-            o.lokasi_pengambilan = ?
-            OR o.lokasi_pengambilan = ?
-            OR LOWER(o.lokasi_pengambilan) LIKE LOWER(?)
-            OR LOWER(o.lokasi_pengambilan) LIKE LOWER(?)
-            OR LOWER(o.lokasi_pengiriman) LIKE LOWER(?)
-            OR LOWER(o.lokasi_pengiriman) LIKE LOWER(?)
-          )
-        )
-      )
+      AND (o.outlet_id = ? OR o.outlet_id = ?)
     ORDER BY o.created_at DESC, oi.id ASC
   `;
 
@@ -331,13 +263,7 @@ async function getOutletOrderItems(env, outletName, outletId, dateFrom, dateTo) 
       dateFrom,
       dateTo,
       outletId || '',
-      altOutletId || '',
-      outletName,
-      outletId || '',
-      `%${outletName}%`,
-      `%${outletId || ''}%`,
-      `%${outletName}%`,
-      `%${outletId || ''}%`
+      altOutletId || ''
     )
     .all();
 
