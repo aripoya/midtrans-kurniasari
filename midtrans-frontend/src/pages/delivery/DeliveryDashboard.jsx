@@ -161,7 +161,7 @@ function DeliveryDashboard() {
       // Refresh orders when updates are detected
       fetchOrders();
     },
-    pollingInterval: 60000, // Poll every 60 seconds (1 minute) - optimized for cost efficiency
+    pollingInterval: 5000, // Poll every 5 seconds - optimized for real-time responsiveness
     enabled: true
   });
 
@@ -180,7 +180,7 @@ function DeliveryDashboard() {
         });
       });
     },
-    pollingInterval: 60000 // Check notifications every 60 seconds (1 minute) - optimized for cost efficiency
+    pollingInterval: 5000 // Check notifications every 5 seconds - optimized for real-time responsiveness
   });
 
   // Load orders on component mount

@@ -117,10 +117,10 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     // Initial fetch
     fetchNotifications();
     
-    // Set up polling every 5 minutes
+    // Set up polling every 5 seconds
     const pollingInterval = setInterval(() => {
       fetchNotifications();
-    }, 300000); // 5 minutes (300000 ms)
+    }, 5000); // 5 seconds - optimized for real-time responsiveness
     
     return () => {
       clearInterval(pollingInterval);

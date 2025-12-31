@@ -183,13 +183,13 @@ const OutletDashboard: React.FC = () => {
       console.log('Real-time update detected, refreshing orders...');
       fetchOrders();
     },
-    pollingInterval: 60000, // Poll every 60 seconds (1 minute) - optimized for cost efficiency
+    pollingInterval: 5000, // Poll every 5 seconds - optimized for real-time responsiveness
     enabled: true
   });
 
   useNotificationSync({
     userId: user?.id,
-    pollingInterval: 60000 // Poll every 60 seconds (1 minute) - optimized for cost efficiency
+    pollingInterval: 5000 // Poll every 5 seconds - optimized for real-time responsiveness
   });
 
   // Function to fetch orders (extracted for reuse)
