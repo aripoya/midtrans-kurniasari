@@ -3,6 +3,7 @@ import { createNotification } from './notifications.js';
 import { determineOutletFromLocation } from './outlet-assignment.js';
 import { AdminActivityLogger, getClientInfo } from '../utils/admin-activity-logger.js';
 import { derivePaymentStatusFromData } from '../utils/payment-status.js';
+import { sendOutletWhatsAppNotification, getOutletPhoneNumber } from './whatsapp-notification.js';
 
 // Simple order ID generator
 function generateOrderId() {
@@ -636,6 +637,57 @@ export async function createOrder(request, env) {
       } catch (logError) {
         console.error('Failed to log order creation activity:', logError);
         // Don't fail the order creation if logging fails
+      }
+    }
+
+    // Send WhatsApp notification to outlet (non-blocking)
+    if (finalOutletId) {
+      try {
+        console.log('📱 Attempting to send WhatsApp notification to outlet:', finalOutletId);
+        
+        // Get outlet details for notification
+        const outletDetails = await env.DB.prepare(
+          'SELECT name, phone FROM outlets_unified WHERE id = ?'
+        ).bind(finalOutletId).first();
+
+        if (outletDetails) {
+          const phoneNumber = outletDetails.phone || await getOutletPhoneNumber(finalOutletId, env);
+          
+          if (phoneNumber) {
+            // Prepare order data for notification
+            const notificationData = {
+              orderId,
+              customerName: customer_name,
+              customerPhone: customerPhone,
+              totalAmount,
+              outletName: outletDetails.name,
+              lokasi_pengiriman: orderData.lokasi_pengiriman,
+              shipping_area: orderData.shipping_area,
+              tipe_pesanan: orderData.tipe_pesanan,
+              items: processedItems
+            };
+
+            // Send notification asynchronously (don't wait for response)
+            sendOutletWhatsAppNotification(phoneNumber, notificationData, env)
+              .then(result => {
+                if (result.success) {
+                  console.log('✅ WhatsApp notification sent successfully to outlet:', finalOutletId);
+                } else {
+                  console.warn('⚠️ WhatsApp notification failed:', result.error);
+                }
+              })
+              .catch(err => {
+                console.error('❌ WhatsApp notification error:', err);
+              });
+          } else {
+            console.warn('⚠️ No phone number found for outlet:', finalOutletId);
+          }
+        } else {
+          console.warn('⚠️ Outlet details not found for:', finalOutletId);
+        }
+      } catch (notifError) {
+        console.error('❌ Error preparing WhatsApp notification:', notifError);
+        // Don't fail the order creation if notification fails
       }
     }
 
