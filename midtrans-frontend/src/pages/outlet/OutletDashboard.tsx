@@ -197,13 +197,13 @@ const OutletDashboard: React.FC = () => {
     try {
       setLoading(true);
       
-      // Get current month and year for filtering (December 2025)
+      // Get date range for last 3 months to show recent orders
       const now = new Date();
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth() + 1; // 1-12
-      const dateFrom = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
-      const lastDay = new Date(currentYear, currentMonth, 0).getDate();
-      const dateTo = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const threeMonthsAgo = new Date(now);
+      threeMonthsAgo.setMonth(now.getMonth() - 3);
+      
+      const dateFrom = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`;
+      const dateTo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       
       // Use outlet report API with date filter
       const baseApiUrl = import.meta.env.DEV 
@@ -212,7 +212,7 @@ const OutletDashboard: React.FC = () => {
 
       const apiUrl = `${baseApiUrl}?type=orders&date_from=${dateFrom}&date_to=${dateTo}&limit=200`;
       
-      console.log('Dashboard fetching orders:', { dateFrom, dateTo, apiUrl });
+      console.log('Dashboard fetching orders (last 3 months):', { dateFrom, dateTo, apiUrl });
       
       const response = await fetch(apiUrl, {
         headers: {
