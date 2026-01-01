@@ -44,18 +44,48 @@ export async function sendOutletWhatsAppNotification(phoneNumber, orderData, env
       return { success: false, error: 'WhatsApp API not configured' };
     }
 
-    // Send WhatsApp message via API
-    const response = await fetch(waApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${waApiToken}`
-      },
-      body: JSON.stringify({
+    // Detect API type based on URL
+    const isFacebookAPI = waApiUrl.includes('graph.facebook.com');
+    const isTwilioAPI = waApiUrl.includes('twilio.com');
+    
+    let requestBody;
+    let requestHeaders = {
+      'Content-Type': 'application/json'
+    };
+
+    if (isFacebookAPI) {
+      // Meta Cloud API format
+      requestHeaders['Authorization'] = `Bearer ${waApiToken}`;
+      requestBody = {
+        messaging_product: 'whatsapp',
+        to: normalizedPhone,
+        type: 'text',
+        text: { body: message }
+      };
+    } else if (isTwilioAPI) {
+      // Twilio API format
+      const [accountSid] = waApiUrl.match(/Accounts\/([^\/]+)/) || [];
+      requestHeaders['Authorization'] = `Basic ${btoa(`${accountSid}:${waApiToken}`)}`;
+      requestBody = {
+        To: `whatsapp:+${normalizedPhone}`,
+        From: env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886',
+        Body: message
+      };
+    } else {
+      // Generic API format (Fonnte, Wablas, etc)
+      requestHeaders['Authorization'] = `Bearer ${waApiToken}`;
+      requestBody = {
         phone: normalizedPhone,
         message: message,
         type: 'text'
-      })
+      };
+    }
+
+    // Send WhatsApp message via API
+    const response = await fetch(waApiUrl, {
+      method: 'POST',
+      headers: requestHeaders,
+      body: JSON.stringify(requestBody)
     });
 
     const responseData = await response.json();
