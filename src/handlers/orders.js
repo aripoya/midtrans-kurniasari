@@ -2458,15 +2458,33 @@ export async function updateOrderDetails(request, env) {
 
       console.log(`[updateOrderDetails] Successfully updated order: ${orderId}`);
 
-      // Send WhatsApp notification to outlet when order details are updated (especially when outlet is assigned)
-      if (typeof rawOutletId !== 'undefined' && rawOutletId) {
+      // Send WhatsApp notification to outlet when order details are updated
+      // Trigger when lokasi_pengambilan (outlet name) is updated OR when outlet_id is set
+      const shouldSendNotification = (typeof lokasiPengambilanName !== 'undefined' && lokasiPengambilanName) || 
+                                     (typeof rawOutletId !== 'undefined' && rawOutletId);
+      
+      if (shouldSendNotification) {
         try {
-          console.log('📱 Attempting to send WhatsApp notification to outlet:', rawOutletId);
+          console.log('📱 Attempting to send WhatsApp notification. Outlet name:', lokasiPengambilanName, 'Outlet ID:', rawOutletId);
           
-          // Get outlet details and order info for notification
-          const outletDetails = await env.DB.prepare(
-            'SELECT name, phone FROM outlets_unified WHERE id = ?'
-          ).bind(rawOutletId).first();
+          // Determine which outlet to notify
+          let outletDetails = null;
+          
+          // First try to get outlet by name (lokasi_pengambilan)
+          if (lokasiPengambilanName) {
+            outletDetails = await env.DB.prepare(
+              'SELECT id, name, phone FROM outlets_unified WHERE name = ?'
+            ).bind(lokasiPengambilanName).first();
+            console.log('📱 Found outlet by name:', outletDetails);
+          }
+          
+          // Fallback to outlet_id if name lookup failed
+          if (!outletDetails && rawOutletId) {
+            outletDetails = await env.DB.prepare(
+              'SELECT id, name, phone FROM outlets_unified WHERE id = ?'
+            ).bind(rawOutletId).first();
+            console.log('📱 Found outlet by ID:', outletDetails);
+          }
 
           if (outletDetails && outletDetails.phone) {
             // Get full order details for notification
@@ -2494,11 +2512,13 @@ export async function updateOrderDetails(request, env) {
                 items: orderItems.results || []
               };
 
+              console.log('📱 Sending WhatsApp to phone:', outletDetails.phone);
+
               // Send notification asynchronously (don't wait for response)
               sendOutletWhatsAppNotification(outletDetails.phone, notificationData, env)
                 .then(result => {
                   if (result.success) {
-                    console.log('✅ WhatsApp notification sent successfully to outlet:', rawOutletId);
+                    console.log('✅ WhatsApp notification sent successfully to outlet:', outletDetails.name);
                   } else {
                     console.warn('⚠️ WhatsApp notification failed:', result.error);
                   }
@@ -2508,12 +2528,14 @@ export async function updateOrderDetails(request, env) {
                 });
             }
           } else {
-            console.warn('⚠️ No phone number found for outlet:', rawOutletId);
+            console.warn('⚠️ No phone number found for outlet. Details:', outletDetails);
           }
         } catch (notifError) {
           console.error('❌ Error preparing WhatsApp notification:', notifError);
           // Don't fail the update if notification fails
         }
+      } else {
+        console.log('📱 WhatsApp notification not triggered. lokasi_pengambilan:', lokasiPengambilanName, 'outlet_id:', rawOutletId);
       }
 
       // If shipping status changed in this update, create audit log and notifications
