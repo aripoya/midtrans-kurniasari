@@ -94,11 +94,20 @@ export async function sendOutletWhatsAppNotification(phoneNumber, orderData, env
       body: JSON.stringify(requestBody)
     });
 
-    const responseData = await response.json();
+    let responseData;
+    try {
+      responseData = await response.json();
+    } catch (parseError) {
+      console.error('❌ Failed to parse WhatsApp API response:', parseError);
+      const responseText = await response.text();
+      console.error('❌ Raw response:', responseText);
+      return { success: false, error: 'Failed to parse API response', details: responseText };
+    }
 
     console.log('📥 WhatsApp API Response:', {
       status: response.status,
       ok: response.ok,
+      headers: Object.fromEntries(response.headers.entries()),
       data: responseData
     });
 
@@ -106,7 +115,8 @@ export async function sendOutletWhatsAppNotification(phoneNumber, orderData, env
       console.error('❌ WhatsApp API error:', {
         status: response.status,
         statusText: response.statusText,
-        response: responseData
+        response: responseData,
+        fullError: JSON.stringify(responseData, null, 2)
       });
       return { success: false, error: responseData.message || responseData.error?.message || 'WhatsApp API error', details: responseData };
     }
