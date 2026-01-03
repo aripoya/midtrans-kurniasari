@@ -41,7 +41,7 @@ async function uploadShippingImage(request, env) {
     const imageType = pathSegments[5];
     
     // Validasi tipe gambar
-    const validTypes = ['ready_for_pickup', 'picked_up', 'delivered', 'shipment_proof'];
+    const validTypes = ['ready_for_pickup', 'picked_up', 'delivered', 'shipment_proof', 'packaged_product'];
 
     // DEBUG LOGGING
     console.log(`[WORKER-DEBUG] Validating image type. Received: "${imageType}". Valid types: ${JSON.stringify(validTypes)}. Is valid: ${validTypes.includes(imageType)}`);
@@ -205,7 +205,7 @@ async function deleteShippingImage(request, env) {
     const imageType = pathSegments[5];
     
     // Validasi tipe gambar
-    const validTypes = ['ready_for_pickup', 'picked_up', 'delivered', 'shipment_proof'];
+    const validTypes = ['ready_for_pickup', 'picked_up', 'delivered', 'shipment_proof', 'packaged_product'];
     if (!validTypes.includes(imageType)) {
       return jsonResponse({ 
         error: 'Invalid image type', 

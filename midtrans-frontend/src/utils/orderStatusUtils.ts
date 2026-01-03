@@ -58,14 +58,18 @@ export const normalizeShippingStatus = (
     lowercaseStatus === "siap dikirim" ||
     lowercaseStatus === "siap kirim"
   ) {
-    console.log(`[normalizeShippingStatus] Matched -> siap kirim`);
+    if (import.meta && (import.meta as any).env && (import.meta as any).env.DEV) {
+      console.log(`[normalizeShippingStatus] Matched -> siap kirim`);
+    }
     return "siap kirim";
   } else if (
     lowercaseStatus === "siap diambil" ||
     lowercaseStatus === "siap ambil" ||
     lowercaseStatus === "siap di ambil"
   ) {
-    console.log(`[normalizeShippingStatus] Matched -> siap di ambil`);
+    if (import.meta && (import.meta as any).env && (import.meta as any).env.DEV) {
+      console.log(`[normalizeShippingStatus] Matched -> siap di ambil`);
+    }
     return "siap di ambil";
   } else if (lowercaseStatus === "dikemas" || lowercaseStatus === "diproses") {
     return "dikemas";

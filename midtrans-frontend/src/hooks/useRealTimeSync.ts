@@ -65,7 +65,7 @@ export interface UseNotificationSyncReturn {
 export const useRealTimeSync = ({
   role = "admin",
   onUpdate = null,
-  pollingInterval = 60000, // Default 60 seconds (1 minute) - optimized for cost efficiency
+  pollingInterval = 5000, // Default 5 seconds - optimized for real-time responsiveness
   enabled = true,
 }: UseRealTimeSyncOptions = {}): UseRealTimeSyncReturn => {
   const [lastUpdate, setLastUpdate] = useState<string | null>(null);
@@ -202,7 +202,7 @@ export const useRealTimeSync = ({
 export const useNotificationSync = ({
   userId,
   onNewNotification = null,
-  pollingInterval = 60000, // Default 60 seconds (1 minute) - optimized for cost efficiency
+  pollingInterval = 5000, // Default 5 seconds - optimized for real-time responsiveness
 }: UseNotificationSyncOptions): UseNotificationSyncReturn => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
