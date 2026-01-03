@@ -632,57 +632,6 @@ export async function createOrder(request, env) {
       }
     }
 
-    // Send WhatsApp notification to outlet (non-blocking)
-    if (finalOutletId) {
-      try {
-        console.log('📱 Attempting to send WhatsApp notification to outlet:', finalOutletId);
-        
-        // Get outlet details for notification
-        const outletDetails = await env.DB.prepare(
-          'SELECT name, phone FROM outlets_unified WHERE id = ?'
-        ).bind(finalOutletId).first();
-
-        if (outletDetails) {
-          const phoneNumber = outletDetails.phone || await getOutletPhoneNumber(finalOutletId, env);
-          
-          if (phoneNumber) {
-            // Prepare order data for notification
-            const notificationData = {
-              orderId,
-              customerName: customer_name,
-              customerPhone: customerPhone,
-              totalAmount,
-              outletName: outletDetails.name,
-              lokasi_pengiriman: orderData.lokasi_pengiriman,
-              shipping_area: orderData.shipping_area,
-              tipe_pesanan: orderData.tipe_pesanan,
-              items: processedItems
-            };
-
-            // Send notification asynchronously (don't wait for response)
-            sendOutletWhatsAppNotification(phoneNumber, notificationData, env)
-              .then(result => {
-                if (result.success) {
-                  console.log('✅ WhatsApp notification sent successfully to outlet:', finalOutletId);
-                } else {
-                  console.warn('⚠️ WhatsApp notification failed:', result.error);
-                }
-              })
-              .catch(err => {
-                console.error('❌ WhatsApp notification error:', err);
-              });
-          } else {
-            console.warn('⚠️ No phone number found for outlet:', finalOutletId);
-          }
-        } else {
-          console.warn('⚠️ Outlet details not found for:', finalOutletId);
-        }
-      } catch (notifError) {
-        console.error('❌ Error preparing WhatsApp notification:', notifError);
-        // Don't fail the order creation if notification fails
-      }
-    }
-
     return new Response(JSON.stringify({ success: true, orderId: orderId, ...midtransData }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
 
   } catch (e) {
@@ -2508,6 +2457,64 @@ export async function updateOrderDetails(request, env) {
       }
 
       console.log(`[updateOrderDetails] Successfully updated order: ${orderId}`);
+
+      // Send WhatsApp notification to outlet when order details are updated (especially when outlet is assigned)
+      if (typeof rawOutletId !== 'undefined' && rawOutletId) {
+        try {
+          console.log('📱 Attempting to send WhatsApp notification to outlet:', rawOutletId);
+          
+          // Get outlet details and order info for notification
+          const outletDetails = await env.DB.prepare(
+            'SELECT name, phone FROM outlets_unified WHERE id = ?'
+          ).bind(rawOutletId).first();
+
+          if (outletDetails && outletDetails.phone) {
+            // Get full order details for notification
+            const orderInfo = await env.DB.prepare(`
+              SELECT id, customer_name, customer_phone, total_amount, 
+                     lokasi_pengiriman, shipping_area, tipe_pesanan
+              FROM orders WHERE id = ?
+            `).bind(orderId).first();
+
+            // Get order items
+            const orderItems = await env.DB.prepare(
+              'SELECT product_name as name, product_price as price, quantity FROM order_items WHERE order_id = ?'
+            ).bind(orderId).all();
+
+            if (orderInfo) {
+              const notificationData = {
+                orderId: orderInfo.id,
+                customerName: orderInfo.customer_name,
+                customerPhone: orderInfo.customer_phone,
+                totalAmount: orderInfo.total_amount,
+                outletName: outletDetails.name,
+                lokasi_pengiriman: orderInfo.lokasi_pengiriman,
+                shipping_area: orderInfo.shipping_area,
+                tipe_pesanan: orderInfo.tipe_pesanan,
+                items: orderItems.results || []
+              };
+
+              // Send notification asynchronously (don't wait for response)
+              sendOutletWhatsAppNotification(outletDetails.phone, notificationData, env)
+                .then(result => {
+                  if (result.success) {
+                    console.log('✅ WhatsApp notification sent successfully to outlet:', rawOutletId);
+                  } else {
+                    console.warn('⚠️ WhatsApp notification failed:', result.error);
+                  }
+                })
+                .catch(err => {
+                  console.error('❌ WhatsApp notification error:', err);
+                });
+            }
+          } else {
+            console.warn('⚠️ No phone number found for outlet:', rawOutletId);
+          }
+        } catch (notifError) {
+          console.error('❌ Error preparing WhatsApp notification:', notifError);
+          // Don't fail the update if notification fails
+        }
+      }
 
       // If shipping status changed in this update, create audit log and notifications
       let logId = null;
