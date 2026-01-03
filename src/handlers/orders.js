@@ -2459,23 +2459,33 @@ export async function updateOrderDetails(request, env) {
       console.log(`[updateOrderDetails] Successfully updated order: ${orderId}`);
 
       // Send WhatsApp notification to outlet when order details are updated
-      // Trigger when lokasi_pengambilan (outlet name) is updated OR when outlet_id is set
+      // Trigger when outlet name is updated (in either lokasi_pengambilan OR lokasi_pengiriman) OR when outlet_id is set
+      // Note: Frontend incorrectly sends outlet name to lokasi_pengiriman for "Pesan Antar" orders
       const shouldSendNotification = (typeof lokasiPengambilanName !== 'undefined' && lokasiPengambilanName) || 
+                                     (typeof lokasiPengirimanName !== 'undefined' && lokasiPengirimanName) ||
                                      (typeof rawOutletId !== 'undefined' && rawOutletId);
       
       if (shouldSendNotification) {
         try {
-          console.log('📱 Attempting to send WhatsApp notification. Outlet name:', lokasiPengambilanName, 'Outlet ID:', rawOutletId);
+          console.log('📱 Attempting to send WhatsApp notification. Pengambilan:', lokasiPengambilanName, 'Pengiriman:', lokasiPengirimanName, 'Outlet ID:', rawOutletId);
           
           // Determine which outlet to notify
           let outletDetails = null;
           
-          // First try to get outlet by name (lokasi_pengambilan)
+          // First try to get outlet by name (lokasi_pengambilan for pickup orders)
           if (lokasiPengambilanName) {
             outletDetails = await env.DB.prepare(
               'SELECT id, name, phone FROM outlets_unified WHERE name = ?'
             ).bind(lokasiPengambilanName).first();
-            console.log('📱 Found outlet by name:', outletDetails);
+            console.log('📱 Found outlet by pengambilan name:', outletDetails);
+          }
+          
+          // Try lokasi_pengiriman (frontend bug: outlet name sent here for delivery orders)
+          if (!outletDetails && lokasiPengirimanName) {
+            outletDetails = await env.DB.prepare(
+              'SELECT id, name, phone FROM outlets_unified WHERE name = ?'
+            ).bind(lokasiPengirimanName).first();
+            console.log('📱 Found outlet by pengiriman name:', outletDetails);
           }
           
           // Fallback to outlet_id if name lookup failed
