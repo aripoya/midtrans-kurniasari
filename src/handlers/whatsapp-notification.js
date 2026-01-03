@@ -82,6 +82,12 @@ export async function sendOutletWhatsAppNotification(phoneNumber, orderData, env
     }
 
     // Send WhatsApp message via API
+    console.log('📤 Sending request to WhatsApp API:', {
+      url: waApiUrl,
+      phone: normalizedPhone,
+      messagePreview: message.substring(0, 100) + '...'
+    });
+
     const response = await fetch(waApiUrl, {
       method: 'POST',
       headers: requestHeaders,
@@ -90,14 +96,25 @@ export async function sendOutletWhatsAppNotification(phoneNumber, orderData, env
 
     const responseData = await response.json();
 
+    console.log('📥 WhatsApp API Response:', {
+      status: response.status,
+      ok: response.ok,
+      data: responseData
+    });
+
     if (!response.ok) {
-      console.error('❌ WhatsApp API error:', responseData);
-      return { success: false, error: responseData.message || 'WhatsApp API error' };
+      console.error('❌ WhatsApp API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        response: responseData
+      });
+      return { success: false, error: responseData.message || responseData.error?.message || 'WhatsApp API error', details: responseData };
     }
 
     console.log('✅ WhatsApp notification sent successfully:', {
       phone: normalizedPhone,
-      orderId: orderData.orderId
+      orderId: orderData.orderId,
+      responseData
     });
 
     return { success: true, data: responseData };
