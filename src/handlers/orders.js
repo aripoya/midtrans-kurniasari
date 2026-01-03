@@ -438,28 +438,20 @@ export async function createOrder(request, env) {
       console.log('❌ [ADMIN DEBUG] No admin user found in request');
     }
 
-    // Validate outlet_id exists to avoid FK violations on some schemas (FK often points to legacy 'outlets')
+    // Validate outlet_id exists in outlets_unified table
     let finalOutletId = safeOutletId;
     try {
       if (safeOutletId) {
-        // Prefer checking legacy 'outlets' because orders.outlet_id FK typically references this table
-        const outletLegacy = await env.DB
-          .prepare('SELECT id FROM outlets WHERE id = ?')
+        // Check outlets_unified table (current standard)
+        const outlet = await env.DB
+          .prepare('SELECT id FROM outlets_unified WHERE id = ?')
           .bind(safeOutletId)
           .first();
-        if (outletLegacy && outletLegacy.id) {
-          // OK
+        if (outlet && outlet.id) {
+          console.log(`✅ [CREATE ORDER] Outlet validated: ${safeOutletId}`);
+          finalOutletId = safeOutletId;
         } else {
-          // Optionally check unified table for diagnostics
-          let unifiedFound = false;
-          try {
-            const unified = await env.DB
-              .prepare('SELECT id FROM outlets_unified WHERE id = ?')
-              .bind(safeOutletId)
-              .first();
-            unifiedFound = !!unified;
-          } catch (_) {}
-          console.warn(`[CREATE ORDER] outlet_id ${safeOutletId} not found in outlets (legacy).` + (unifiedFound ? ' It exists in outlets_unified but FK likely points to outlets. Setting NULL.' : ' Setting NULL.'));
+          console.warn(`⚠️ [CREATE ORDER] outlet_id ${safeOutletId} not found in outlets_unified. Setting NULL.`);
           finalOutletId = null;
         }
       }
