@@ -2524,18 +2524,17 @@ export async function updateOrderDetails(request, env) {
 
               console.log('📱 Sending WhatsApp to phone:', outletDetails.phone);
 
-              // Send notification asynchronously (don't wait for response)
-              sendOutletWhatsAppNotification(outletDetails.phone, notificationData, env)
-                .then(result => {
-                  if (result.success) {
-                    console.log('✅ WhatsApp notification sent successfully to outlet:', outletDetails.name);
-                  } else {
-                    console.warn('⚠️ WhatsApp notification failed:', result.error);
-                  }
-                })
-                .catch(err => {
-                  console.error('❌ WhatsApp notification error:', err);
-                });
+              // Send notification and wait for response to see result in logs
+              try {
+                const result = await sendOutletWhatsAppNotification(outletDetails.phone, notificationData, env);
+                if (result.success) {
+                  console.log('✅ WhatsApp notification sent successfully to outlet:', outletDetails.name);
+                } else {
+                  console.warn('⚠️ WhatsApp notification failed:', result.error, result.details);
+                }
+              } catch (err) {
+                console.error('❌ WhatsApp notification error:', err);
+              }
             }
           } else {
             console.warn('⚠️ No phone number found for outlet. Details:', outletDetails);
