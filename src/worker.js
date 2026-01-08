@@ -77,6 +77,10 @@ const corsHeaders = (request) => {
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Cache-Control, Pragma, expires',
         'Access-Control-Allow-Credentials': 'true',
+        // Prevent mobile browser caching issues on XL/Indihome
+        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
     };
 };
 
