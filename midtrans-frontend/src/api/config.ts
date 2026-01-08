@@ -155,6 +155,15 @@ export const TIMEOUTS = {
   DEFAULT: 30000,        // 30 seconds
   UPLOAD: 120000,        // 2 minutes for file uploads
   LONG_POLLING: 300000,  // 5 minutes for long polling
+  DNS_TIMEOUT: 10000,    // 10 seconds for DNS resolution (mobile ISP)
+} as const;
+
+// Retry configuration for DNS issues on mobile ISP
+export const RETRY_CONFIG = {
+  MAX_RETRIES: 3,
+  INITIAL_DELAY: 1000,   // 1 second
+  MAX_DELAY: 5000,       // 5 seconds
+  BACKOFF_MULTIPLIER: 2, // Exponential backoff
 } as const;
 
 // HTTP status codes
@@ -369,6 +378,58 @@ export const getStatusText = (status: number): string => {
   };
   
   return statusTexts[status] || `Status ${status}`;
+};
+
+/**
+ * Retry fetch with exponential backoff for DNS/network issues
+ * Useful for mobile ISP with DNS problems
+ * @param url - URL to fetch
+ * @param options - Fetch options
+ * @param retryCount - Current retry attempt
+ * @returns Fetch response
+ */
+export const fetchWithRetry = async (
+  url: string,
+  options: RequestInit = {},
+  retryCount: number = 0
+): Promise<Response> => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.DNS_TIMEOUT);
+    
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error: any) {
+    // Check if it's a DNS/network error and we haven't exceeded max retries
+    const isDnsError = error.name === 'AbortError' || 
+                       error.message?.includes('Failed to fetch') ||
+                       error.message?.includes('NetworkError') ||
+                       error.message?.includes('DNS');
+    
+    if (isDnsError && retryCount < RETRY_CONFIG.MAX_RETRIES) {
+      // Calculate delay with exponential backoff
+      const delay = Math.min(
+        RETRY_CONFIG.INITIAL_DELAY * Math.pow(RETRY_CONFIG.BACKOFF_MULTIPLIER, retryCount),
+        RETRY_CONFIG.MAX_DELAY
+      );
+      
+      console.warn(`DNS/Network error, retrying in ${delay}ms (attempt ${retryCount + 1}/${RETRY_CONFIG.MAX_RETRIES})...`);
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      // Retry with incremented count
+      return fetchWithRetry(url, options, retryCount + 1);
+    }
+    
+    // If not a DNS error or max retries exceeded, throw the error
+    throw error;
+  }
 };
 
 // Export the configuration as default for compatibility
