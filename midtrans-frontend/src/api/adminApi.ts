@@ -904,10 +904,14 @@ export const adminApi = {
     try {
       const params: any = {};
       if (status) params.status = status;
-      // cache-busting to ensure fresh data in dashboards
+      // Aggressive cache-busting for Chrome iOS on XL ISP
+      // Combine timestamp + random string to bypass aggressive caching
       params.t = Date.now();
+      params._cb = Math.random().toString(36).substring(7); // Random cache-buster
       
       console.log('📡 Fetching delivery overview with retry mechanism...');
+      console.log('🔍 User Agent:', navigator.userAgent);
+      console.log('🔍 Cache-busting params:', params);
       
       // Use apiClient with retry mechanism and 60s timeout for slow ISPs (XL, Indihome)
       const response: AxiosResponse = await apiClient.get(
@@ -917,6 +921,10 @@ export const adminApi = {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${getAdminToken()}`,
+            // Force no-cache for Chrome iOS
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
           },
         }
       );
@@ -928,7 +936,8 @@ export const adminApi = {
       console.error('Error details:', {
         message: error.message,
         code: error.code,
-        response: error.response?.data
+        response: error.response?.data,
+        userAgent: navigator.userAgent
       });
       return {
         success: false,
