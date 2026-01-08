@@ -26,6 +26,13 @@ name = "order-management-app-production"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
+# Custom domain configuration
+# This will route api.kurniasari.co.id to this worker
+# Make sure to add the custom domain in Cloudflare Dashboard first
+routes = [
+  { pattern = "api.kurniasari.co.id/*", custom_domain = true }
+]
+
 [env.production.ai]
 binding = "AI"
 

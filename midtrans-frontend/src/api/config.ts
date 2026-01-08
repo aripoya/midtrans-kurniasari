@@ -101,7 +101,8 @@ export const API_URL: string = (() => {
     }
   }
 
-  return 'https://order-management-app-production.wahwooh.workers.dev';
+  // Use custom domain for better DNS reliability on mobile ISP
+  return 'https://api.kurniasari.co.id';
 })();
 
 // Development fallback (only for local development testing)

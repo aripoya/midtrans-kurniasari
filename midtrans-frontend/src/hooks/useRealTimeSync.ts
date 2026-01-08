@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 // API Base URL configuration - Production backend only to prevent authentication conflicts
-const API_BASE_URL =
-  "https://order-management-app-production.wahwooh.workers.dev";
+// Using custom domain for better DNS reliability on mobile ISP
+const API_BASE_URL = "https://api.kurniasari.co.id";
 
 // TypeScript interfaces for type safety
 export interface SyncStatus {
