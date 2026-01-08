@@ -1,5 +1,6 @@
 import axios, { AxiosResponse, AxiosError } from "axios";
 import { API_URL } from "./config";
+import apiClient from "./api"; // Import apiClient with retry mechanism and timeout config
 
 
 // TypeScript interfaces for API responses and data structures
@@ -905,8 +906,12 @@ export const adminApi = {
       if (status) params.status = status;
       // cache-busting to ensure fresh data in dashboards
       params.t = Date.now();
-      const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/delivery/overview`,
+      
+      console.log('📡 Fetching delivery overview with retry mechanism...');
+      
+      // Use apiClient with retry mechanism and 60s timeout for slow ISPs (XL, Indihome)
+      const response: AxiosResponse = await apiClient.get(
+        `/api/delivery/overview`,
         {
           params,
           headers: {
@@ -916,9 +921,15 @@ export const adminApi = {
         }
       );
 
+      console.log('✅ Delivery overview loaded successfully');
       return { success: true, data: response.data, error: null };
     } catch (error: any) {
-      console.error('Error getting delivery overview:', error);
+      console.error('❌ Error getting delivery overview after retries:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        response: error.response?.data
+      });
       return {
         success: false,
         data: null,
