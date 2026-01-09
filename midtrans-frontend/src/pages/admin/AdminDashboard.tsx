@@ -344,6 +344,26 @@ const AdminDashboard: React.FC = () => {
       });
     } catch (err: any) {
       console.error('Error fetching dashboard stats:', err);
+      
+      // Check if error is authentication related (401 Unauthorized)
+      if (err.response?.status === 401 || err.message?.includes('token') || err.message?.includes('Invalid token')) {
+        console.error('Authentication error detected - clearing token and redirecting to login');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        toast({
+          title: 'Session Expired',
+          description: 'Sesi Anda telah berakhir. Silakan login kembali.',
+          status: 'warning',
+          duration: 3000,
+          isClosable: true,
+        });
+        // Redirect to login after short delay
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+        return;
+      }
+      
       setError(err.message || 'Failed to load dashboard statistics');
       toast({
         title: 'Error',

@@ -101,6 +101,21 @@ apiClient.interceptors.response.use(
   async (error) => {
     const config = error.config;
     
+    // Handle 401 Unauthorized - invalid/expired token
+    if (error.response?.status === 401) {
+      console.error('🔴 Authentication failed - token invalid or expired');
+      console.error('Clearing localStorage and redirecting to login...');
+      
+      // Clear authentication data
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Redirect to login page
+      window.location.href = '/login';
+      
+      return Promise.reject(error);
+    }
+    
     // Don't retry if we've already retried 3 times
     if (!config || !config.headers) {
       return Promise.reject(error);
