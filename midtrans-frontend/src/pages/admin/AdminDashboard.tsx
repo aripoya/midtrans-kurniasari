@@ -45,6 +45,7 @@ import {
   FiList,
 } from 'react-icons/fi';
 import { adminApi, type AiChatHistoryItem } from '../../api/adminApi';
+import { API_URL } from '../../api/config';
 import RevenueChart from '../../components/RevenueChart';
 
 interface DashboardStats {
@@ -271,21 +272,22 @@ const AdminDashboard: React.FC = () => {
       
       console.log('[AdminDashboard] Orders count:', orders.length);
       
-      // Fetch deleted orders count
+      // Fetch deleted orders count using API_URL from config (not hardcoded)
       let deletedCount = 0;
       try {
         const deletedResponse = await fetch(
-          `${import.meta.env.VITE_API_URL || 'https://order-management-app-production.wahwooh.workers.dev'}/api/orders/deleted/list?limit=1`,
+          `${API_URL}/api/orders/deleted/list?limit=1`,
           {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json',
             },
           }
         );
         const deletedData = await deletedResponse.json();
         deletedCount = deletedData.pagination?.total || 0;
       } catch (e) {
-        console.log('Could not fetch deleted orders count');
+        console.log('Could not fetch deleted orders count:', e);
       }
 
       // Helper function to check if payment is completed
