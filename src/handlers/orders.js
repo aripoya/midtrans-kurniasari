@@ -1751,13 +1751,38 @@ export async function getAdminOrders(request, env) {
       });
     }
 
+    // Batch fetch all order items in ONE query to avoid "Too many API requests" error
+    // Instead of N queries (one per order), we do 1 query for all orders
+    const orderIds = orders.results.map(o => o.id);
+    let allOrderItems = [];
+    
+    if (orderIds.length > 0) {
+      try {
+        const placeholders = orderIds.map(() => '?').join(',');
+        const itemsQuery = `SELECT order_id, product_name, product_price, quantity, subtotal 
+                           FROM order_items 
+                           WHERE order_id IN (${placeholders})`;
+        const itemsResult = await env.DB.prepare(itemsQuery).bind(...orderIds).all();
+        allOrderItems = itemsResult?.results || [];
+      } catch (itemsError) {
+        console.error('Error batch fetching order items:', itemsError);
+        // Continue without items if batch fetch fails
+      }
+    }
+    
+    // Group items by order_id for quick lookup
+    const itemsByOrderId = {};
+    allOrderItems.forEach(item => {
+      if (!itemsByOrderId[item.order_id]) {
+        itemsByOrderId[item.order_id] = [];
+      }
+      itemsByOrderId[item.order_id].push(item);
+    });
+
     const processedOrders = await Promise.all(orders.results.map(async order => {
       try {
-        const orderItems = await env.DB.prepare(
-          `SELECT product_name, product_price, quantity, subtotal FROM order_items WHERE order_id = ?`
-        ).bind(order.id).all();
-        
-        const rawItems = orderItems?.results || [];
+        // Get items from pre-fetched batch data instead of individual query
+        const rawItems = itemsByOrderId[order.id] || [];
         // Normalize to expose a consistent 'price' field for frontend compatibility
         const items = rawItems.map(it => ({
           ...it,
