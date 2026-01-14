@@ -501,8 +501,9 @@ export const adminApi = {
         params.search = search.trim();
       }
 
-      const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/orders/admin`,
+      // Use apiClient with retry mechanism and 60s timeout for slow ISPs
+      const response: AxiosResponse = await apiClient.get(
+        `/api/orders/admin`,
         {
           params,
           headers: {
