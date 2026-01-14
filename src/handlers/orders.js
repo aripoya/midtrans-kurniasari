@@ -1790,21 +1790,36 @@ export async function getAdminOrders(request, env) {
           return sum + sub;
         }, 0);
         
+        // Safely derive payment status with fallback
+        let paymentStatus = order.payment_status || 'pending';
+        try {
+          paymentStatus = derivePaymentStatusFromData(order);
+        } catch (statusError) {
+          console.error(`Error deriving payment status for order ${order.id}:`, statusError);
+        }
+        
         return {
           ...restNoPickup,
           lokasi_pengiriman: lokasi_pengiriman_nama, // Use the name from the JOIN
           lokasi_pengambilan: lokasi_pengambilan_nama, // Use the name from the JOIN
           items,
           payment_details: paymentDetails,
-          payment_status: derivePaymentStatusFromData(order),
+          payment_status: paymentStatus,
           total_amount: calculatedTotal || Number(order.total_amount) || 0
         };
       } catch (itemError) {
         console.error(`Error processing items for order ${order.id}:`, itemError);
+        console.error(`Error stack:`, itemError.stack);
+        // Return order with minimal data to prevent Promise.all from failing
         return {
-          ...order,
-          items: [],
+          id: order.id,
+          customer_name: order.customer_name || 'Unknown',
+          customer_phone: order.customer_phone || '',
           total_amount: Number(order.total_amount) || 0,
+          payment_status: order.payment_status || 'pending',
+          shipping_status: order.shipping_status || 'pending',
+          created_at: order.created_at,
+          items: [],
           error: 'Failed to fetch items for this order'
         };
       }
