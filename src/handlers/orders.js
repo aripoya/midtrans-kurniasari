@@ -3,6 +3,7 @@ import { createNotification } from './notifications.js';
 import { determineOutletFromLocation } from './outlet-assignment.js';
 import { AdminActivityLogger, getClientInfo } from '../utils/admin-activity-logger.js';
 import { derivePaymentStatusFromData } from '../utils/payment-status.js';
+import { sendOutletWhatsAppNotification, getOutletPhoneNumber } from './whatsapp-notification.js';
 
 // Simple order ID generator
 function generateOrderId() {
@@ -105,6 +106,9 @@ export async function getDeliveryOverview(request, env) {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
   };
 
   if (request.method === 'OPTIONS') {
@@ -134,14 +138,21 @@ export async function getDeliveryOverview(request, env) {
     `).all();
     const deliveryUsers = deliveryUsersRes.results || [];
 
-    // Build base query for delivery-related orders
+    // Build base query for delivery-related orders with strict filters:
+    // - shipping_area: dalam kota only (accepts variations 'dalam_kota', 'dalam-kota', 'dalam kota')
+    // - pickup_method: Kurir Toko (stored as 'deliveryman' or variants)
+    // - tipe_pesanan: Pesan Antar (accept 'pesan antar' or 'pesan-antar')
     let ordersQuery = `
       SELECT 
-        id, customer_name, shipping_status, pickup_method,
+        id, customer_name, customer_address, shipping_status, pickup_method,
+        shipping_area, tipe_pesanan,
         assigned_deliveryman_id, lokasi_pengambilan AS outlet_name,
         lokasi_pengiriman, delivery_date, delivery_time, created_at
       FROM orders
-      WHERE (pickup_method = 'deliveryman' OR assigned_deliveryman_id IS NOT NULL)
+      WHERE 
+        LOWER(COALESCE(shipping_area, '')) IN ('dalam_kota', 'dalam-kota', 'dalam kota')
+        AND LOWER(COALESCE(pickup_method, '')) IN ('deliveryman', 'kurir toko', 'kurir_toko')
+        AND LOWER(COALESCE(tipe_pesanan, '')) IN ('pesan antar', 'pesan-antar')
     `;
     const params = [];
     if (statusFilter) {
@@ -427,28 +438,20 @@ export async function createOrder(request, env) {
       console.log('❌ [ADMIN DEBUG] No admin user found in request');
     }
 
-    // Validate outlet_id exists to avoid FK violations on some schemas (FK often points to legacy 'outlets')
+    // Validate outlet_id exists in outlets_unified table
     let finalOutletId = safeOutletId;
     try {
       if (safeOutletId) {
-        // Prefer checking legacy 'outlets' because orders.outlet_id FK typically references this table
-        const outletLegacy = await env.DB
-          .prepare('SELECT id FROM outlets WHERE id = ?')
+        // Check outlets_unified table (current standard)
+        const outlet = await env.DB
+          .prepare('SELECT id FROM outlets_unified WHERE id = ?')
           .bind(safeOutletId)
           .first();
-        if (outletLegacy && outletLegacy.id) {
-          // OK
+        if (outlet && outlet.id) {
+          console.log(`✅ [CREATE ORDER] Outlet validated: ${safeOutletId}`);
+          finalOutletId = safeOutletId;
         } else {
-          // Optionally check unified table for diagnostics
-          let unifiedFound = false;
-          try {
-            const unified = await env.DB
-              .prepare('SELECT id FROM outlets_unified WHERE id = ?')
-              .bind(safeOutletId)
-              .first();
-            unifiedFound = !!unified;
-          } catch (_) {}
-          console.warn(`[CREATE ORDER] outlet_id ${safeOutletId} not found in outlets (legacy).` + (unifiedFound ? ' It exists in outlets_unified but FK likely points to outlets. Setting NULL.' : ' Setting NULL.'));
+          console.warn(`⚠️ [CREATE ORDER] outlet_id ${safeOutletId} not found in outlets_unified. Setting NULL.`);
           finalOutletId = null;
         }
       }
@@ -477,6 +480,18 @@ export async function createOrder(request, env) {
       finalAssignedDeliverymanId = null;
     }
 
+    // For luar kota orders, set lokasi_pengiriman to null
+    const shippingArea = (orderData.shipping_area || '').toLowerCase();
+    const isLuarKota = shippingArea.includes('luar') || shippingArea.includes('luar-kota') || shippingArea.includes('luar_kota');
+    const finalLokasiPengiriman = isLuarKota ? null : (orderData.lokasi_pengiriman || null);
+
+    console.log('📦 [CREATE ORDER] Shipping location logic:', {
+      shipping_area: orderData.shipping_area,
+      isLuarKota,
+      original_lokasi_pengiriman: orderData.lokasi_pengiriman,
+      final_lokasi_pengiriman: finalLokasiPengiriman
+    });
+
     // Attempt insert with outlet_id; on FK error retry without it
     let orderInserted = false;
     try {
@@ -502,7 +517,7 @@ export async function createOrder(request, env) {
           safeMidtransResponse,
           'pending', // Initial shipping status
           customer_address || null,
-          orderData.lokasi_pengiriman || null,
+          finalLokasiPengiriman,
           orderData.lokasi_pengambilan || null,
           orderData.shipping_area || null,
           normalizedPickupMethod || null,
@@ -567,46 +582,41 @@ export async function createOrder(request, env) {
         .bind(orderId)
         .first();
       if (!exists || !orderInserted) {
-        throw new Error('[CREATE ORDER] Order row not found after insert, aborting item insertion to avoid FK failure');
+        throw new Error('[CREATE ORDER] Order row not found after insert, aborting item insertion');
       }
     } catch (verifyErr) {
       console.error('[CREATE ORDER] Post-insert verification failed:', verifyErr?.message || verifyErr);
       throw verifyErr;
     }
 
-    // Statements for inserting into 'order_items' table
-    const dbStatements = [];
-    for (const item of processedItems) {
-      // Ensure we consistently use the correct unit price field
-      const unitPrice = Number(item.product_price ?? item.price);
-      const qty = Number(item.quantity);
-      const subtotal = unitPrice * qty;
-      dbStatements.push(
-        env.DB.prepare(
-          `INSERT INTO order_items (order_id, product_name, product_price, quantity, subtotal)
-           VALUES (?, ?, ?, ?, ?)`
-        ).bind(orderId, item.name, unitPrice, qty, subtotal)
-      );
-    }
-
-    // Prefer sequential insertion to avoid D1 batch/transaction FK quirks
-    if (dbStatements.length > 0) {
-      for (const stmt of dbStatements) {
-        try {
-          await stmt.run();
-        } catch (itemErr) {
-          const msg = itemErr?.message || String(itemErr);
-          console.error('[CREATE ORDER] Inserting single order_item failed:', msg);
-          try {
-            const fkOrderItems = await env.DB.prepare('PRAGMA foreign_key_list(order_items)').all();
-            console.warn('[CREATE ORDER] PRAGMA foreign_key_list(order_items):', fkOrderItems?.results || fkOrderItems);
-            const orderCheck = await env.DB.prepare('SELECT id FROM orders WHERE id = ?').bind(orderId).first();
-            console.warn('[CREATE ORDER] Order existence at item failure:', orderCheck);
-          } catch (diagErr) {
-            console.warn('[CREATE ORDER] Diagnostics after item error failed:', diagErr?.message || diagErr);
-          }
-          // Do NOT fail entire order creation because of item issue; continue
+    // Insert order_items (FK constraints removed from schema for D1 compatibility)
+    if (processedItems.length > 0) {
+      try {
+        console.log(`[CREATE ORDER] Inserting ${processedItems.length} items...`);
+        
+        // Build batch insert statements
+        const insertPromises = [];
+        for (const item of processedItems) {
+          const unitPrice = Number(item.product_price ?? item.price);
+          const qty = Number(item.quantity);
+          const subtotal = unitPrice * qty;
+          
+          insertPromises.push(
+            env.DB.prepare(
+              `INSERT INTO order_items (order_id, product_name, product_price, quantity, subtotal)
+               VALUES (?, ?, ?, ?, ?)`
+            ).bind(orderId, item.name, unitPrice, qty, subtotal).run()
+          );
         }
+        
+        // Execute all inserts in parallel
+        await Promise.all(insertPromises);
+        
+        console.log(`[CREATE ORDER] Successfully inserted ${processedItems.length} items`);
+      } catch (itemErr) {
+        const msg = itemErr?.message || String(itemErr);
+        console.error('[CREATE ORDER] Failed to insert order items:', msg);
+        throw new Error(`Failed to save order items: ${msg}`);
       }
     }
 
@@ -698,15 +708,190 @@ export async function getOrderById(request, env) {
       return new Response(JSON.stringify({ success: false, error: 'Order not found' }), { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
     }
 
+    // Restrict deliveryman visibility: must be assigned OR match delivery filters
+    try {
+      const viewer = request.user;
+      if (viewer && viewer.role === 'deliveryman') {
+        const isAssigned = String(order.assigned_deliveryman_id || '') === String(viewer.id || '');
+        const area = String(order.shipping_area || '').toLowerCase();
+        const method = String(order.pickup_method || '').toLowerCase();
+        const tipe = String(order.tipe_pesanan || '').toLowerCase();
+        const areaOk = area === 'dalam_kota' || area === 'dalam-kota' || area === 'dalam kota';
+        const methodOk = method === 'deliveryman' || method === 'kurir toko' || method === 'kurir_toko';
+        const tipeOk = tipe === 'pesan antar' || tipe === 'pesan-antar';
+        const matchesDeliveryFilters = areaOk && methodOk && tipeOk;
+        if (!isAssigned && !matchesDeliveryFilters) {
+          return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+        }
+      }
+    } catch (_) {}
+
     // Step 2: Fetch order items
     failedQuery = 'fetching order items';
-    const { results: rawItems } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(orderId).all();
-    
+    const { results: rawItems } = await env.DB
+      .prepare('SELECT * FROM order_items WHERE TRIM(order_id) = TRIM(?)')
+      .bind(orderId)
+      .all();
+
     // Map database fields to frontend-expected field names
-    const items = rawItems.map(item => ({
+    let items = rawItems.map(item => ({
       ...item,
       price: item.product_price // Map product_price to price for frontend compatibility
     }));
+
+    // Fallback: for legacy orders where items might be stored as JSON
+    if ((!items || items.length === 0) && order.items) {
+      try {
+        const rawLegacy = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+        if (Array.isArray(rawLegacy)) {
+          items = rawLegacy.map((it, idx) => {
+            const unitPrice = Number(it.price ?? it.product_price ?? it.unit_price ?? 0);
+            const qty = Number(it.quantity ?? 1);
+            const subtotal = Number(it.subtotal ?? unitPrice * qty);
+            return {
+              id: it.id ?? idx + 1,
+              order_id: orderId,
+              product_name: it.product_name ?? it.name ?? '',
+              product_price: unitPrice,
+              quantity: qty,
+              subtotal,
+              price: unitPrice,
+            };
+          });
+        }
+      } catch (legacyErr) {
+        console.error(`[getOrderById] Failed to parse legacy items JSON for order ${orderId}:`, legacyErr);
+        // keep items as empty array in this case
+      }
+    }
+
+    if (!items || items.length === 0) {
+      try {
+        const parsedArrays = [];
+
+        const extraJsonFields = [order?.payment_response, order?.midtrans_response];
+        for (const f of extraJsonFields) {
+          if (f == null) continue;
+          try {
+            const obj = typeof f === 'string' ? JSON.parse(f) : f;
+            if (Array.isArray(obj)) {
+              parsedArrays.push(obj);
+              continue;
+            }
+            if (obj && typeof obj === 'object') {
+              if (Array.isArray(obj.items)) parsedArrays.push(obj.items);
+              if (Array.isArray(obj.item_details)) parsedArrays.push(obj.item_details);
+              if (Array.isArray(obj.order_items)) parsedArrays.push(obj.order_items);
+            }
+          } catch (_) {}
+        }
+
+        const candidates = [];
+        for (const [k, v] of Object.entries(order || {})) {
+          const key = String(k || '').toLowerCase();
+          if (!key.includes('item')) continue;
+          if (v == null) continue;
+          candidates.push(v);
+        }
+        for (const c of candidates) {
+          try {
+            const obj = typeof c === 'string' ? JSON.parse(c) : c;
+            if (Array.isArray(obj)) {
+              parsedArrays.push(obj);
+              continue;
+            }
+            if (obj && typeof obj === 'object') {
+              if (Array.isArray(obj.items)) parsedArrays.push(obj.items);
+              if (Array.isArray(obj.item_details)) parsedArrays.push(obj.item_details);
+              if (Array.isArray(obj.order_items)) parsedArrays.push(obj.order_items);
+            }
+          } catch (_) {}
+        }
+
+        if (parsedArrays.length === 0) {
+          for (const v of Object.values(order || {})) {
+            if (typeof v !== 'string') continue;
+            const s = v.trim();
+            if (!(s.startsWith('{') || s.startsWith('['))) continue;
+            if (s.length < 2) continue;
+            try {
+              const obj = JSON.parse(s);
+              if (Array.isArray(obj)) {
+                parsedArrays.push(obj);
+                continue;
+              }
+              if (obj && typeof obj === 'object') {
+                if (Array.isArray(obj.items)) parsedArrays.push(obj.items);
+                if (Array.isArray(obj.item_details)) parsedArrays.push(obj.item_details);
+                if (Array.isArray(obj.order_items)) parsedArrays.push(obj.order_items);
+              }
+            } catch (_) {}
+          }
+        }
+
+        const picked = parsedArrays.find((a) => Array.isArray(a) && a.length > 0);
+        if (picked && picked.length > 0) {
+          items = picked.map((it, idx) => {
+            const unitPrice = Number(it.price ?? it.product_price ?? it.unit_price ?? 0);
+            const qty = Number(it.quantity ?? it.qty ?? 1);
+            const subtotal = Number(it.subtotal ?? unitPrice * qty);
+            return {
+              id: it.id ?? idx + 1,
+              order_id: orderId,
+              product_name: it.product_name ?? it.name ?? it.title ?? '',
+              product_price: unitPrice,
+              quantity: qty,
+              subtotal,
+              price: unitPrice,
+            };
+          });
+        }
+      } catch (legacyErr2) {
+        console.error(`[getOrderById] Legacy item fallback failed for order ${orderId}:`, legacyErr2);
+      }
+    }
+
+    if ((!items || items.length === 0) && env.MIDTRANS_SERVER_KEY) {
+      try {
+        const serverKey = env.MIDTRANS_SERVER_KEY;
+        const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
+        const authHeader = `Basic ${btoa(`${serverKey}:`)}`;
+        const makeStatusUrl = (prod) => prod
+          ? `https://api.midtrans.com/v2/${orderId}/status`
+          : `https://api.sandbox.midtrans.com/v2/${orderId}/status`;
+
+        const firstUrl = makeStatusUrl(isProduction);
+        const secondUrl = makeStatusUrl(!isProduction);
+        let resp = await fetch(firstUrl, { headers: { Accept: 'application/json', Authorization: authHeader } });
+        let statusData = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          const resp2 = await fetch(secondUrl, { headers: { Accept: 'application/json', Authorization: authHeader } });
+          const statusData2 = await resp2.json().catch(() => ({}));
+          resp = resp2;
+          statusData = statusData2;
+        }
+
+        const midtransItems = Array.isArray(statusData?.item_details) ? statusData.item_details : [];
+        if (midtransItems.length > 0) {
+          items = midtransItems.map((it, idx) => {
+            const unitPrice = Number(it.price ?? it.product_price ?? it.unit_price ?? 0);
+            const qty = Number(it.quantity ?? it.qty ?? 1);
+            const subtotal = Number(it.subtotal ?? unitPrice * qty);
+            return {
+              id: it.id ?? idx + 1,
+              order_id: orderId,
+              product_name: it.name ?? it.product_name ?? it.title ?? '',
+              product_price: unitPrice,
+              quantity: qty,
+              subtotal,
+              price: unitPrice,
+            };
+          });
+        }
+      } catch (midtransErr) {
+        console.error(`[getOrderById] Midtrans item fallback failed for order ${orderId}:`, midtransErr);
+      }
+    }
 
     // Step 3: Fetch shipping images (with error handling)
     failedQuery = 'fetching shipping images';
@@ -766,6 +951,80 @@ export async function getOrderById(request, env) {
   } catch (error) {
     console.error(`Get Order By ID Error while ${failedQuery}:`, error.message, error.stack);
     return new Response(JSON.stringify({ success: false, error: 'Failed to fetch order', details: `Error during: ${failedQuery}` }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+  }
+}
+
+export async function backfillOrderItems(request, env) {
+  const corsHeaders = request.corsHeaders || {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    if (!env.DB) {
+      return new Response(JSON.stringify({ success: false, error: 'Database not available' }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+    }
+
+    const orderId = request?.params?.id || new URL(request.url).pathname.split('/').slice(-2)[0];
+    if (!orderId) {
+      return new Response(JSON.stringify({ success: false, error: 'Order ID is required' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const force = !!(body?.force || body?.overwrite);
+    const clearExisting = body?.clearExisting != null ? !!body.clearExisting : force;
+
+    const rawItems =
+      (Array.isArray(body?.item_details) && body.item_details) ||
+      (Array.isArray(body?.items) && body.items) ||
+      (Array.isArray(body?.midtrans?.item_details) && body.midtrans.item_details) ||
+      (Array.isArray(body?.data?.item_details) && body.data.item_details) ||
+      (Array.isArray(body?.transaction?.item_details) && body.transaction.item_details) ||
+      [];
+
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      return new Response(JSON.stringify({ success: false, error: 'No items provided' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+    }
+
+    const orderExists = await env.DB.prepare('SELECT 1 as ok FROM orders WHERE id = ?').bind(orderId).first();
+    if (!orderExists) {
+      return new Response(JSON.stringify({ success: false, error: 'Order not found' }), { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+    }
+
+    const { results: existing } = await env.DB.prepare('SELECT id FROM order_items WHERE TRIM(order_id) = TRIM(?) LIMIT 1').bind(orderId).all();
+    const hasExisting = Array.isArray(existing) && existing.length > 0;
+    if (hasExisting && !force && !clearExisting) {
+      return new Response(JSON.stringify({ success: true, message: 'Order already has items. Set force=true to overwrite.' }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+    }
+
+    if (hasExisting && clearExisting) {
+      await env.DB.prepare('DELETE FROM order_items WHERE TRIM(order_id) = TRIM(?)').bind(orderId).run();
+    }
+
+    let inserted = 0;
+    for (const it of rawItems) {
+      const name = String(it?.name ?? it?.product_name ?? it?.title ?? '').trim();
+      const unitPrice = Number(it?.price ?? it?.product_price ?? it?.unit_price ?? 0);
+      const qty = Number(it?.quantity ?? it?.qty ?? 1);
+      if (!name || !Number.isFinite(unitPrice) || unitPrice <= 0 || !Number.isFinite(qty) || qty <= 0) {
+        continue;
+      }
+      const subtotal = Number(it?.subtotal ?? unitPrice * qty);
+      await env.DB.prepare(
+        'INSERT INTO order_items (order_id, product_name, product_price, quantity, subtotal) VALUES (?, ?, ?, ?, ?)'
+      ).bind(orderId, name, unitPrice, qty, subtotal).run();
+      inserted += 1;
+    }
+
+    return new Response(JSON.stringify({ success: true, order_id: orderId, inserted }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
+  } catch (e) {
+    console.error('[backfillOrderItems] Error:', e);
+    return new Response(JSON.stringify({ success: false, error: 'Failed to backfill items' }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
   }
 }
 
@@ -972,7 +1231,7 @@ export async function getOrderQrisUrl(request, env) {
   }
 }
 
-// Function to delete an order by ID
+// Function to soft delete an order by ID
 export async function deleteOrder(request, env) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -986,6 +1245,13 @@ export async function deleteOrder(request, env) {
   }
 
   try {
+    if (!request.user || request.user.role !== 'admin') {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Admin access required' }),
+        { status: 403, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
+
     // Extract order ID from URL path
     const url = new URL(request.url);
     const orderId = url.pathname.split('/')[3]; // Assuming URL is /api/orders/:id
@@ -999,102 +1265,65 @@ export async function deleteOrder(request, env) {
       throw new Error('Database binding not found');
     }
 
-    // Check if order exists before attempting to delete
-    const existingOrder = await env.DB.prepare(
-      `SELECT id FROM orders WHERE id = ?`
-    ).bind(orderId).first();
+    // Admin info is already decoded by verifyToken middleware
+    const deletedBy = request.user?.name || request.user?.email || request.user?.username || 'Admin';
+
+    // Detect soft-delete columns
+    const pragma = await env.DB.prepare("PRAGMA table_info('orders')").all();
+    const cols = (pragma.results || []).map((r) => String(r.name || ''));
+    const hasDeletedAt = cols.includes('deleted_at');
+    const hasDeletedBy = cols.includes('deleted_by');
+
+    // Ensure columns exist (safe for existing tables)
+    if (!hasDeletedAt) {
+      try {
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN deleted_at TEXT`).run();
+      } catch (e) {
+        const msg = e?.message || String(e);
+        if (!/duplicate column name/i.test(msg)) throw e;
+      }
+    }
+
+    if (!hasDeletedBy) {
+      try {
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN deleted_by TEXT`).run();
+      } catch (e) {
+        const msg = e?.message || String(e);
+        if (!/duplicate column name/i.test(msg)) throw e;
+      }
+    }
+
+    // Check if order exists and is not already deleted
+    const existingOrder = await env.DB
+      .prepare(`SELECT id, customer_name, deleted_at FROM orders WHERE id = ?`)
+      .bind(orderId)
+      .first();
 
     if (!existingOrder) {
       return new Response(JSON.stringify({ success: false, error: 'Order not found' }), 
         { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
 
-    // Delete all related data first to maintain referential integrity
-    console.log(`[DELETE] Starting deletion process for order: ${orderId}`);
-    
-    try {
-      // Delete notifications
-      const notifResult = await env.DB.prepare(
-        `DELETE FROM notifications WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${notifResult.meta.changes} notifications`);
-    } catch (e) {
-      console.log(`[DELETE] Notifications table may not exist: ${e.message}`);
-    }
-    
-    try {
-      // First get images for R2 cleanup before deleting DB records
-      let imagesToDelete = [];
-      try {
-        const imageQuery = await env.DB.prepare(
-          `SELECT image_url, cloudflare_id FROM shipping_images WHERE order_id = ?`
-        ).bind(orderId).all();
-        imagesToDelete = imageQuery.results || [];
-      } catch (selectError) {
-        console.log(`[DELETE] Could not select images for cleanup: ${selectError.message}`);
-      }
-      
-      // Delete shipping images from database
-      const imagesResult = await env.DB.prepare(
-        `DELETE FROM shipping_images WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${imagesResult.meta.changes} shipping images from database`);
-      
-      // Clean up R2 storage
-      if (imagesToDelete.length > 0 && env.SHIPPING_IMAGES) {
-        for (const image of imagesToDelete) {
-          try {
-            if (image.cloudflare_id) {
-              await env.SHIPPING_IMAGES.delete(image.cloudflare_id);
-              console.log(`[DELETE] Removed image ${image.cloudflare_id} from R2 storage`);
-            }
-          } catch (r2Error) {
-            console.log(`[DELETE] Failed to delete ${image.cloudflare_id} from R2: ${r2Error.message}`);
-          }
-        }
-      }
-    } catch (e) {
-      console.log(`[DELETE] Critical shipping images deletion error: ${e.message}`);
-      throw e; // This is critical for foreign key constraints
-    }
-    
-    try {
-      // Delete audit logs
-      const auditResult = await env.DB.prepare(
-        `DELETE FROM audit_logs WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${auditResult.meta.changes} audit logs`);
-    } catch (e) {
-      console.log(`[DELETE] Audit logs table may not exist: ${e.message}`);
-    }
-    
-    try {
-      // Delete order update logs
-      const updateLogsResult = await env.DB.prepare(
-        `DELETE FROM order_update_logs WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${updateLogsResult.meta.changes} update logs`);
-    } catch (e) {
-      console.log(`[DELETE] Order update logs table may not exist: ${e.message}`);
-    }
-    
-    try {
-      // Delete order items
-      const itemsResult = await env.DB.prepare(
-        `DELETE FROM order_items WHERE order_id = ?`
-      ).bind(orderId).run();
-      console.log(`[DELETE] Deleted ${itemsResult.meta.changes} order items`);
-    } catch (e) {
-      console.log(`[DELETE] Order items deletion error: ${e.message}`);
-      throw e; // This one is critical
+    if (existingOrder.deleted_at) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Order already deleted' 
+      }), { 
+        status: 400, 
+        headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+      });
     }
 
-    // Finally delete the order
-    const result = await env.DB.prepare(
-      `DELETE FROM orders WHERE id = ?`
-    ).bind(orderId).run();
+    // Soft delete: Mark the order as deleted instead of removing it
+    console.log(`[SOFT DELETE] Marking order as deleted: ${orderId}`);
     
-    console.log(`[DELETE] Successfully deleted order ${orderId}, main record changes: ${result.meta.changes}`);
+    const deletedAt = new Date().toISOString();
+    
+    const result = await env.DB.prepare(
+      `UPDATE orders SET deleted_at = ?, deleted_by = ? WHERE id = ?`
+    ).bind(deletedAt, deletedBy, orderId).run();
+    
+    console.log(`[SOFT DELETE] Successfully soft deleted order ${orderId} by ${deletedBy}`);
 
     return new Response(JSON.stringify({ 
       success: true, 
@@ -1118,12 +1347,223 @@ export async function deleteOrder(request, env) {
   }
 }
 
+// Function to restore a soft-deleted order
+export async function restoreOrder(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const orderId = url.pathname.split('/')[3]; // /api/orders/:id/restore
+
+    if (!orderId) {
+      return new Response(JSON.stringify({ success: false, error: 'Order ID is required' }), 
+        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+    }
+
+    if (!env.DB) {
+      throw new Error('Database binding not found');
+    }
+
+    // Check if order exists and is deleted
+    const existingOrder = await env.DB.prepare(
+      `SELECT id, customer_name, deleted_at, deleted_by FROM orders WHERE id = ?`
+    ).bind(orderId).first();
+
+    if (!existingOrder) {
+      return new Response(JSON.stringify({ success: false, error: 'Order not found' }), 
+        { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+    }
+
+    if (!existingOrder.deleted_at) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Order is not deleted' 
+      }), { 
+        status: 400, 
+        headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+      });
+    }
+
+    // Restore the order by clearing deleted_at and deleted_by
+    const result = await env.DB.prepare(
+      `UPDATE orders SET deleted_at = NULL, deleted_by = NULL WHERE id = ?`
+    ).bind(orderId).run();
+    
+    console.log(`[RESTORE] Successfully restored order ${orderId}`);
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: 'Order successfully restored',
+      orderId: orderId,
+      customerName: existingOrder.customer_name,
+      previouslyDeletedBy: existingOrder.deleted_by
+    }), { 
+      status: 200, 
+      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    });
+
+  } catch (error) {
+    console.error('Restore Order Error:', error.message, error.stack);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Failed to restore order',
+      details: error.message 
+    }), { 
+      status: 500, 
+      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    });
+  }
+}
+
+// Function to get deleted orders (recycle bin)
+export async function getDeletedOrders(request, env) {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(request.url);
+    const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+    const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+
+    if (!env.DB) {
+      throw new Error('Database binding not found');
+    }
+
+    // Query only deleted orders
+    const ordersQuery = `
+      SELECT
+        o.*,
+        o.lokasi_pengiriman AS lokasi_pengiriman_nama,
+        o.lokasi_pengambilan AS lokasi_pengambilan_nama
+      FROM orders o
+      WHERE o.deleted_at IS NOT NULL
+      ORDER BY o.deleted_at DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    const orders = await env.DB.prepare(ordersQuery).bind(limit, offset).all();
+
+    if (!orders || !orders.results) {
+      return new Response(JSON.stringify({ success: false, error: 'Failed to fetch deleted orders' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    // Process orders similar to getAdminOrders but include deleted info
+    const processedOrders = await Promise.all(orders.results.map(async order => {
+      try {
+        const orderItems = await env.DB.prepare(
+          `SELECT product_name, product_price, quantity, subtotal FROM order_items WHERE order_id = ?`
+        ).bind(order.id).all();
+        
+        const rawItems = orderItems?.results || [];
+        const items = rawItems.map(it => ({
+          ...it,
+          price: it.product_price
+        }));
+        
+        let paymentDetails = null;
+        if (order.payment_response) {
+          try {
+            paymentDetails = JSON.parse(order.payment_response);
+          } catch (e) {
+            console.error(`Error parsing payment response for order ${order.id}:`, e);
+          }
+        }
+
+        const { 
+          lokasi_pengiriman_nama, 
+          lokasi_pengambilan_nama,
+          ...restOfOrder 
+        } = order;
+
+        const { pickup_outlet, ...restNoPickup } = restOfOrder;
+
+        const calculatedTotal = items.reduce((sum, item) => {
+          const unit = Number(item.price) || 0;
+          const qty = Number(item.quantity) || 0;
+          const sub = item.subtotal != null ? Number(item.subtotal) : (unit * qty);
+          return sum + sub;
+        }, 0);
+        
+        return {
+          ...restNoPickup,
+          lokasi_pengiriman: lokasi_pengiriman_nama,
+          lokasi_pengambilan: lokasi_pengambilan_nama,
+          items,
+          payment_details: paymentDetails,
+          payment_status: derivePaymentStatusFromData(order),
+          total_amount: calculatedTotal || Number(order.total_amount) || 0
+        };
+      } catch (itemError) {
+        console.error(`Error processing items for order ${order.id}:`, itemError);
+        return {
+          ...order,
+          items: [],
+          total_amount: Number(order.total_amount) || 0,
+          error: 'Failed to fetch items for this order'
+        };
+      }
+    }));
+
+    // Count total deleted orders
+    const countResult = await env.DB.prepare(
+      'SELECT COUNT(*) as total FROM orders WHERE deleted_at IS NOT NULL'
+    ).first();
+    const total = countResult ? countResult.total : 0;
+
+    return new Response(JSON.stringify({
+      success: true,
+      orders: processedOrders,
+      pagination: {
+        total,
+        offset,
+        limit,
+        has_more: offset + limit < total
+      }
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
+    });
+
+  } catch (error) {
+    console.error('Get Deleted Orders Error:', error.message, error.stack);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Failed to fetch deleted orders',
+      details: error.message 
+    }), { 
+      status: 500, 
+      headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+    });
+  }
+}
+
 // Get orders assigned to specific deliveryman
 export async function getDeliveryOrders(request, env) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
   };
 
   // Handle OPTIONS request for CORS preflight
@@ -1150,32 +1590,34 @@ export async function getDeliveryOrders(request, env) {
       SELECT outlet_id FROM users WHERE id = ? AND role = 'deliveryman'
     `).bind(deliverymanId).first();
     let outletNameForUser = null;
+    let accessAllOutlets = false;
     if (deliveryUser?.outlet_id) {
-      const outletRow = await env.DB.prepare(`
-        SELECT name FROM outlets_unified WHERE id = ?
-      `).bind(deliveryUser.outlet_id).first();
-      outletNameForUser = outletRow?.name || null;
+      if (String(deliveryUser.outlet_id).toUpperCase() === 'ALL') {
+        accessAllOutlets = true;
+      } else {
+        const outletRow = await env.DB.prepare(`
+          SELECT name FROM outlets_unified WHERE id = ?
+        `).bind(deliveryUser.outlet_id).first();
+        outletNameForUser = outletRow?.name || null;
+      }
     }
 
-    // Build comprehensive query for deliveryman orders
+    // Build comprehensive query for deliveryman orders with strict filters
     let deliveryQuery = `
       SELECT *
       FROM orders
-      WHERE assigned_deliveryman_id = ? 
-         OR pickup_method = 'deliveryman'
+      WHERE 
+        (deleted_at IS NULL OR deleted_at = '')
+        AND LOWER(COALESCE(shipping_area, '')) IN ('dalam_kota', 'dalam-kota', 'dalam kota')
+        AND LOWER(COALESCE(pickup_method, '')) IN ('deliveryman', 'kurir toko', 'kurir_toko')
+        AND (LOWER(COALESCE(tipe_pesanan, '')) IN ('pesan antar', 'pesan-antar') OR tipe_pesanan IS NULL OR tipe_pesanan = '')
+        AND assigned_deliveryman_id = ?
     `;
-    
+
     let queryParams = [deliverymanId];
-    
-    // Include outlet orders by lokasi_pengambilan that are ready for delivery if user has outlet assignment
-    if (outletNameForUser) {
-      deliveryQuery += ` 
-         OR (lokasi_pengambilan = ? AND shipping_status IN ('siap kirim', 'siap ambil', 'shipping'))
-      `;
-      queryParams.push(outletNameForUser);
-    }
-    
-    deliveryQuery += ` ORDER BY created_at DESC`;
+
+    deliveryQuery += `
+      ORDER BY created_at DESC`;
     
     console.log(`🚚 Delivery query for user ${deliverymanId} (outlet_name: ${outletNameForUser || 'none'}):`, deliveryQuery);
     
@@ -1260,22 +1702,47 @@ export async function getAdminOrders(request, env) {
     const url = new URL(request.url);
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
     const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+    const search = url.searchParams.get('search') || '';
 
     if (!env.DB) {
       throw new Error('Database binding not found');
     }
 
-    const ordersQuery = `
+    // Build query with optional search and exclude deleted orders
+    let ordersQuery = `
       SELECT
         o.*,
         o.lokasi_pengiriman AS lokasi_pengiriman_nama,
         o.lokasi_pengambilan AS lokasi_pengambilan_nama
       FROM orders o
+      WHERE o.deleted_at IS NULL
+    `;
+    
+    const bindings = [];
+    
+    if (search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      ordersQuery += `
+        AND (o.id LIKE ? 
+        OR o.customer_name LIKE ? 
+        OR o.customer_email LIKE ?
+        OR o.shipping_area LIKE ?
+        OR o.lokasi_pengiriman LIKE ?
+        OR o.lokasi_pengambilan LIKE ?
+        OR o.pickup_method LIKE ?
+        OR o.created_by_admin_name LIKE ?)
+      `;
+      bindings.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+    
+    ordersQuery += `
       ORDER BY o.created_at DESC
       LIMIT ? OFFSET ?
     `;
+    
+    bindings.push(limit, offset);
 
-    const orders = await env.DB.prepare(ordersQuery).bind(limit, offset).all();
+    const orders = await env.DB.prepare(ordersQuery).bind(...bindings).all();
 
     if (!orders || !orders.results) {
       return new Response(JSON.stringify({ success: false, error: 'Failed to fetch orders' }), {
@@ -1284,13 +1751,38 @@ export async function getAdminOrders(request, env) {
       });
     }
 
+    // Batch fetch all order items in ONE query to avoid "Too many API requests" error
+    // Instead of N queries (one per order), we do 1 query for all orders
+    const orderIds = orders.results.map(o => o.id);
+    let allOrderItems = [];
+    
+    if (orderIds.length > 0) {
+      try {
+        const placeholders = orderIds.map(() => '?').join(',');
+        const itemsQuery = `SELECT order_id, product_name, product_price, quantity, subtotal 
+                           FROM order_items 
+                           WHERE order_id IN (${placeholders})`;
+        const itemsResult = await env.DB.prepare(itemsQuery).bind(...orderIds).all();
+        allOrderItems = itemsResult?.results || [];
+      } catch (itemsError) {
+        console.error('Error batch fetching order items:', itemsError);
+        // Continue without items if batch fetch fails
+      }
+    }
+    
+    // Group items by order_id for quick lookup
+    const itemsByOrderId = {};
+    allOrderItems.forEach(item => {
+      if (!itemsByOrderId[item.order_id]) {
+        itemsByOrderId[item.order_id] = [];
+      }
+      itemsByOrderId[item.order_id].push(item);
+    });
+
     const processedOrders = await Promise.all(orders.results.map(async order => {
       try {
-        const orderItems = await env.DB.prepare(
-          `SELECT product_name, product_price, quantity, subtotal FROM order_items WHERE order_id = ?`
-        ).bind(order.id).all();
-        
-        const rawItems = orderItems?.results || [];
+        // Get items from pre-fetched batch data instead of individual query
+        const rawItems = itemsByOrderId[order.id] || [];
         // Normalize to expose a consistent 'price' field for frontend compatibility
         const items = rawItems.map(it => ({
           ...it,
@@ -1315,31 +1807,67 @@ export async function getAdminOrders(request, env) {
         // Omit deprecated pickup_outlet from response
         const { pickup_outlet, ...restNoPickup } = restOfOrder;
 
+        // Calculate total_amount from items, fallback to database value
+        const calculatedTotal = items.reduce((sum, item) => {
+          const unit = Number(item.price) || 0;
+          const qty = Number(item.quantity) || 0;
+          const sub = item.subtotal != null ? Number(item.subtotal) : (unit * qty);
+          return sum + sub;
+        }, 0);
+        
+        // Safely derive payment status with fallback
+        let paymentStatus = order.payment_status || 'pending';
+        try {
+          paymentStatus = derivePaymentStatusFromData(order);
+        } catch (statusError) {
+          console.error(`Error deriving payment status for order ${order.id}:`, statusError);
+        }
+        
         return {
           ...restNoPickup,
           lokasi_pengiriman: lokasi_pengiriman_nama, // Use the name from the JOIN
           lokasi_pengambilan: lokasi_pengambilan_nama, // Use the name from the JOIN
           items,
           payment_details: paymentDetails,
-          payment_status: derivePaymentStatusFromData(order),
-          total_amount: items.reduce((sum, item) => {
-            const unit = Number(item.price) || 0;
-            const qty = Number(item.quantity) || 0;
-            const sub = item.subtotal != null ? Number(item.subtotal) : (unit * qty);
-            return sum + sub;
-          }, 0)
+          payment_status: paymentStatus,
+          total_amount: calculatedTotal || Number(order.total_amount) || 0
         };
       } catch (itemError) {
         console.error(`Error processing items for order ${order.id}:`, itemError);
+        console.error(`Error stack:`, itemError.stack);
+        // Return order with minimal data to prevent Promise.all from failing
         return {
-          ...order,
+          id: order.id,
+          customer_name: order.customer_name || 'Unknown',
+          customer_phone: order.customer_phone || '',
+          total_amount: Number(order.total_amount) || 0,
+          payment_status: order.payment_status || 'pending',
+          shipping_status: order.shipping_status || 'pending',
+          created_at: order.created_at,
           items: [],
           error: 'Failed to fetch items for this order'
         };
       }
     }));
 
-    const countResult = await env.DB.prepare('SELECT COUNT(*) as total FROM orders').first();
+    // Count total with same search filter and exclude deleted orders
+    let countQuery = 'SELECT COUNT(*) as total FROM orders WHERE deleted_at IS NULL';
+    const countBindings = [];
+    
+    if (search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      countQuery += ` AND (id LIKE ? 
+        OR customer_name LIKE ? 
+        OR customer_email LIKE ?
+        OR shipping_area LIKE ?
+        OR lokasi_pengiriman LIKE ?
+        OR lokasi_pengambilan LIKE ?
+        OR pickup_method LIKE ?
+        OR created_by_admin_name LIKE ?)`;
+      countBindings.push(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+    
+    const countResult = await env.DB.prepare(countQuery).bind(...countBindings).first();
     const total = countResult ? countResult.total : 0;
 
     return new Response(JSON.stringify({
@@ -1816,7 +2344,21 @@ export async function updateOrderDetails(request, env) {
         updateParams.push(normalized); 
       }
       if (tracking_number !== undefined) { updateFields.push('tracking_number = ?'); updateParams.push(tracking_number); }
-      if (courier_service !== undefined) { updateFields.push('courier_service = ?'); updateParams.push(courier_service); }
+      if (courier_service !== undefined) { 
+        updateFields.push('courier_service = ?'); 
+        updateParams.push(courier_service);
+        
+        // Also update assigned_deliveryman_id when courier_service changes
+        // Map courier name to deliveryman ID
+        let deliverymanId = null;
+        if (courier_service && courier_service.toLowerCase() === 'rudi') {
+          deliverymanId = 'usr_1755672750527_49dznt';
+        } else if (courier_service && courier_service.toLowerCase() === 'fendi') {
+          deliverymanId = 'usr_1755672660126_bbil5p';
+        }
+        updateFields.push('assigned_deliveryman_id = ?');
+        updateParams.push(deliverymanId);
+      }
       // Delivery scheduling fields
       if (delivery_date !== undefined) { updateFields.push('delivery_date = ?'); updateParams.push(delivery_date); }
       if (delivery_time !== undefined) { updateFields.push('delivery_time = ?'); updateParams.push(delivery_time); }
@@ -1837,9 +2379,39 @@ export async function updateOrderDetails(request, env) {
       // REDESIGNED SHIPPING INFO LOGIC - REMOVE INVALID VALIDATION
       // lokasi_pengambilan should always be outlet name, lokasi_pengiriman should be customer address
       // No need for locations table validation since these are actual outlet names and customer addresses
+      
+      // For luar kota orders, lokasi_pengiriman should be null
       if (lokasiPengirimanName !== undefined) {
+        // Determine if this is luar kota based on shipping_area (use updated value if provided, else fetch current)
+        let effectiveShippingArea = shipping_area; // Use the updated shipping_area if provided
+        if (effectiveShippingArea === undefined) {
+          // Fetch current shipping_area from DB if not provided in update
+          const currentOrder = await env.DB.prepare('SELECT shipping_area FROM orders WHERE id = ?').bind(orderId).first();
+          effectiveShippingArea = currentOrder?.shipping_area || '';
+        }
+        const isLuarKotaOrder = (effectiveShippingArea || '').toLowerCase().includes('luar');
+        const finalLokasiPengiriman = isLuarKotaOrder ? null : (lokasiPengirimanName || null);
+        
         updateFields.push('lokasi_pengiriman = ?');
-        updateParams.push(lokasiPengirimanName || null);
+        updateParams.push(finalLokasiPengiriman);
+        
+        console.log('📦 [UPDATE ORDER] Shipping location logic:', {
+          orderId,
+          shipping_area: effectiveShippingArea,
+          isLuarKota: isLuarKotaOrder,
+          original_lokasi_pengiriman: lokasiPengirimanName,
+          final_lokasi_pengiriman: finalLokasiPengiriman
+        });
+      }
+
+      // Also handle the case where shipping_area is updated to luar kota but lokasi_pengiriman is not explicitly provided
+      if (shipping_area !== undefined && lokasiPengirimanName === undefined) {
+        const isLuarKotaOrder = (shipping_area || '').toLowerCase().includes('luar');
+        if (isLuarKotaOrder) {
+          updateFields.push('lokasi_pengiriman = ?');
+          updateParams.push(null);
+          console.log('📦 [UPDATE ORDER] Clearing lokasi_pengiriman for luar kota transition:', { orderId, shipping_area });
+        }
       }
 
       if (lokasiPengambilanName !== undefined) {
@@ -1880,7 +2452,8 @@ export async function updateOrderDetails(request, env) {
     }
 
     // Validate and update assigned_deliveryman_id if provided
-    if (typeof rawAssignedDeliverymanId !== 'undefined') {
+    // BUT: Skip if courier_service was already provided (it will auto-map assigned_deliveryman_id)
+    if (typeof rawAssignedDeliverymanId !== 'undefined' && courier_service === undefined) {
       let finalAssignedId = null;
       try {
         if (rawAssignedDeliverymanId) {
@@ -1924,6 +2497,95 @@ export async function updateOrderDetails(request, env) {
       }
 
       console.log(`[updateOrderDetails] Successfully updated order: ${orderId}`);
+
+      // Send WhatsApp notification to outlet when order details are updated
+      // Trigger when outlet name is updated (in either lokasi_pengambilan OR lokasi_pengiriman) OR when outlet_id is set
+      // Note: Frontend incorrectly sends outlet name to lokasi_pengiriman for "Pesan Antar" orders
+      const shouldSendNotification = (typeof lokasiPengambilanName !== 'undefined' && lokasiPengambilanName) || 
+                                     (typeof lokasiPengirimanName !== 'undefined' && lokasiPengirimanName) ||
+                                     (typeof rawOutletId !== 'undefined' && rawOutletId);
+      
+      if (shouldSendNotification) {
+        try {
+          console.log('📱 Attempting to send WhatsApp notification. Pengambilan:', lokasiPengambilanName, 'Pengiriman:', lokasiPengirimanName, 'Outlet ID:', rawOutletId);
+          
+          // Determine which outlet to notify
+          let outletDetails = null;
+          
+          // First try to get outlet by name (lokasi_pengambilan for pickup orders)
+          if (lokasiPengambilanName) {
+            outletDetails = await env.DB.prepare(
+              'SELECT id, name, phone FROM outlets_unified WHERE name = ?'
+            ).bind(lokasiPengambilanName).first();
+            console.log('📱 Found outlet by pengambilan name:', outletDetails);
+          }
+          
+          // Try lokasi_pengiriman (frontend bug: outlet name sent here for delivery orders)
+          if (!outletDetails && lokasiPengirimanName) {
+            outletDetails = await env.DB.prepare(
+              'SELECT id, name, phone FROM outlets_unified WHERE name = ?'
+            ).bind(lokasiPengirimanName).first();
+            console.log('📱 Found outlet by pengiriman name:', outletDetails);
+          }
+          
+          // Fallback to outlet_id if name lookup failed
+          if (!outletDetails && rawOutletId) {
+            outletDetails = await env.DB.prepare(
+              'SELECT id, name, phone FROM outlets_unified WHERE id = ?'
+            ).bind(rawOutletId).first();
+            console.log('📱 Found outlet by ID:', outletDetails);
+          }
+
+          if (outletDetails && outletDetails.phone) {
+            // Get full order details for notification
+            const orderInfo = await env.DB.prepare(`
+              SELECT id, customer_name, customer_phone, total_amount, 
+                     lokasi_pengiriman, shipping_area, tipe_pesanan
+              FROM orders WHERE id = ?
+            `).bind(orderId).first();
+
+            // Get order items
+            const orderItems = await env.DB.prepare(
+              'SELECT product_name as name, product_price as price, quantity FROM order_items WHERE order_id = ?'
+            ).bind(orderId).all();
+
+            if (orderInfo) {
+              const notificationData = {
+                orderId: orderInfo.id,
+                customerName: orderInfo.customer_name,
+                customerPhone: orderInfo.customer_phone,
+                totalAmount: orderInfo.total_amount,
+                outletName: outletDetails.name,
+                lokasi_pengiriman: orderInfo.lokasi_pengiriman,
+                shipping_area: orderInfo.shipping_area,
+                tipe_pesanan: orderInfo.tipe_pesanan,
+                items: orderItems.results || []
+              };
+
+              console.log('📱 Sending WhatsApp to phone:', outletDetails.phone);
+
+              // Send notification and wait for response to see result in logs
+              try {
+                const result = await sendOutletWhatsAppNotification(outletDetails.phone, notificationData, env);
+                if (result.success) {
+                  console.log('✅ WhatsApp notification sent successfully to outlet:', outletDetails.name);
+                } else {
+                  console.warn('⚠️ WhatsApp notification failed:', result.error, result.details);
+                }
+              } catch (err) {
+                console.error('❌ WhatsApp notification error:', err);
+              }
+            }
+          } else {
+            console.warn('⚠️ No phone number found for outlet. Details:', outletDetails);
+          }
+        } catch (notifError) {
+          console.error('❌ Error preparing WhatsApp notification:', notifError);
+          // Don't fail the update if notification fails
+        }
+      } else {
+        console.log('📱 WhatsApp notification not triggered. lokasi_pengambilan:', lokasiPengambilanName, 'outlet_id:', rawOutletId);
+      }
 
       // If shipping status changed in this update, create audit log and notifications
       let logId = null;
@@ -2150,37 +2812,11 @@ export async function getOutletOrders(request, env) {
           // Build query with conditions for outlet matching by name/location
           let outletCondition = '';
           
-          // Primary: exact match on lokasi_pengambilan (canonical outlet scoping)
+          // Filter orders where:
+          // 1. lokasi_pengambilan = outlet name (orders picked up from this outlet)
+          // 2. OR lokasi_pengiriman = outlet name (orders delivered to this outlet's area)
           if (outletName) {
-            outletCondition += `LOWER(o.lokasi_pengambilan) = LOWER('${outletName}')`;
-          }
-          
-          // Fallback: location/name string matching
-          if (outletName) {
-            if (outletCondition) outletCondition += ' OR ';
-            outletCondition += `(LOWER(o.lokasi_pengiriman) LIKE LOWER('%${outletName}%')`;
-            
-            // Add special matching patterns for common outlet names
-            if (outletName.toLowerCase().includes('bonbin')) {
-              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%bonbin%')`;
-              outletCondition += ` OR LOWER(o.shipping_area) LIKE LOWER('%bonbin%')`;
-            }
-            if (outletName.toLowerCase().includes('malioboro')) {
-              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%malioboro%')`;
-              outletCondition += ` OR LOWER(o.shipping_area) LIKE LOWER('%malioboro%')`;
-            }
-            if (outletName.toLowerCase().includes('jogja')) {
-              outletCondition += ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER('%jogja%')`;
-              outletCondition += ` OR LOWER(o.lokasi_pengambilan) LIKE LOWER('%jogja%')`;
-            }
-            
-            // Include shipping_area and pickup location in fallback matching
-            if (outletLocationPattern) {
-              outletCondition += ` OR LOWER(o.lokasi_pengambilan) LIKE LOWER('%${outletLocationPattern}%')`;
-              outletCondition += ` OR LOWER(o.shipping_area) LIKE LOWER('%${outletLocationPattern}%')`;
-            }
-            
-            outletCondition += '))';
+            outletCondition += `LOWER(o.lokasi_pengambilan) = LOWER('${outletName}') OR LOWER(o.lokasi_pengiriman) = LOWER('${outletName}')`;
           }
           
           // If we couldn't build any conditions, use a fallback to show SOME orders

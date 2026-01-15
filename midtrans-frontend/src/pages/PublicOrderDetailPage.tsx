@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useLocation, useParams } from 'react-router-dom';
 import {
   Container,
   Card,
@@ -34,12 +34,11 @@ import {
   StepStatus,
   StepTitle,
   Stepper,
-  useToast,
-  Input
+  useToast
 } from '@chakra-ui/react';
 import { publicApi, PublicOrder } from '../api/publicApi';
 import { API_URL } from '../api/config';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDateShort } from '../utils/formatters';
 import { normalizeShippingStatus } from '../utils/orderStatusUtils';
 import ShippingImageDisplay from '../components/ShippingImageDisplay';
 
@@ -55,6 +54,8 @@ interface ShippingImage {
 
 const PublicOrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const hasSyncedFromRedirect = useRef(false);
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [shippingImages, setShippingImages] = useState<ShippingImage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +63,45 @@ const PublicOrderDetailPage = () => {
   const [markingReceived, setMarkingReceived] = useState(false);
   const [refreshingPayment, setRefreshingPayment] = useState(false);
   const toast = useToast();
+
+  const transformURL = (url: string): string => {
+    if (!url) return url;
+
+    // Sudah berupa URL publik (Cloudflare Images / proses), kembalikan apa adanya
+    if (
+      url.includes('imagedelivery.net') ||
+      url.includes('cloudflareimages.com') ||
+      url.includes('proses.kurniasari.co.id')
+    ) {
+      return url;
+    }
+
+    // Legacy R2 direct URLs -> map ke domain publik proses.kurniasari.co.id
+    if (url.includes('r2.cloudflarestorage.com')) {
+      try {
+        const filenameWithQuery = url.split('/').pop() || '';
+        const filename = filenameWithQuery.split('?')[0];
+        if (filename) {
+          return `https://proses.kurniasari.co.id/${filename}`;
+        }
+      } catch {
+        return url;
+      }
+    }
+
+    // workers.dev URL modern tetap dipakai apa adanya
+    if (url.includes('wahwooh.workers.dev')) return url;
+
+    // Legacy /api/images/ diubah ke Cloudflare Images
+    if (url.includes('/api/images/')) {
+      const filename = url.split('/').pop();
+      if (filename) {
+        return `https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA/${filename}/public`;
+      }
+    }
+
+    return url;
+  };
 
   // Fetch shipping images separately
   const fetchShippingImages = async (orderId: string) => {
@@ -75,21 +115,34 @@ const PublicOrderDetailPage = () => {
         console.log('📸 [PublicOrderDetailPage] Raw API response:', imageData);
         
         if (imageData.success && imageData.data) {
-          // Convert the response format to array of shipping images
+          // Convert the response format to array of shipping images with canonical types
           const images: ShippingImage[] = [];
-          
+
+          // Map backend keys (siap_kirim/pengiriman/diterima) and FE keys
+          // (ready_for_pickup/picked_up/delivered/packaged_product) to canonical FE types
+          const canonicalTypeMap: Record<string, string> = {
+            siap_kirim: 'ready_for_pickup',
+            ready_for_pickup: 'ready_for_pickup',
+            packaged_product: 'packaged_product',
+            pengiriman: 'picked_up',
+            picked_up: 'picked_up',
+            diterima: 'delivered',
+            delivered: 'delivered',
+          };
+
           Object.entries(imageData.data).forEach(([type, imageInfo]: [string, any]) => {
             if (imageInfo && imageInfo.url) {
+              const canonicalType = canonicalTypeMap[type] || type;
               images.push({
-                image_type: type,
-                image_url: imageInfo.url,
+                image_type: canonicalType,
+                image_url: transformURL(imageInfo.url),
                 id: imageInfo.imageId || '',
                 order_id: orderId,
-                uploaded_at: new Date().toISOString()
+                uploaded_at: new Date().toISOString(),
               });
             }
           });
-          
+
           console.log('📸 [PublicOrderDetailPage] Processed images:', images);
           setShippingImages(images);
         }
@@ -101,31 +154,32 @@ const PublicOrderDetailPage = () => {
     }
   };
 
-  // Copy payment URL helper
-  const copyPaymentUrl = async (url?: string) => {
-    if (!url) return;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast({ title: 'Link pembayaran disalin', status: 'success', duration: 1500, isClosable: true });
-    } catch (e) {
-      toast({ title: 'Gagal menyalin link', status: 'error', duration: 2000, isClosable: true });
-    }
-  };
-
   // Handle refresh payment status via backend endpoint
   const handleRefreshPayment = async () => {
-    if (!order) return;
+    const orderId = order?.id || id;
+    if (!orderId) return;
     try {
       setRefreshingPayment(true);
       const apiUrl = API_URL || 'https://order-management-app-production.wahwooh.workers.dev';
-      const resp = await fetch(`${apiUrl}/api/orders/${order.id}/refresh-status`, {
+      const resp = await fetch(`${apiUrl}/api/orders/${orderId}/refresh-status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       });
 
-      const data = await resp.json();
+      let data: any = null;
+      const contentType = resp.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await resp.json();
+      } else {
+        const text = await resp.text();
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { success: false, error: text || `HTTP ${resp.status}` };
+        }
+      }
       if (resp.ok && data?.success) {
         toast({
           title: 'Status Pembayaran Diperbarui',
@@ -140,7 +194,7 @@ const PublicOrderDetailPage = () => {
         }
         // Refetch order to update UI
         try {
-          const response = await publicApi.getOrderById(order.id);
+          const response = await publicApi.getOrderById(orderId);
           if (response?.success && response?.data && (response.data as any).id) {
             setOrder(response.data);
           } else {
@@ -172,6 +226,30 @@ const PublicOrderDetailPage = () => {
       setRefreshingPayment(false);
     }
   };
+
+  // If user returns from Midtrans redirect with transaction_status, sync once to update DB/UI
+  useEffect(() => {
+    if (!id) return;
+    if (hasSyncedFromRedirect.current) return;
+    const params = new URLSearchParams(location.search);
+    const txStatus = (params.get('transaction_status') || '').toLowerCase();
+    const statusCode = params.get('status_code') || '';
+
+    const shouldAttemptSync =
+      (txStatus && ['settlement', 'capture', 'pending', 'deny', 'cancel', 'expire'].includes(txStatus)) ||
+      statusCode === '200';
+
+    if (!shouldAttemptSync) return;
+
+    const isAlreadyPaid = ['paid', 'settlement', 'capture'].includes((order?.payment_status || '').toLowerCase());
+    if (isAlreadyPaid) {
+      hasSyncedFromRedirect.current = true;
+      return;
+    }
+
+    hasSyncedFromRedirect.current = true;
+    handleRefreshPayment();
+  }, [id, location.search, order?.payment_status]);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -205,6 +283,30 @@ const PublicOrderDetailPage = () => {
     };
 
     fetchOrder();
+
+    // Auto-refresh setiap 10 detik jika payment_status masih pending
+    const intervalId = setInterval(async () => {
+      if (!id) return;
+      
+      try {
+        const response = await publicApi.getOrderById(id);
+        if (response?.success && response?.data) {
+          const currentOrder = response.data;
+          setOrder(currentOrder);
+          
+          // Stop auto-refresh jika sudah dibayar
+          if (currentOrder.payment_status && 
+              ['settlement', 'capture', 'paid'].includes(currentOrder.payment_status.toLowerCase())) {
+            clearInterval(intervalId);
+          }
+        }
+      } catch (err) {
+        console.error('Error auto-refreshing order:', err);
+      }
+    }, 10000); // Refresh setiap 10 detik
+
+    // Cleanup interval saat component unmount
+    return () => clearInterval(intervalId);
   }, [id]);
 
 
@@ -247,7 +349,10 @@ const PublicOrderDetailPage = () => {
   const getOrderProgressSteps = () => {
     if (!order) return [];
     
-    const isPaid = ['paid', 'settlement', 'capture'].includes((order.payment_status || '').toLowerCase());
+    const urlParams = new URLSearchParams(location.search);
+    const tx = (urlParams.get('transaction_status') || '').toLowerCase();
+    const effectivePaymentStatus = (tx === 'settlement' || tx === 'capture') ? tx : (order.payment_status || '');
+    const isPaid = ['paid', 'settlement', 'capture'].includes((effectivePaymentStatus || '').toLowerCase());
     const normalizedStatus = normalizeShippingStatus(order.shipping_status);
     const isProcessing = normalizedStatus === 'dikemas' || normalizedStatus === 'siap kirim';
     const isShipping = normalizedStatus === 'dalam pengiriman';
@@ -312,7 +417,11 @@ const PublicOrderDetailPage = () => {
     );
   }
 
-  const isPaid = ['paid', 'settlement', 'capture'].includes((order.payment_status || '').toLowerCase());
+  const urlParams = new URLSearchParams(location.search);
+  const tx = (urlParams.get('transaction_status') || '').toLowerCase();
+  const forcedPaidFromRedirect = tx === 'settlement' || tx === 'capture';
+  const effectivePaymentStatus = forcedPaidFromRedirect ? tx : (order.payment_status || '');
+  const isPaid = ['paid', 'settlement', 'capture'].includes((effectivePaymentStatus || '').toLowerCase());
   const isReceived = order.shipping_status === 'diterima';
   const steps = getOrderProgressSteps();
   
@@ -442,6 +551,15 @@ const PublicOrderDetailPage = () => {
                     <Text><strong>Nama:</strong> {order.customer_name}</Text>
                     <Text><strong>Email:</strong> {order.customer_email || 'aripoya09@gmail.com'}</Text>
                     <Text><strong>Telepon:</strong> {order.customer_phone}</Text>
+                    {(order.delivery_date || order.delivery_time) && (
+                      <Text><strong>Jadwal Pengantaran:</strong> {
+                        (() => {
+                          const date = order.delivery_date ? formatDateShort(order.delivery_date) : '';
+                          const time = order.delivery_time || '';
+                          return `${date}${date && time ? ', ' : ''}${time}`;
+                        })()
+                      }</Text>
+                    )}
                   </Box>
 
                   <Divider />
@@ -499,7 +617,7 @@ const PublicOrderDetailPage = () => {
                     <Heading size="sm" mb={2}>Detail Pembayaran</Heading>
                     <Text><strong>Total:</strong> {formatCurrency(order.total_amount)}</Text>
                     <Text><strong>Status:</strong> <Badge colorScheme={isPaid ? 'green' : 'red'}>{isPaid ? 'LUNAS' : 'BELUM BAYAR'}</Badge></Text>
-                    <Text><strong>Metode Pengiriman:</strong> {
+                    <Text><strong>{order.tipe_pesanan === 'Pesan Ambil' ? 'Metode Pengambilan' : 'Metode Pengiriman'}:</strong> {
                       order.tipe_pesanan === 'Pesan Ambil'
                         ? (order.pickup_method === 'self-pickup' ? 'Di Ambil Sendiri' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || '-'))
                         : (order.shipping_area === 'luar-kota' ? 'Paket Expedisi (Paket)' : order.pickup_method === 'deliveryman' ? 'Kurir Toko' : order.pickup_method === 'ojek-online' ? 'Ojek Online' : (order.pickup_method || 'qris'))
@@ -541,21 +659,60 @@ const PublicOrderDetailPage = () => {
                       <Box>
                         <Heading size="sm" mb={2}>Informasi Pengiriman</Heading>
                         <Text><strong>Status Pesanan:</strong> {getShippingStatusBadge(order)}</Text>
-                        <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
+                        <Text><strong>Area Pengiriman:</strong> {order.shipping_area === 'dalam-kota' || order.shipping_area === 'dalam_kota' ? 'Dalam Kota' : 'Luar Kota'}</Text>
                         {order.lokasi_pengiriman && (
                           <Text><strong>Lokasi Pengiriman:</strong> {order.lokasi_pengiriman}</Text>
                         )}
                         {order.courier_service && (
-                          <Text><strong>Jasa Ekspedisi:</strong> {
-                            order.courier_service.toLowerCase() === 'deliveryman' ? 'Kurir Toko' :
-                            order.courier_service.toLowerCase() === 'ojek_online' ? 'Ojek Online' :
-                            order.courier_service.toLowerCase() === 'gojek' ? 'Gojek' :
-                            order.courier_service.toLowerCase() === 'grab' ? 'Grab' :
-                            order.courier_service.toLowerCase() === 'jne' ? 'JNE' :
-                            order.courier_service.toLowerCase() === 'tiki' ? 'TIKI' :
-                            order.courier_service.toLowerCase() === 'travel' ? 'Travel' :
-                            order.courier_service.toUpperCase()
-                          }</Text>
+                          <>
+                            <Text><strong>Jasa Ekspedisi:</strong> {
+                              order.courier_service.toLowerCase() === 'deliveryman' ? 'Kurir Toko' :
+                              order.courier_service.toLowerCase() === 'ojek_online' ? 'Ojek Online' :
+                              order.courier_service.toLowerCase() === 'gojek' ? 'Gojek' :
+                              order.courier_service.toLowerCase() === 'grab' ? 'Grab' :
+                              order.courier_service.toLowerCase() === 'jne' ? 'JNE' :
+                              order.courier_service.toLowerCase() === 'tiki' ? 'TIKI' :
+                              order.courier_service.toLowerCase() === 'travel' ? 'Travel' :
+                              order.courier_service.toUpperCase()
+                            }</Text>
+                            
+                            {/* WhatsApp button for Rudi or Fendi */}
+                            {(() => {
+                              const courierName = order.courier_service?.toLowerCase();
+                              const driverWhatsApp: { [key: string]: { phone: string; name: string } } = {
+                                'rudi': { phone: '6285123323166', name: 'Rudi' },
+                                'fendi': { phone: '6285178108852', name: 'Fendi' }
+                              };
+                              
+                              const driver = driverWhatsApp[courierName];
+                              if (driver) {
+                                const message = encodeURIComponent(
+                                  `Halo ${driver.name}, saya ingin menanyakan pesanan saya dengan ID: ${order.id}`
+                                );
+                                return (
+                                  <Button
+                                    as="a"
+                                    href={`https://wa.me/${driver.phone}?text=${message}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    colorScheme="green"
+                                    variant="outline"
+                                    size="sm"
+                                    leftIcon={<Text>💬</Text>}
+                                    mt={2}
+                                    _hover={{
+                                      bg: 'green.500',
+                                      color: 'white',
+                                      borderColor: 'green.500'
+                                    }}
+                                  >
+                                    Hubungi {driver.name} via WhatsApp
+                                  </Button>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </>
                         )}
                         {order.tracking_number && (
                           <Box>
@@ -620,20 +777,26 @@ const PublicOrderDetailPage = () => {
                     <Heading size="sm" mb={2}>Status Foto Pesanan</Heading>
                     <VStack align="stretch" spacing={3}>
                       {photoSlotsToShow.map((type) => {
-                        // Label berbeda untuk luar kota dan dalam kota
+                        // Label berbeda untuk luar kota, dalam kota, dan pesan ambil
+                        const isPesanAmbil = order.tipe_pesanan === 'Pesan Ambil';
                         const labels = {
-                          ready_for_pickup: 'Foto Siap Kirim',
-                          picked_up: isLuarKota ? 'Foto Sudah di Ambil Kurir' : 'Foto Pengiriman',
+                          ready_for_pickup: isPesanAmbil ? 'Foto Siap Ambil' : 'Foto Siap Kirim',
+                          picked_up: isPesanAmbil ? 'Foto Pengambilan' : (isLuarKota ? 'Foto Sudah di Ambil Kurir' : 'Foto Pengiriman'),
                           delivered: 'Foto Diterima',
-                          packaged_product: 'Foto Siap Kirim'
+                          packaged_product: isPesanAmbil ? 'Foto Siap Ambil' : 'Foto Siap Kirim'
+                        } as const;
+
+                        // Alias mapping supaya public view konsisten dengan admin/outlet
+                        const typeAliases: Record<string, string[]> = {
+                          ready_for_pickup: ['ready_for_pickup', 'siap_kirim', 'packaged_product'],
+                          picked_up: ['picked_up', 'pengiriman'],
+                          delivered: ['delivered', 'diterima'],
+                          packaged_product: ['packaged_product', 'siap_kirim', 'ready_for_pickup'],
                         };
 
-                        const imageUrl = shippingImages?.find(img =>
-                          img.image_type === type ||
-                          (type === 'ready_for_pickup' && img.image_type === 'ready_for_pickup') ||
-                          (type === 'picked_up' && img.image_type === 'picked_up') ||
-                          (type === 'delivered' && img.image_type === 'delivered') ||
-                          (type === 'packaged_product' && img.image_type === 'packaged_product')
+                        const aliases = typeAliases[type] || [type];
+                        const imageUrl = shippingImages?.find((img) =>
+                          aliases.includes(img.image_type)
                         )?.image_url;
 
                         return (
@@ -665,13 +828,24 @@ const PublicOrderDetailPage = () => {
                 </Tr>
               </Thead>
               <Tbody>
-                {order.items && order.items.map((item, index) => (
-                  <Tr key={index}>
-                    <Td>{item.product_name}</Td>
-                    <Td isNumeric>{item.quantity}</Td>
-                    <Td isNumeric>{formatCurrency(item.price)}</Td>
+                {order.items && order.items.length > 0 ? (
+                  order.items.map((item, index) => (
+                    <Tr key={index}>
+                      <Td>{item.product_name}</Td>
+                      <Td isNumeric>{item.quantity}</Td>
+                      <Td isNumeric>{formatCurrency(item.price)}</Td>
+                    </Tr>
+                  ))
+                ) : (
+                  <Tr>
+                    <Td>
+                      <Text fontWeight="medium">Bakpia</Text>
+                      <Text fontSize="xs" color="gray.500">(Detail item tidak tersedia)</Text>
+                    </Td>
+                    <Td isNumeric>1</Td>
+                    <Td isNumeric>{formatCurrency(order.total_amount)}</Td>
                   </Tr>
-                ))}
+                )}
               </Tbody>
             </Table>
 

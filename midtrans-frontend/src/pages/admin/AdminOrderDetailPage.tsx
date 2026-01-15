@@ -12,6 +12,7 @@ import {
 import QRCodeGenerator from '../../components/QRCodeGenerator';
 import { adminApi, Order, Outlet } from '../../api/adminApi';
 import ShippingImageDisplay from '../../components/ShippingImageDisplay';
+import { formatDateShort } from '../../utils/formatters';
 
 type ShippingImages = {
   ready_for_pickup: string | null;
@@ -47,6 +48,7 @@ const AdminOrderDetailPage: React.FC = () => {
   const [formData, setFormData] = useState<Partial<Order>>({});
   const [updateLoading, setUpdateLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [syncPaymentLoading, setSyncPaymentLoading] = useState(false);
   
   // Modal states
   const { isOpen: isStatusOpen, onOpen: onStatusOpen, onClose: onStatusClose } = useDisclosure();
@@ -55,7 +57,6 @@ const AdminOrderDetailPage: React.FC = () => {
   
   // Status update states
   const [newShippingStatus, setNewShippingStatus] = useState('');
-  const [newPaymentStatus, setNewPaymentStatus] = useState('');
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [shippingImages, setShippingImages] = useState<ShippingImages>({
     ready_for_pickup: null,
@@ -73,18 +74,36 @@ const AdminOrderDetailPage: React.FC = () => {
 
   const transformURL = (url: string): string => {
     if (!url) return url;
-    if (url.includes('imagedelivery.net') || url.includes('cloudflareimages.com')) return url;
+    if (
+      url.includes('imagedelivery.net') ||
+      url.includes('cloudflareimages.com') ||
+      url.includes('proses.kurniasari.co.id')
+    ) {
+      return url;
+    }
+
+    // Legacy R2 direct URLs: arahkan ke domain publik proses.kurniasari.co.id
+    if (url.includes('r2.cloudflarestorage.com')) {
+      try {
+        const filenameWithQuery = url.split('/').pop() || '';
+        const filename = filenameWithQuery.split('?')[0];
+        if (filename) {
+          return `https://proses.kurniasari.co.id/${filename}`;
+        }
+      } catch {
+        return url;
+      }
+    }
+
+    // Modern workers.dev URLs sudah langsung bisa dipakai, jangan di-transform
+    if (url.includes('wahwooh.workers.dev')) return url;
+
+    // Legacy API image paths diubah ke Cloudflare Images
     if (url.includes('/api/images/')) {
       const filename = url.split('/').pop();
       if (filename) return `https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA/${filename}/public`;
     }
-    try {
-      const last = url.split('/').pop() || '';
-      const imageId = last.split('?')[0];
-      if (imageId && imageId.length > 10) {
-        return `https://imagedelivery.net/ZB3RMqDfebexy8n_rRUJkA/${imageId}/public`;
-      }
-    } catch {}
+
     return url;
   };
 
@@ -127,10 +146,34 @@ const AdminOrderDetailPage: React.FC = () => {
             if (res.ok) {
               const data = await res.json();
               const images = data.success ? data.data : data;
-              const processed: ShippingImages = { ready_for_pickup: null, picked_up: null, delivered: null, packaged_product: null };
-              (['ready_for_pickup','picked_up','delivered','packaged_product'] as const).forEach((k) => {
-                if (images?.[k]?.url) processed[k] = transformURL(images[k].url);
+
+              const processed: ShippingImages = {
+                ready_for_pickup: null,
+                picked_up: null,
+                delivered: null,
+                packaged_product: null,
+              };
+
+              // Support both backend keys (siap_kirim/pengiriman/diterima) and
+              // normalized frontend keys (ready_for_pickup/picked_up/delivered/packaged_product)
+              const imageKeyAliases: Record<keyof ShippingImages, string[]> = {
+                ready_for_pickup: ['ready_for_pickup', 'siap_kirim', 'packaged_product'],
+                picked_up: ['picked_up', 'pengiriman'],
+                delivered: ['delivered', 'diterima'],
+                packaged_product: ['packaged_product', 'siap_kirim', 'ready_for_pickup'],
+              };
+
+              (Object.keys(processed) as (keyof ShippingImages)[]).forEach((imageKey) => {
+                const aliases = imageKeyAliases[imageKey] || [imageKey];
+                for (const alias of aliases) {
+                  const info = (images as any)?.[alias];
+                  if (info && info.url) {
+                    processed[imageKey] = transformURL(info.url);
+                    break;
+                  }
+                }
               });
+
               setShippingImages(processed);
             }
           } catch (e) {
@@ -306,6 +349,49 @@ const AdminOrderDetailPage: React.FC = () => {
     }
   };
 
+  const handleSyncPaymentFromMidtrans = async () => {
+    if (!id) return;
+    try {
+      setSyncPaymentLoading(true);
+      const resp = await adminApi.syncPaymentStatusFromMidtrans(id);
+      if (!resp.success) throw new Error(resp.error || 'Gagal sinkron status pembayaran');
+
+      const nextPaymentStatus = resp.data?.payment_status;
+      if (nextPaymentStatus) {
+        setOrder((prev) => (prev ? { ...prev, payment_status: nextPaymentStatus } : prev));
+      }
+
+      toast({
+        title: 'Status Pembayaran Diperbarui',
+        description: 'Status terbaru sudah diambil dari Midtrans.',
+        status: 'success',
+        duration: 4000,
+        isClosable: true,
+      });
+
+      try {
+        const orderResponse = await adminApi.getOrderDetails(id);
+        if (orderResponse.success && orderResponse.data) {
+          setOrder(orderResponse.data);
+          setFormData(orderResponse.data);
+        }
+      } catch {
+        // ignore refetch errors; optimistic state already set
+      }
+    } catch (e: any) {
+      toast({
+        title: 'Gagal sinkron pembayaran',
+        description: e?.message || 'Tidak dapat mengambil status pembayaran dari Midtrans.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setSyncPaymentLoading(false);
+      onPaymentClose();
+    }
+  };
+
   // Handle form submission
   const handleFormSubmit = async () => {
     if (!id) return;
@@ -381,12 +467,11 @@ const AdminOrderDetailPage: React.FC = () => {
     
     try {
       setUpdateLoading(true);
-      const status = type === 'shipping' ? newShippingStatus : newPaymentStatus;
       // Only shipping status can be updated manually here
       if (type === 'payment') {
         toast({
           title: 'Tidak dapat diubah',
-          description: 'Status pembayaran disinkronkan dari Midtrans dan tidak bisa diubah manual.',
+          description: 'Gunakan tombol sinkron dari Midtrans untuk memperbarui status pembayaran.',
           status: 'info',
           duration: 4000,
           isClosable: true,
@@ -395,6 +480,8 @@ const AdminOrderDetailPage: React.FC = () => {
         setUpdateLoading(false);
         return;
       }
+
+      const status = newShippingStatus;
 
       const response = await adminApi.updateOrderStatus(id, status);
       
@@ -515,7 +602,7 @@ const AdminOrderDetailPage: React.FC = () => {
                       )}
                       <Tr>
                         <Td fontWeight="semibold">Tanggal Dibuat</Td>
-                        <Td>{new Date(order.created_at).toLocaleDateString('id-ID')}</Td>
+                        <Td>{formatDateShort(order.created_at)}</Td>
                       </Tr>
                       <Tr>
                         <Td fontWeight="semibold">Metode Pembayaran</Td>
@@ -548,16 +635,16 @@ const AdminOrderDetailPage: React.FC = () => {
                         <Tr>
                           <Td fontWeight="semibold">Jadwal Pengambilan</Td>
                           <Td>
-                            {(order.pickup_date ? new Date(order.pickup_date).toLocaleDateString('id-ID') : '-')}
+                            {(order.pickup_date ? formatDateShort(order.pickup_date) : '-')}
                             {order.pickup_time ? `, ${order.pickup_time}` : ''}
                           </Td>
                         </Tr>
                       )}
                       {order.tipe_pesanan === 'Pesan Antar' && (order.delivery_date || order.delivery_time) && (
                         <Tr>
-                          <Td fontWeight="semibold">Jadwal Pengantaran</Td>
+                          <Td fontWeight="semibold">{order.shipping_area === 'luar-kota' ? 'Tanggal Pengiriman' : 'Jadwal Pengantaran'}</Td>
                           <Td>
-                            {(order.delivery_date ? new Date(order.delivery_date).toLocaleDateString('id-ID') : '-')}
+                            {(order.delivery_date ? formatDateShort(order.delivery_date) : '-')}
                             {order.delivery_time ? `, ${order.delivery_time}` : ''}
                           </Td>
                         </Tr>
@@ -580,7 +667,7 @@ const AdminOrderDetailPage: React.FC = () => {
                       </Tr>
                       <Tr>
                         <Td fontWeight="semibold">Terakhir Diupdate</Td>
-                        <Td>{new Date(order.updated_at || order.created_at).toLocaleDateString('id-ID')}</Td>
+                        <Td>{formatDateShort(order.updated_at || order.created_at)}</Td>
                       </Tr>
                     </Tbody>
                   </Table>
@@ -653,12 +740,13 @@ const AdminOrderDetailPage: React.FC = () => {
                         </Box>
                       ))
                     ) : (
-                      <Box p={3} borderWidth={1} borderRadius="md">
-                        <Text fontWeight="semibold">bakpia</Text>
-                        <HStack justify="space-between">
-                          <Text fontSize="sm" color="gray.600">Qty: 1</Text>
+                      <Box p={3} borderWidth={1} borderRadius="md" bg="red.50">
+                        <Text fontWeight="semibold" color="red.600">Detail item tidak tersedia</Text>
+                        <Text fontSize="xs" color="gray.500">Mohon cek catatan pengiriman atau hubungi teknisi.</Text>
+                        <HStack justify="space-between" mt={2}>
+                          <Text fontSize="sm" color="gray.600">Qty: -</Text>
                           <Text fontSize="sm" color="gray.600">
-                            Rp {order.total_amount?.toLocaleString('id-ID')}
+                            Total: Rp {order.total_amount?.toLocaleString('id-ID')}
                           </Text>
                         </HStack>
                       </Box>
@@ -812,10 +900,10 @@ const AdminOrderDetailPage: React.FC = () => {
                     </Select>
                   </GridItem>
                 )}
-                {formData.tipe_pesanan === 'Pesan Antar' && !isLuarKota && (
+                {formData.tipe_pesanan === 'Pesan Antar' && (
                   <>
                     <GridItem>
-                      <Text fontWeight="semibold">Tanggal Pengantaran</Text>
+                      <Text fontWeight="semibold">{isLuarKota ? 'Tanggal Pengiriman' : 'Tanggal Pengantaran'}</Text>
                       <Input
                         type="date"
                         name="delivery_date"
@@ -823,15 +911,17 @@ const AdminOrderDetailPage: React.FC = () => {
                         onChange={handleFormChange}
                       />
                     </GridItem>
-                    <GridItem>
-                      <Text fontWeight="semibold">Waktu Pengantaran</Text>
-                      <Input
-                        type="time"
-                        name="delivery_time"
-                        value={(formData.delivery_time as string) || ''}
-                        onChange={handleFormChange}
-                      />
-                    </GridItem>
+                    {!isLuarKota && (
+                      <GridItem>
+                        <Text fontWeight="semibold">Waktu Pengantaran</Text>
+                        <Input
+                          type="time"
+                          name="delivery_time"
+                          value={(formData.delivery_time as string) || ''}
+                          onChange={handleFormChange}
+                        />
+                      </GridItem>
+                    )}
                   </>
                 )}
                 {formData.tipe_pesanan === 'Pesan Ambil' && (
@@ -1098,19 +1188,9 @@ const AdminOrderDetailPage: React.FC = () => {
               {(() => { const n = normalizePaymentStatus(order.payment_status); return (
                 <Text>Status saat ini: <Badge colorScheme={n === 'paid' ? 'green' : n === 'pending' ? 'yellow' : 'red'}>{paymentLabelID(n)}</Badge></Text>
               ); })()}
-              <Box w="full">
-                <Text fontWeight="semibold" mb={2}>Status Baru</Text>
-                <Select 
-                  value={newPaymentStatus}
-                  onChange={(e) => setNewPaymentStatus(e.target.value)}
-                  placeholder="Pilih status baru"
-                >
-                  <option value="pending">Pending</option>
-                  <option value="paid">Paid</option>
-                  <option value="failed">Failed</option>
-                  <option value="cancelled">Cancelled</option>
-                </Select>
-              </Box>
+              <Text fontSize="sm" color="gray.600">
+                Sinkronkan status pembayaran langsung dari Midtrans.
+              </Text>
             </VStack>
           </ModalBody>
           <ModalFooter>
@@ -1119,11 +1199,10 @@ const AdminOrderDetailPage: React.FC = () => {
             </Button>
             <Button 
               colorScheme="blue" 
-              onClick={() => handleStatusUpdate('payment')}
-              isLoading={updateLoading}
-              isDisabled={!newPaymentStatus}
+              onClick={handleSyncPaymentFromMidtrans}
+              isLoading={syncPaymentLoading}
             >
-              Update Status
+              Sinkron dari Midtrans
             </Button>
           </ModalFooter>
         </ModalContent>

@@ -50,28 +50,82 @@ import {
   Stack,
 } from '@chakra-ui/react';
 import { useAuth } from '../../auth/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FaBox, FaShippingFast, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
+import { FiCalendar } from 'react-icons/fi';
 
 // Import API services
 import { adminApi } from '../../api/adminApi';
-import { getShippingStatusOptions, getShippingStatusConfig } from '../../utils/orderStatusUtils';
+import { outletApi, OutletMonthlyTrendRow } from '../../api/outletApi';
+import { getShippingStatusOptions } from '../../utils/orderStatusUtils';
 import { useRealTimeSync, useNotificationSync } from '../../hooks/useRealTimeSync';
+import { formatDateShort } from '../../utils/formatters';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const OutletDashboard: React.FC = () => {
   const isMobile = useBreakpointValue({ base: true, md: false });
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [, setError] = useState<string | null>(null);
+  const [monthlyTrend, setMonthlyTrend] = useState<OutletMonthlyTrendRow[]>([]);
+  const [monthlyLoading, setMonthlyLoading] = useState<boolean>(false);
   const [stats, setStats] = useState<OrderStats>({
     total: 0,
     pending: 0,
     inProgress: 0,
     completed: 0
   });
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(20);
   const toast = useToast();
   const cardBgColor = useColorModeValue('white', 'gray.700');
+
+  // Export PDF function
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(18);
+    doc.text('Laporan Pesanan Outlet', 14, 20);
+    
+    // Add date
+    doc.setFontSize(11);
+    doc.text(`Tanggal Export: ${formatDateShort(new Date())}`, 14, 28);
+    doc.text(`Outlet: ${user?.outlet_id || 'N/A'}`, 14, 34);
+    
+    // Prepare data for table
+    const tableData = orders.map((order) => [
+      order.id.substring(0, 8),
+      order.customer_name,
+      `Rp ${order.total_amount?.toLocaleString('id-ID') || '0'}`,
+      getPaymentStatusText(order.payment_status),
+      order.shipping_status || 'N/A',
+      formatDateShort(order.created_at)
+    ]);
+    
+    // Add table
+    autoTable(doc, {
+      head: [['ID Order', 'Pelanggan', 'Total', 'Pembayaran', 'Pengiriman', 'Tanggal']],
+      body: tableData,
+      startY: 40,
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [66, 153, 225], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+      margin: { top: 40 },
+    });
+    
+    // Add summary
+    const finalY = (doc as any).lastAutoTable.finalY || 40;
+    doc.setFontSize(10);
+    doc.text(`Total Pesanan: ${orders.length}`, 14, finalY + 10);
+    doc.text(`Total Pendapatan: Rp ${orders.reduce((sum, order) => sum + (order.total_amount || 0), 0).toLocaleString('id-ID')}`, 14, finalY + 16);
+    
+    // Save PDF
+    doc.save(`laporan-outlet-${formatDateShort(new Date()).replace(/\//g, '-')}.pdf`);
+  };
   
   // Status Foto state
   const { isOpen: isPhotoModalOpen, onOpen: onPhotoModalOpen, onClose: onPhotoModalClose } = useDisclosure();
@@ -88,34 +142,81 @@ const OutletDashboard: React.FC = () => {
   });
   const [isUploading, setIsUploading] = useState<boolean>(false);
 
+  const handleOpenPhotoModal = (order: Order): void => {
+    try {
+      Object.values(uploadedImages).forEach((url) => {
+        if (url && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    } catch (_) {
+      // ignore
+    }
+
+    setSelectedOrder(order);
+    setPhotoFiles({ readyForPickup: null, pickedUp: null, delivered: null });
+    setUploadedImages({ readyForPickup: null, pickedUp: null, delivered: null });
+    onPhotoModalOpen();
+  };
+
+  const handleClosePhotoModal = (): void => {
+    try {
+      Object.values(uploadedImages).forEach((url) => {
+        if (url && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    } catch (_) {
+      // ignore
+    }
+
+    setSelectedOrder(null);
+    setPhotoFiles({ readyForPickup: null, pickedUp: null, delivered: null });
+    setUploadedImages({ readyForPickup: null, pickedUp: null, delivered: null });
+    onPhotoModalClose();
+  };
+
   // Real-time sync hooks
-  const { syncStatus, manualRefresh } = useRealTimeSync({
+  useRealTimeSync({
     role: 'outlet',
     onUpdate: () => {
       console.log('Real-time update detected, refreshing orders...');
       fetchOrders();
     },
-    pollingInterval: 60000, // Poll every 60 seconds (1 minute) - optimized for cost efficiency
+    pollingInterval: 5000, // Poll every 5 seconds - optimized for real-time responsiveness
     enabled: true
   });
 
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationSync({
+  useNotificationSync({
     userId: user?.id,
-    pollingInterval: 60000 // Poll every 60 seconds (1 minute) - optimized for cost efficiency
+    pollingInterval: 5000 // Poll every 5 seconds - optimized for real-time responsiveness
   });
 
   // Function to fetch orders (extracted for reuse)
   const fetchOrders = async (): Promise<void> => {
     try {
       setLoading(true);
-      // Use relative path in development (proxy) and full URL in production
-    const apiUrl = import.meta.env.DEV 
-        ? '/api/orders/outlet-relational' 
-        : `${import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev'}/api/orders/outlet-relational`;
+      
+      // Get date range for last 3 months to show recent orders
+      const now = new Date();
+      const threeMonthsAgo = new Date(now);
+      threeMonthsAgo.setMonth(now.getMonth() - 3);
+      
+      const dateFrom = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`;
+      const dateTo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      
+      // Use outlet report API with date filter
+      const baseApiUrl = import.meta.env.DEV 
+        ? '/api/outlet/report' 
+        : `${import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev'}/api/outlet/report`;
+
+      const apiUrl = `${baseApiUrl}?type=orders&date_from=${dateFrom}&date_to=${dateTo}&limit=200`;
+      
+      console.log('Dashboard fetching orders (last 3 months):', { dateFrom, dateTo, apiUrl });
       
       const response = await fetch(apiUrl, {
         headers: {
-          'Authorization': `Bearer ${sessionStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
       
@@ -123,10 +224,11 @@ const OutletDashboard: React.FC = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const data: ApiResponse<{ orders: Order[] }> = await response.json();
+      const data: any = await response.json();
+      console.log('Dashboard orders response:', data);
       
-      if (data.success && data.data) {
-        const fetchedOrders = data.data.orders || [];
+      if (data.success) {
+        const fetchedOrders = data.orders || [];
         setOrders(fetchedOrders);
         
         // Calculate stats with proper typing
@@ -152,6 +254,40 @@ const OutletDashboard: React.FC = () => {
   // Get orders for this outlet
   useEffect(() => {
     fetchOrders();
+  }, []);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        setMonthlyLoading(true);
+        const resp = await outletApi.getMonthlyTrend();
+        if (resp.success && resp.data) {
+          setMonthlyTrend(resp.data.monthly_trend || []);
+        } else {
+          console.error('Outlet monthly trend API returned failure:', resp.error);
+          toast({
+            title: 'Gagal memuat trend bulanan',
+            description: resp.error || 'API laporan outlet tidak dapat diakses atau tidak mengembalikan data.',
+            status: 'error',
+            duration: 7000,
+            isClosable: true,
+          });
+        }
+      } catch (e) {
+        console.error('Error fetching outlet monthly trend:', e);
+        toast({
+          title: 'Gagal memuat trend bulanan',
+          description: 'API laporan outlet tidak dapat diakses atau tidak mengembalikan data.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } finally {
+        setMonthlyLoading(false);
+      }
+    };
+
+    run();
   }, []);
   
   // Helper function to check if order is eligible for Status Foto
@@ -231,6 +367,16 @@ const OutletDashboard: React.FC = () => {
         
         // Refresh orders to get updated data
         await fetchOrders();
+
+        // Jika ini adalah foto tahap akhir (diterima) dari modal Status Foto,
+        // otomatis ubah status pesanan menjadi 'diterima'
+        if (type === 'delivered') {
+          try {
+            await updateOrderStatus(selectedOrder.id, 'diterima' as ShippingStatus);
+          } catch (e) {
+            console.error('Error auto-updating order status to diterima after final photo upload:', e);
+          }
+        }
       } else {
         throw new Error(response.error || 'Upload gagal dari server');
       }
@@ -310,6 +456,15 @@ const OutletDashboard: React.FC = () => {
         
         // Refresh orders to get updated data
         await fetchOrders();
+
+        // Jika quick upload ini adalah foto tahap akhir, otomatis set status pengiriman menjadi 'diterima'
+        if (photoType === 'delivered') {
+          try {
+            await updateOrderStatus(orderId, 'diterima' as ShippingStatus);
+          } catch (e) {
+            console.error('Error auto-updating order status to diterima after quick final photo upload:', e);
+          }
+        }
       } else {
         throw new Error(response.error || 'Upload gagal dari server');
       }
@@ -347,7 +502,7 @@ const OutletDashboard: React.FC = () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({
           status: newStatus
@@ -401,6 +556,13 @@ const OutletDashboard: React.FC = () => {
   //   const config = getShippingStatusConfig(status);
   //   return <Badge colorScheme={config.color}>{config.text}</Badge>;
   // };
+
+  const totalOrders = orders.length;
+  const totalPages = Math.max(1, Math.ceil(totalOrders / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedOrders = orders.slice(startIndex, endIndex);
 
   if (loading) {
     return (
@@ -478,14 +640,132 @@ const OutletDashboard: React.FC = () => {
         </SimpleGrid>
 
         <Box borderWidth="1px" borderRadius="lg" overflow="hidden" bg={cardBgColor}>
+          <Flex p={4} justifyContent="space-between" alignItems="center" borderBottomWidth="1px">
+            <Box>
+              <Heading size="md">Tren 12 Bulan Terakhir</Heading>
+              <Text fontSize="sm" color="gray.600" mt={1}>
+                Klik pada bulan untuk melihat breakdown per minggu
+              </Text>
+            </Box>
+          </Flex>
+
+          <Box p={4}>
+            {monthlyLoading ? (
+              <Flex justify="center" align="center" py={8}>
+                <Spinner />
+                <Text ml={3}>Memuat trend...</Text>
+              </Flex>
+            ) : monthlyTrend.length === 0 ? (
+              <Box py={8} textAlign="center">
+                <Text color="gray.500">Belum ada data trend bulanan</Text>
+              </Box>
+            ) : (
+              <SimpleGrid columns={{ base: 2, md: 3, lg: 4 }} spacing={4}>
+                {[...monthlyTrend]
+                  .filter((m) => (m.count || 0) > 0 || (m.revenue || 0) > 0)
+                  .sort((a, b) => a.month.localeCompare(b.month))
+                  .map((m) => {
+                    const [yy, mm] = (m.month || '').split('-');
+                    return (
+                      <Box
+                        key={m.month}
+                        p={4}
+                        borderWidth="1px"
+                        borderRadius="md"
+                        cursor="pointer"
+                        transition="all 0.2s"
+                        _hover={{
+                          borderColor: 'blue.500',
+                          boxShadow: 'md',
+                          transform: 'translateY(-2px)',
+                        }}
+                        onClick={() => navigate(`/outlet/report/weekly/${yy}/${mm}`)}
+                      >
+                        <HStack mb={2}>
+                          <Icon as={FiCalendar} color="blue.500" />
+                          <Text fontWeight="bold" fontSize="sm">{`${mm}-${yy}`}</Text>
+                        </HStack>
+                        <Text fontSize="sm" color="gray.600">{m.count} pesanan</Text>
+                        <Text fontSize="md" fontWeight="bold" color="purple.600">{m.revenue_formatted}</Text>
+                      </Box>
+                    );
+                  })}
+              </SimpleGrid>
+            )}
+          </Box>
+        </Box>
+
+        <Box borderWidth="1px" borderRadius="lg" overflow="hidden" bg={cardBgColor}>
       <Flex p={4} justifyContent="space-between" alignItems="center" borderBottomWidth="1px">
         <Heading size="md">Daftar Pesanan Terbaru</Heading>
       </Flex>
 
+      {/* Pagination controls */}
+      {orders.length > 0 && (
+        <Flex p={4} pt={2} pb={2} justify="space-between" align="center" wrap="wrap" gap={4}>
+          <HStack spacing={2} flex="1">
+            <Text fontSize="sm" color="gray.600">
+              Tampilkan:
+            </Text>
+            <Select
+              size="sm"
+              maxW="100px"
+              value={itemsPerPage}
+              onChange={(e) => {
+                const value = Number(e.target.value) || 10;
+                setItemsPerPage(value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+            </Select>
+            <Text fontSize="sm" color="gray.600">
+              data per halaman
+            </Text>
+          </HStack>
+
+          <HStack spacing={2}>
+            <Button
+              size="sm"
+              colorScheme="green"
+              leftIcon={<FaBox />}
+              onClick={exportToPDF}
+            >
+              Export PDF
+            </Button>
+          </HStack>
+
+          <HStack spacing={2}>
+            <Button
+              size="sm"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              isDisabled={safeCurrentPage === 1}
+            >
+              Prev
+            </Button>
+            <Text fontSize="sm">
+              Halaman {safeCurrentPage} dari {totalPages}
+            </Text>
+            <Button
+              size="sm"
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              isDisabled={safeCurrentPage >= totalPages}
+            >
+              Next
+            </Button>
+          </HStack>
+
+          <Text fontSize="sm" color="gray.600">
+            Total: {totalOrders} pesanan
+          </Text>
+        </Flex>
+      )}
+
       {orders.length > 0 ? (
         isMobile ? (
           <Accordion allowToggle>
-            {orders.map((order) => (
+            {paginatedOrders.map((order) => (
               <AccordionItem key={order.id} >
                 <AccordionButton >
                   <Box flex="1" textAlign="left" fontWeight="semibold">
@@ -508,7 +788,7 @@ const OutletDashboard: React.FC = () => {
                         {order.shipping_status}
                       </Badge>
                     </Box>
-                    <Box><strong>Tanggal:</strong> {new Date(order.created_at).toLocaleDateString()}</Box>
+                    <Box><strong>Tanggal:</strong> {formatDateShort(order.created_at)}</Box>
 
                     <HStack spacing={2} pt={2}>
                       <Button
@@ -523,6 +803,15 @@ const OutletDashboard: React.FC = () => {
 
                       {order.payment_status === 'settlement' && (
                         <>
+                          <Button
+                            size="sm"
+                            colorScheme="purple"
+                            variant="outline"
+                            onClick={() => handleOpenPhotoModal(order)}
+                          >
+                            Status Foto
+                          </Button>
+
                           <Select
                             size="sm"
                             width="auto"
@@ -589,7 +878,7 @@ const OutletDashboard: React.FC = () => {
                 </Tr>
               </Thead>
               <Tbody>
-                {orders.map((order) => (
+                {paginatedOrders.map((order) => (
                   <Tr key={order.id}>
                     <Td fontWeight="medium">{order.id}</Td>
                     <Td>{order.customer_name}</Td>
@@ -604,7 +893,7 @@ const OutletDashboard: React.FC = () => {
                         {order.shipping_status}
                       </Badge>
                     </Td>
-                    <Td>{new Date(order.created_at).toLocaleDateString()}</Td>
+                    <Td>{formatDateShort(order.created_at)}</Td>
                     <Td>
                       <HStack spacing={2}>
                         <Button
@@ -618,6 +907,15 @@ const OutletDashboard: React.FC = () => {
                         </Button>
                         {order.payment_status === 'settlement' && (
                           <HStack spacing={1}>
+                            <Button
+                              size="sm"
+                              colorScheme="purple"
+                              variant="outline"
+                              onClick={() => handleOpenPhotoModal(order)}
+                            >
+                              Status Foto
+                            </Button>
+
                             <Select
                               size="sm"
                               width="160px"
@@ -679,7 +977,7 @@ const OutletDashboard: React.FC = () => {
     </Box>
         
         {/* Status Foto Modal */}
-        <Modal isOpen={isPhotoModalOpen} onClose={onPhotoModalClose} size="xl">
+        <Modal isOpen={isPhotoModalOpen} onClose={handleClosePhotoModal} size="xl">
           <ModalOverlay />
           <ModalContent>
             <ModalHeader>
@@ -857,7 +1155,7 @@ const OutletDashboard: React.FC = () => {
               )}
             </ModalBody>
             <ModalFooter>
-              <Button colorScheme="gray" onClick={onPhotoModalClose}>
+              <Button colorScheme="gray" onClick={handleClosePhotoModal}>
                 Tutup
               </Button>
             </ModalFooter>
