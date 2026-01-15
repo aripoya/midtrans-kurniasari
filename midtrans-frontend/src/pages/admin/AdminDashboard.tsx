@@ -258,8 +258,8 @@ const AdminDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch orders data
-      const ordersResponse = await adminApi.getAdminOrders(0, 1000);
+      // Fetch orders data - use large limit to get all orders for dashboard stats
+      const ordersResponse = await adminApi.getAdminOrders(0, 10000);
       
       console.log('[AdminDashboard] Orders response:', ordersResponse);
       
