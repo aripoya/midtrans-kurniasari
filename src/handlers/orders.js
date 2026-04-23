@@ -655,19 +655,51 @@ export async function getOrders(request, env) {
       return new Response(JSON.stringify({ success: true, orders: [] }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
     }
 
-    const { results } = await env.DB.prepare('SELECT * FROM orders ORDER BY id DESC').all();
-    
-    const orders = await Promise.all(results.map(async (order) => {
-        const { results: items } = await env.DB.prepare('SELECT * FROM order_items WHERE order_id = ?').bind(order.id).all();
-        // Omit deprecated pickup_outlet from response payload
-        const { pickup_outlet, ...orderWithoutPickupOutlet } = order;
-        return {
-          ...orderWithoutPickupOutlet,
-          items,
-          // Ensure consistent payment status across endpoints
-          payment_status: derivePaymentStatusFromData(order)
-        };
-    }));
+    const url = new URL(request.url);
+    const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+    const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+
+    const { results } = await env.DB.prepare(
+      'SELECT * FROM orders WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?'
+    ).bind(limit, offset).all();
+
+    // Batch fetch all order items in ONE query to avoid "Too many API requests" error
+    // Instead of N queries (one per order), we do 1 query for all orders
+    const orderIds = (results || []).map(o => o.id);
+    let allOrderItems = [];
+
+    if (orderIds.length > 0) {
+      try {
+        const placeholders = orderIds.map(() => '?').join(',');
+        const itemsQuery = `SELECT * FROM order_items WHERE order_id IN (${placeholders})`;
+        const itemsResult = await env.DB.prepare(itemsQuery).bind(...orderIds).all();
+        allOrderItems = itemsResult?.results || [];
+      } catch (itemsError) {
+        console.error('Error batch fetching order items:', itemsError);
+        // Continue without items if batch fetch fails
+      }
+    }
+
+    // Group items by order_id for quick lookup
+    const itemsByOrderId = {};
+    allOrderItems.forEach(item => {
+      if (!itemsByOrderId[item.order_id]) {
+        itemsByOrderId[item.order_id] = [];
+      }
+      itemsByOrderId[item.order_id].push(item);
+    });
+
+    const orders = (results || []).map((order) => {
+      const items = itemsByOrderId[order.id] || [];
+      // Omit deprecated pickup_outlet from response payload
+      const { pickup_outlet, ...orderWithoutPickupOutlet } = order;
+      return {
+        ...orderWithoutPickupOutlet,
+        items,
+        // Ensure consistent payment status across endpoints
+        payment_status: derivePaymentStatusFromData(order)
+      };
+    });
 
     return new Response(JSON.stringify({ success: true, orders }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders }});
 
