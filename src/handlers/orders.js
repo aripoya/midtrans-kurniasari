@@ -1634,11 +1634,16 @@ export async function getDeliveryOrders(request, env) {
       }
     }
 
+    const url = new URL(request.url);
+    const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+    // Default high to avoid silently truncating existing callers that don't paginate yet
+    const limit = parseInt(url.searchParams.get('limit') || '500', 10);
+
     // Build comprehensive query for deliveryman orders with strict filters
     let deliveryQuery = `
       SELECT *
       FROM orders
-      WHERE 
+      WHERE
         (deleted_at IS NULL OR deleted_at = '')
         AND LOWER(COALESCE(shipping_area, '')) IN ('dalam_kota', 'dalam-kota', 'dalam kota')
         AND LOWER(COALESCE(pickup_method, '')) IN ('deliveryman', 'kurir toko', 'kurir_toko')
@@ -1649,10 +1654,12 @@ export async function getDeliveryOrders(request, env) {
     let queryParams = [deliverymanId];
 
     deliveryQuery += `
-      ORDER BY created_at DESC`;
-    
-    console.log(`🚚 Delivery query for user ${deliverymanId} (outlet_name: ${outletNameForUser || 'none'}):`, deliveryQuery);
-    
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?`;
+    queryParams.push(limit, offset);
+
+    console.log(`🚚 Delivery query for user ${deliverymanId} (outlet_name: ${outletNameForUser || 'none'}, offset=${offset}, limit=${limit}):`, deliveryQuery);
+
     const ordersResult = await env.DB.prepare(deliveryQuery).bind(...queryParams).all();
 
     if (!ordersResult.success) {
