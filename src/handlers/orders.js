@@ -1667,20 +1667,25 @@ export async function getDeliveryOrders(request, env) {
     const imagesByOrderId = {};
 
     if (orderIds.length > 0) {
-      try {
-        const placeholders = orderIds.map(() => '?').join(',');
-        const imagesQuery = `SELECT * FROM shipping_images WHERE order_id IN (${placeholders}) ORDER BY created_at DESC`;
-        const imagesResult = await env.DB.prepare(imagesQuery).bind(...orderIds).all();
-        const allImages = imagesResult?.results || [];
-        allImages.forEach(img => {
-          if (!imagesByOrderId[img.order_id]) {
-            imagesByOrderId[img.order_id] = [];
-          }
-          imagesByOrderId[img.order_id].push(img);
-        });
-      } catch (imagesError) {
-        console.error('Error batch fetching shipping_images:', imagesError);
-        // Continue without images if batch fetch fails
+      // D1/SQLite caps bound variables per statement (~100), so chunk the IN() list
+      const CHUNK_SIZE = 100;
+      for (let i = 0; i < orderIds.length; i += CHUNK_SIZE) {
+        const chunk = orderIds.slice(i, i + CHUNK_SIZE);
+        try {
+          const placeholders = chunk.map(() => '?').join(',');
+          const imagesQuery = `SELECT * FROM shipping_images WHERE order_id IN (${placeholders}) ORDER BY created_at DESC`;
+          const imagesResult = await env.DB.prepare(imagesQuery).bind(...chunk).all();
+          const chunkImages = imagesResult?.results || [];
+          chunkImages.forEach(img => {
+            if (!imagesByOrderId[img.order_id]) {
+              imagesByOrderId[img.order_id] = [];
+            }
+            imagesByOrderId[img.order_id].push(img);
+          });
+        } catch (imagesError) {
+          console.error('Error batch fetching shipping_images chunk:', imagesError);
+          // Continue with remaining chunks; affected orders will fall back to empty images
+        }
       }
     }
 
