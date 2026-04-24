@@ -1661,41 +1661,42 @@ export async function getDeliveryOrders(request, env) {
 
     const orders = ordersResult.results || [];
 
-    // Process each order to add additional data
-    const processedOrders = [];
-    for (const order of orders) {
+    // Batch fetch all shipping_images in ONE query to avoid "Too many API requests" error
+    // Instead of N queries (one per order), we do 1 query for all orders
+    const orderIds = orders.map(o => o.id);
+    const imagesByOrderId = {};
+
+    if (orderIds.length > 0) {
       try {
-        // Fetch shipping images for this order
-        const shippingImagesResult = await env.DB.prepare(
-          'SELECT * FROM shipping_images WHERE order_id = ? ORDER BY created_at DESC'
-        ).bind(order.id).all();
-        
-        const shipping_images = shippingImagesResult.results || [];
-
-        // Omit deprecated pickup_outlet from response
-        const { pickup_outlet, ...orderClean } = order;
-
-        // Add processed order with shipping images
-        processedOrders.push({
-          ...orderClean,
-          shipping_images,
-          // Ensure consistent defaults and derived fields
-          shipping_status: order.shipping_status || 'menunggu diproses',
-          // Include derived payment status for consistency
-          payment_status: derivePaymentStatusFromData(order)
+        const placeholders = orderIds.map(() => '?').join(',');
+        const imagesQuery = `SELECT * FROM shipping_images WHERE order_id IN (${placeholders}) ORDER BY created_at DESC`;
+        const imagesResult = await env.DB.prepare(imagesQuery).bind(...orderIds).all();
+        const allImages = imagesResult?.results || [];
+        allImages.forEach(img => {
+          if (!imagesByOrderId[img.order_id]) {
+            imagesByOrderId[img.order_id] = [];
+          }
+          imagesByOrderId[img.order_id].push(img);
         });
-      } catch (imageError) {
-        console.error(`Error fetching images for order ${order.id}:`, imageError);
-        // Continue with order but without images
-        const { pickup_outlet, ...orderClean } = order;
-        processedOrders.push({
-          ...orderClean,
-          shipping_images: [],
-          shipping_status: order.shipping_status || 'menunggu diproses',
-          payment_status: derivePaymentStatusFromData(order)
-        });
+      } catch (imagesError) {
+        console.error('Error batch fetching shipping_images:', imagesError);
+        // Continue without images if batch fetch fails
       }
     }
+
+    const processedOrders = orders.map((order) => {
+      const shipping_images = imagesByOrderId[order.id] || [];
+      // Omit deprecated pickup_outlet from response
+      const { pickup_outlet, ...orderClean } = order;
+      return {
+        ...orderClean,
+        shipping_images,
+        // Ensure consistent defaults and derived fields
+        shipping_status: order.shipping_status || 'menunggu diproses',
+        // Include derived payment status for consistency
+        payment_status: derivePaymentStatusFromData(order)
+      };
+    });
 
     return new Response(JSON.stringify({
       success: true,
