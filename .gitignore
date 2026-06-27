@@ -92,3 +92,9 @@ temp/
 # Local Netlify folder
 .netlify
 login.json
+
+# Claude Code
+.claude/
+
+# Backup files
+*.bak
