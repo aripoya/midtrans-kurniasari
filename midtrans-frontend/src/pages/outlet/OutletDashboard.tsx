@@ -543,11 +543,11 @@ const OutletDashboard: React.FC = () => {
   };
 
   // Helper function to format payment status display text
-  const getPaymentStatusText = (status: string): string => {
+  const getPaymentStatusText = (status: string | null | undefined): string => {
     switch(status) {
       case 'settlement': return 'LUNAS';
       case 'pending': return 'PENDING';
-      default: return status.toUpperCase();
+      default: return status ? status.toUpperCase() : '-';
     }
   };
 
