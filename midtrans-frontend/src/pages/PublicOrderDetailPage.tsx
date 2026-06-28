@@ -676,12 +676,12 @@ const PublicOrderDetailPage = () => {
                               order.courier_service.toUpperCase()
                             }</Text>
                             
-                            {/* WhatsApp button for Rudi or Fendi */}
+                            {/* WhatsApp button for Rudi or Ravi */}
                             {(() => {
                               const courierName = order.courier_service?.toLowerCase();
                               const driverWhatsApp: { [key: string]: { phone: string; name: string } } = {
-                                'rudi': { phone: '6285123323166', name: 'Rudi' },
-                                'fendi': { phone: '6285178108852', name: 'Fendi' }
+                                'rudi': { phone: '6285178108852', name: 'Rudi' },
+                                'ravi': { phone: '6285123323166', name: 'Ravi' }
                               };
                               
                               const driver = driverWhatsApp[courierName];
