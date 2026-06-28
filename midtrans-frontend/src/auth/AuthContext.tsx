@@ -84,8 +84,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Check if user is logged in on app load
   useEffect(() => {
     const checkLoggedIn = async (): Promise<void> => {
-      const token = sessionStorage.getItem('token');
-      const storedUser = sessionStorage.getItem('user');
+      const token = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
       
       if (token && storedUser) {
         try {
@@ -130,8 +130,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('[DEBUG] Login API Response:', data);
 
       if (response.ok && data.token && data.user) {
-        // Store token and user data in sessionStorage (tab-isolated)
-        sessionStorage.setItem('token', data.token);
+        // Store token and user data in localStorage (persistent across tabs)
+        localStorage.setItem('token', data.token);
         
         const userData: User = {
           id: data.user.id,
@@ -142,9 +142,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         };
         
         setUser(userData);
-        sessionStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('user', JSON.stringify(userData));
         setIsLoggedIn(true);
-        console.log('[DEBUG] Token and user stored successfully in sessionStorage.');
+        console.log('[DEBUG] Token and user stored successfully in localStorage.');
         
         return { success: true, user: userData };
       } else {
@@ -163,8 +163,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const prevRole = user?.role;
     setUser(null);
     setIsLoggedIn(false);
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('user');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     if (prevRole === 'admin') {
       navigate('/admin/login');
     } else {

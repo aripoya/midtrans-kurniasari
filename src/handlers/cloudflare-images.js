@@ -12,10 +12,47 @@
 export async function uploadToCloudflareImages(file, env) {
   try {
     const { CLOUDFLARE_ACCOUNT_ID, CF_IMAGES_TOKEN } = env;
-    
+
+    // Fallback: jika kredensial Cloudflare Images belum dikonfigurasi,
+    // upload langsung ke bucket R2 SHIPPING_IMAGES agar fitur tetap bekerja.
     if (!CLOUDFLARE_ACCOUNT_ID || !CF_IMAGES_TOKEN) {
-      throw new Error('Cloudflare Images credentials not configured');
+      console.warn('[CloudflareImages] Credentials not configured. Falling back to R2 bucket upload.');
+
+      if (!env.SHIPPING_IMAGES) {
+        throw new Error('Neither Cloudflare Images nor SHIPPING_IMAGES bucket is configured');
+      }
+
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).slice(2, 8);
+      const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop() : 'jpg';
+      const fileName = `fallback_${timestamp}_${random}.${ext}`;
+
+      await env.SHIPPING_IMAGES.put(fileName, file, {
+        httpMetadata: {
+          contentType: file.type || 'image/jpeg',
+        },
+      });
+
+      const imageUrl = `https://proses.kurniasari.co.id/${fileName}`;
+
+      return {
+        success: true,
+        data: {
+          imageId: null,
+          imageUrl,
+          publicUrl: imageUrl,
+          variants: {
+            thumbnail: imageUrl,
+            medium: imageUrl,
+            large: imageUrl,
+            public: imageUrl,
+          },
+          metadata: { fallback: 'r2', uploadedAt: new Date().toISOString() },
+        },
+      };
     }
+
+    // --- Normal path: upload ke Cloudflare Images API ---
 
     // Create FormData for Cloudflare Images API
     const formData = new FormData();

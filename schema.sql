@@ -13,14 +13,15 @@ CREATE TABLE orders (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Order items table
+-- Order items table (FK constraint removed for D1 compatibility)
 CREATE TABLE order_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    order_id TEXT REFERENCES orders(id),
+    order_id TEXT NOT NULL,
     product_name TEXT NOT NULL,
-    product_price INTEGER NOT NULL,
+    product_price REAL NOT NULL,
     quantity INTEGER NOT NULL,
-    subtotal INTEGER NOT NULL
+    subtotal REAL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes for better performance
@@ -40,10 +41,10 @@ CREATE TABLE products (
 -- Index for product name search
 CREATE INDEX idx_products_name ON products(name);
 
--- Shipping images table
+-- Shipping images table (FK constraint removed for D1 compatibility)
 CREATE TABLE IF NOT EXISTS shipping_images (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    order_id TEXT NOT NULL REFERENCES orders(id),
+    order_id TEXT NOT NULL,
     image_type TEXT NOT NULL, -- 'ready_for_pickup', 'picked_up', 'delivered'
     image_url TEXT NOT NULL, -- URL to the image in R2
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

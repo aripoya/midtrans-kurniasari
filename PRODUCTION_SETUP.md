@@ -126,7 +126,7 @@ const CONFIG = {
 ```bash
 # From the project root
 cd order-management-frontend
-# Deploy using your preferred method (Cloudflare Pages, Netlify, etc.)
+# Deploy using Cloudflare Pages
 ```
 
 ## 🔒 Step 6: Security Configuration

@@ -1,5 +1,6 @@
-import axios, { AxiosResponse } from "axios";
+import axios, { AxiosResponse, AxiosError } from "axios";
 import { API_URL } from "./config";
+import apiClient from "./api"; // Import apiClient with retry mechanism and timeout config
 
 
 // TypeScript interfaces for API responses and data structures
@@ -101,6 +102,25 @@ export interface ApiResponse<T = any> {
   success: boolean;
   data: T | null;
   error: string | null;
+}
+
+export type AiChatIntent = "query" | "info" | "greeting" | "error" | "analysis";
+
+export type AiChatRole = 'user' | 'assistant';
+
+export interface AiChatHistoryItem {
+  role: AiChatRole;
+  content: string;
+}
+
+export interface AiChatResponse {
+  intent: AiChatIntent;
+  message?: string;
+  sql?: string;
+  data?: any;
+  count?: number;
+  success?: boolean;
+  error?: string;
 }
 
 export interface LoginResponse {
@@ -232,6 +252,12 @@ export interface ResetPasswordRequest {
   password: string;
 }
 
+export interface SyncPaymentStatusResponse {
+  payment_status?: string;
+  transaction_status?: string;
+  midtrans_response?: any;
+}
+
 // Helper function to get admin token
 // Prefer localStorage (used by login), fallback to sessionStorage for compatibility
 const getAdminToken = (): string | null => {
@@ -287,6 +313,54 @@ export const adminApi = {
           error.response?.data?.error ||
           error.message ||
           "Error saat mengambil detail pesanan",
+      };
+    }
+  },
+
+  syncPaymentStatusFromMidtrans: async (orderId: string): Promise<ApiResponse<SyncPaymentStatusResponse>> => {
+    try {
+      const token = getAdminToken();
+      if (!token) {
+        return {
+          success: false,
+          data: null,
+          error: "Sesi login berakhir. Silakan login ulang.",
+        };
+      }
+
+      const response: AxiosResponse = await axios.post(
+        `${API_URL}/api/admin/orders/${orderId}/sync-payment-status`,
+        {},
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data: any = response.data;
+      if (data?.success === false) {
+        return { success: false, data: null, error: data?.error || 'Gagal sinkron status pembayaran' };
+      }
+
+      return {
+        success: true,
+        data: {
+          payment_status: data?.payment_status,
+          transaction_status: data?.transaction_status,
+          midtrans_response: data?.midtrans_response,
+        },
+        error: null,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        data: null,
+        error:
+          error.response?.data?.error ||
+          error.message ||
+          "Error saat sinkron status pembayaran",
       };
     }
   },
@@ -409,20 +483,29 @@ export const adminApi = {
   // Mendapatkan daftar lengkap pesanan untuk admin
   getAdminOrders: async (
     offset: number = 0,
-    limit: number = 50
+    limit: number = 50,
+    search: string = ''
   ): Promise<OrdersResponse> => {
     try {
       console.log("[DEBUG] Fetching admin orders...");
       console.log("[DEBUG] Using endpoint:", `${API_URL}/api/orders/admin`);
       console.log("[DEBUG] Token:", getAdminToken() ? "Present" : "Missing");
+      console.log("[DEBUG] Search term:", search);
 
-      const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/orders/admin`,
+      const params: any = {
+        offset,
+        limit,
+      };
+      
+      if (search.trim()) {
+        params.search = search.trim();
+      }
+
+      // Use apiClient with retry mechanism and 60s timeout for slow ISPs
+      const response: AxiosResponse = await apiClient.get(
+        `/api/orders/admin`,
         {
-          params: {
-            offset,
-            limit,
-          },
+          params,
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${getAdminToken()}`,
@@ -435,14 +518,16 @@ export const adminApi = {
       // Handle different response structures from the API
       if (response.data?.success && Array.isArray(response.data?.orders)) {
         const orders: Order[] = response.data.orders;
+        const pagination = response.data.pagination || {};
         console.log("[DEBUG] Found orders array with length:", orders.length);
+        console.log("[DEBUG] Pagination data:", pagination);
         return {
           success: true,
           data: {
             orders,
-            total: response.data.total || orders.length,
-            offset: response.data.offset || offset,
-            limit: response.data.limit || limit,
+            total: pagination.total || response.data.total || orders.length,
+            offset: pagination.offset || response.data.offset || offset,
+            limit: pagination.limit || response.data.limit || limit,
           },
           error: null,
         };
@@ -521,11 +606,23 @@ export const adminApi = {
       console.log("📸 Image Type:", imageType);
       console.log("📁 File:", imageFile.name);
 
+      // Backend hanya menerima imageType: siap_kirim, pengiriman, diterima, shipment_proof
+      // Lakukan mapping dari nilai di frontend ke nilai backend yang valid
+      const backendImageTypeMap: Record<string, string> = {
+        ready_for_pickup: "siap_kirim",
+        picked_up: "pengiriman",
+        delivered: "diterima",
+        shipment_proof: "shipment_proof",
+        packaged_product: "siap_kirim",
+      };
+
+      const mappedImageType = backendImageTypeMap[imageType] || imageType;
+
       const formData = new FormData();
       formData.append("image", imageFile);
-      formData.append("imageType", imageType);
+      formData.append("imageType", mappedImageType);
       const response: AxiosResponse<any> = await axios.post(
-        `${API_URL}/api/shipping/images/${orderId}/${imageType}`,
+        `${API_URL}/api/orders/${orderId}/shipping-images`,
         formData,
         {
           headers: {
@@ -580,7 +677,7 @@ export const adminApi = {
       console.log(`🔍 [adminApi.getShippingImages] Fetching images for order: ${orderId}`);
       
       const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/shipping/images/${orderId}`,
+        `${API_URL}/api/orders/${orderId}/shipping-images`,
         {
           headers: {
             Authorization: `Bearer ${getAdminToken()}`,
@@ -740,6 +837,36 @@ export const adminApi = {
     localStorage.removeItem("token");
   },
 
+  aiChat: async (message: string, history?: AiChatHistoryItem[]): Promise<ApiResponse<AiChatResponse>> => {
+    try {
+      const token = getAdminToken();
+      if (!token) {
+        return { success: false, data: null, error: "Token tidak ditemukan. Silakan login ulang." };
+      }
+
+      const response: AxiosResponse = await axios.post(
+        `${API_URL}/api/ai/chat`,
+        { message, history },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      return { success: true, data: response.data as AiChatResponse, error: null };
+    } catch (error: any) {
+      const msg =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        "Gagal memanggil AI";
+
+      return { success: false, data: null, error: msg };
+    }
+  },
+
   // Verifica si el usuario está autenticado como admin
   isAuthenticated: (): boolean => {
     return !!getAdminToken();
@@ -750,7 +877,7 @@ export const adminApi = {
   getDeliveryOrders: async (): Promise<OrdersResponse> => {
     try {
       const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/orders/delivery`,
+        `${API_URL}/api/orders/delivery?_t=${Date.now()}`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -778,20 +905,41 @@ export const adminApi = {
     try {
       const params: any = {};
       if (status) params.status = status;
-      const response: AxiosResponse = await axios.get(
-        `${API_URL}/api/delivery/overview`,
+      // Aggressive cache-busting for Chrome iOS on XL ISP
+      // Combine timestamp + random string to bypass aggressive caching
+      params.t = Date.now();
+      params._cb = Math.random().toString(36).substring(7); // Random cache-buster
+      
+      console.log('📡 Fetching delivery overview with retry mechanism...');
+      console.log('🔍 User Agent:', navigator.userAgent);
+      console.log('🔍 Cache-busting params:', params);
+      
+      // Use apiClient with retry mechanism and 60s timeout for slow ISPs (XL, Indihome)
+      const response: AxiosResponse = await apiClient.get(
+        `/api/delivery/overview`,
         {
           params,
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${getAdminToken()}`,
+            // Force no-cache for Chrome iOS
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
           },
         }
       );
 
+      console.log('✅ Delivery overview loaded successfully');
       return { success: true, data: response.data, error: null };
     } catch (error: any) {
-      console.error('Error getting delivery overview:', error);
+      console.error('❌ Error getting delivery overview after retries:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        response: error.response?.data,
+        userAgent: navigator.userAgent
+      });
       return {
         success: false,
         data: null,
@@ -1206,6 +1354,250 @@ export const adminApi = {
           success: false,
           data: null,
           error: error.response?.data?.error || error.message || "Error getting admin stats",
+        };
+      });
+  },
+
+  getRevenueStats(period: 'monthly' | 'weekly' = 'monthly'): Promise<ApiResponse<any[]>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/revenue-stats?period=${period}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any[]>>) => {
+        return response.data;
+      })
+      .catch((error) => {
+        console.error("Error getting revenue stats:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting revenue stats",
+        };
+      });
+  },
+
+  getLuarKotaStats(): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/luar-kota-report?type=stats`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting luar kota stats:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting luar kota stats",
+        };
+      });
+  },
+
+  getLuarKotaOrders(options: {
+    offset?: number;
+    limit?: number;
+    payment_status?: string;
+    shipping_status?: string;
+    courier_service?: string;
+    date_from?: string;
+    date_to?: string;
+    search?: string;
+  } = {}): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    // Build query parameters
+    const params = new URLSearchParams({ type: 'orders' });
+    if (options.offset !== undefined) params.append('offset', String(options.offset));
+    if (options.limit !== undefined) params.append('limit', String(options.limit));
+    if (options.payment_status) params.append('payment_status', options.payment_status);
+    if (options.shipping_status) params.append('shipping_status', options.shipping_status);
+    if (options.courier_service) params.append('courier_service', options.courier_service);
+    if (options.date_from) params.append('date_from', options.date_from);
+    if (options.date_to) params.append('date_to', options.date_to);
+    if (options.search) params.append('search', options.search);
+
+    return axios
+      .get(`${API_URL}/api/admin/luar-kota-report?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting luar kota orders:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting luar kota orders",
+        };
+      });
+  },
+
+  getLuarKotaWeeklyBreakdown(year: number, month: number): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/luar-kota-report?type=weekly&year=${year}&month=${month}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting weekly breakdown:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting weekly breakdown",
+        };
+      });
+  },
+
+  getDalamKotaStats(): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/dalam-kota-report?type=stats`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting dalam kota stats:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting dalam kota stats",
+        };
+      });
+  },
+
+  getDalamKotaOrders(options: {
+    offset?: number;
+    limit?: number;
+    payment_status?: string;
+    shipping_status?: string;
+    pickup_method?: string;
+    date_from?: string;
+    date_to?: string;
+    search?: string;
+  } = {}): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    // Build query parameters
+    const params = new URLSearchParams({ type: 'orders' });
+    if (options.offset !== undefined) params.append('offset', String(options.offset));
+    if (options.limit !== undefined) params.append('limit', String(options.limit));
+    if (options.payment_status) params.append('payment_status', options.payment_status);
+    if (options.shipping_status) params.append('shipping_status', options.shipping_status);
+    if (options.pickup_method) params.append('pickup_method', options.pickup_method);
+    if (options.date_from) params.append('date_from', options.date_from);
+    if (options.date_to) params.append('date_to', options.date_to);
+    if (options.search) params.append('search', options.search);
+
+    return axios
+      .get(`${API_URL}/api/admin/dalam-kota-report?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting dalam kota orders:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting dalam kota orders",
+        };
+      });
+  },
+
+  getDalamKotaWeeklyBreakdown(year: number, month: number): Promise<ApiResponse<any>> {
+    const token = getAdminToken();
+    if (!token) {
+      return Promise.resolve({
+        success: false,
+        data: null,
+        error: "No admin token available",
+      });
+    }
+
+    return axios
+      .get(`${API_URL}/api/admin/dalam-kota-report?type=weekly&year=${year}&month=${month}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      .then((response: AxiosResponse<ApiResponse<any>>) => {
+        return response.data;
+      })
+      .catch((error: AxiosError<ApiResponse<any>>) => {
+        console.error("Error getting weekly breakdown:", error);
+        return {
+          success: false,
+          data: null,
+          error: error.response?.data?.error || error.message || "Error getting weekly breakdown",
         };
       });
   },
