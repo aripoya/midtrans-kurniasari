@@ -858,7 +858,7 @@ const AdminOrderDetailPage: React.FC = () => {
                       placeholder="Pilih nama kurir toko"
                     >
                       <option value="rudi">Rudi</option>
-                      <option value="fendi">Fendi</option>
+                      <option value="ravi">Ravi</option>
                     </Select>
                   ) : (
                     <Input
