@@ -13,7 +13,7 @@ import { getProducts, createProduct, updateProduct, deleteProduct } from './hand
 import { registerUser, loginUser, getUserProfile, getOutlets, createOutlet } from './handlers/auth.js';
 import { verifyToken, handleMiddlewareError, requireAdmin, requireOrderAccess } from './handlers/middleware.js';
 import { getUsers, createUser, updateUser, deleteUser, resetUserPassword } from './handlers/user-management.js'; // Import user management handlers
-import { resetOutletPassword, checkDatabaseSchema, createCustomersTable, testLogin, getTableSchema, analyzeOutletLocations, createRealOutlets, mapOrdersToOutlets, resetAdminPasswordForDebug, debugDeliveryAssignments, addEmailColumnToUsers, addUpdatedAtColumnToUsers, debugCreateOrderUpdateLogsTable, modifyUpdateOrderStatus, debugOrderDetails, debugOutletSync } from './handlers/debug.js';
+import { checkDatabaseSchema, createCustomersTable, getTableSchema, analyzeOutletLocations, createRealOutlets, mapOrdersToOutlets, debugDeliveryAssignments, addEmailColumnToUsers, addUpdatedAtColumnToUsers, debugCreateOrderUpdateLogsTable, modifyUpdateOrderStatus, debugOrderDetails, debugOutletSync } from './handlers/debug.js';
 import { migrateExistingOrdersToOutlets, getMigrationStatus } from './handlers/migrate-outlets.js';
 import { createRelationalDBStructure, getRelationalDBStatus } from './handlers/migrate-relational-db.js';
 import { migrateSafeRelationalDB, getSafeMigrationStatus } from './handlers/migrate-safe-db.js';
@@ -1461,60 +1461,8 @@ router.get('/api/debug/test-login', async (request, env) => {
 });
 
 // Debug endpoint to reset outlet password (TEMPORARY - REMOVE AFTER USE)
-router.get('/api/debug/reset-outlet-password', async (request, env) => {
-    try {
-        console.log('RESET PASSWORD: Starting outlet password reset');
-        if (!env.DB) {
-            return new Response(JSON.stringify({
-                success: false,
-                error: 'Database binding not available'
-            }), {
-                status: 500,
-                headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
-            });
-        }
-
-        // Import bcryptjs
-        const bcrypt = require('bcryptjs');
-
-        // Generate a new password hash
-        console.log('RESET PASSWORD: Generating password hash');
-        const username = 'outlet'; // Correct username from DB
-        const password = 'outlet123';
-        console.log('RESET PASSWORD: Generating hash for', username);
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-        console.log('RESET PASSWORD: New hash generated for user:', username, hashedPassword);
-
-        // Update the outlet user
-        console.log('RESET PASSWORD: Updating user with new hash');
-        const result = await env.DB.prepare(
-            'UPDATE users SET password = ? WHERE username = ?'
-        ).bind(hashedPassword, username).run();
-
-        console.log('RESET PASSWORD: Update result:', JSON.stringify(result));
-
-        return new Response(JSON.stringify({
-            success: true,
-            message: 'Outlet password reset successfully',
-            hash_generated: hashedPassword,
-            affected_rows: result.meta.changes
-        }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
-        });
-    } catch (error) {
-        console.error('RESET PASSWORD ERROR:', error);
-        return new Response(JSON.stringify({
-            success: false,
-            error: error.message,
-            stack: error.stack
-        }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders(request) }
-        });
-    }
-});
+// REMOVED: /api/debug/reset-outlet-password — reset the outlet account to a
+// hardcoded password ('outlet123'). Use the proper, secret-gated flow instead.
 
 // Debug endpoint to add email column to users table
 router.post('/api/debug/add-email-column', async (request, env) => {
@@ -2159,12 +2107,7 @@ router.get('/api/debug/table-schema', (request, env) => {
     return getTableSchema(request, env);
 });
 
-// DEBUG ONLY endpoints
-// Reset outlet password for debug purposes
-router.get('/api/debug/reset-outlet-password', (request, env) => {
-    request.corsHeaders = corsHeaders(request);
-    return resetOutletPassword(request, env);
-});
+// REMOVED: duplicate /api/debug/reset-outlet-password (hardcoded reset).
 
 // Create order_update_logs table for tracking status changes
 router.get('/api/debug/create-order-update-logs-table', (request, env) => {

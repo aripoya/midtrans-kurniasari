@@ -1,40 +1,7 @@
 import { createNotification } from './notifications.js';
 
-export async function resetOutletPassword(request, env) {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
-
-  try {
-    const bcrypt = await import('bcryptjs');
-    const hashedPassword = await bcrypt.hash('outlet123', 10);
-    
-    const result = await env.DB.prepare(
-      `UPDATE users SET password = ? WHERE username = ?`
-    ).bind(hashedPassword, 'outlet').run();
-    
-    return new Response(JSON.stringify({
-      success: true,
-      message: 'Outlet password reset successfully',
-      changes: result.changes,
-      hashedPassword: hashedPassword
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({
-      success: false,
-      message: 'Failed to reset outlet password',
-      error: error.message
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-}
+// REMOVED: resetOutletPassword() — reset the outlet account to a hardcoded
+// password ('outlet123'). Dangerous; deleted during security hardening.
 
 export async function checkDatabaseSchema(request, env) {
   const corsHeaders = {
@@ -584,51 +551,8 @@ export async function createRealOutlets(request, env) {
   }
 }
 
-export async function resetAdminPasswordForDebug(request, env) {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
-
-  try {
-    const bcrypt = await import('bcryptjs');
-    const newPassword = 'password123';
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    
-    const result = await env.DB.prepare(
-      `UPDATE users SET password = ? WHERE username = ?`
-    ).bind(hashedPassword, 'admin').run();
-
-    if (result.changes === 0) {
-        return new Response(JSON.stringify({
-          success: false,
-          message: 'Admin user not found. No password was reset.',
-        }), {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-    }
-    
-    return new Response(JSON.stringify({
-      success: true,
-      message: 'Admin password reset successfully to "password123"',
-      changes: result.changes,
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({
-      success: false,
-      message: 'Failed to reset admin password',
-      error: error.message
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-}
+// REMOVED: resetAdminPasswordForDebug() — reset the admin account to a hardcoded
+// password ('password123'). Dangerous; deleted during security hardening.
 
 export async function debugDeliveryAssignments(request, env) {
   const corsHeaders = {
