@@ -68,7 +68,10 @@ const corsHeaders = (request) => {
     } else if (origin && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
         allowedOrigin = origin; // Allow any localhost/127.0.0.1 origin for development
     } else {
-        allowedOrigin = '*'; // Fallback to allow all for testing
+        // Do NOT reflect unknown origins or fall back to '*' (especially with
+        // Allow-Credentials: true). Pin to the canonical production frontend so
+        // disallowed cross-origin browser requests are blocked by the browser.
+        allowedOrigin = 'https://nota.kurniasari.co.id';
     }
 
     return {
@@ -93,6 +96,24 @@ router.options('*', (request) => {
         status: 204, // 204 No Content is standard for OPTIONS
         headers: headers
     });
+});
+
+// SECURITY GUARD: every /api/debug/* endpoint requires an authenticated admin.
+// These are developer/maintenance tools (DB dumps, schema changes, password
+// resets) and must never be reachable anonymously. Registered before the debug
+// routes so it runs first; returning nothing lets the real handler proceed.
+router.all('/api/debug/*', async (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    const authResult = await verifyToken(request, env);
+    if (authResult) return authResult; // 401 on missing/invalid/expired token
+    const adminCheck = requireAdmin(request);
+    if (!adminCheck.success) {
+        return new Response(JSON.stringify({ success: false, message: adminCheck.message }), {
+            status: adminCheck.status,
+            headers: { 'Content-Type': 'application/json', ...request.corsHeaders }
+        });
+    }
+    // Authenticated admin — fall through to the actual debug handler.
 });
 
 // Admin: Inspect users table schema
@@ -450,15 +471,15 @@ router.get('/api/products', (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return getProducts(request, env);
 });
-router.post('/api/products', (request, env) => {
+router.post('/api/products', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return createProduct(request, env);
 });
-router.put('/api/products/:id', (request, env) => {
+router.put('/api/products/:id', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return updateProduct(request, env);
 });
-router.delete('/api/products/:id', (request, env) => {
+router.delete('/api/products/:id', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return deleteProduct(request, env);
 });
@@ -1125,7 +1146,8 @@ router.options('/api/shipping/images/:orderId', async (request, env) => {
 });
 
 // WORKING SHIPPING IMAGES ENDPOINT - bypasses route conflicts  
-router.get('/api/test-shipping-photos/:orderId', async (request, env) => {
+router.get('/api/test-shipping-photos/:orderId', verifyToken, async (request, env) => {
+    request.corsHeaders = corsHeaders(request);
     console.log('🔍 [SHIPPING PHOTOS] Request for orderId:', request.params?.orderId);
 
     try {
@@ -2834,8 +2856,7 @@ export default {
                 has_MIDTRANS_CLIENT_KEY: !!env.MIDTRANS_CLIENT_KEY,
                 has_MIDTRANS_IS_PRODUCTION: !!env.MIDTRANS_IS_PRODUCTION,
                 has_APP_NAME: !!env.APP_NAME,
-                has_JWT_SECRET: !!env.JWT_SECRET, // Check for JWT_SECRET
-                jwt_secret_preview: env.JWT_SECRET ? env.JWT_SECRET.substring(0, 3) + '...' : 'NOT SET' // Preview, don't log the whole secret
+                has_JWT_SECRET: !!env.JWT_SECRET // Check for JWT_SECRET (never log any part of the secret)
             });
 
             console.log('About to call router.handle');

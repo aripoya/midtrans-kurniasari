@@ -201,8 +201,8 @@ export async function fixOutletOrderAssignment(request, env) {
       });
     }
     
-    // 1. Find or create outlet
-    let outlet = await env.DB.prepare(`SELECT id, name FROM outlets WHERE LOWER(name) LIKE LOWER('%${outletName}%')`).first();
+    // 1. Find or create outlet (parameterized to avoid SQL injection)
+    let outlet = await env.DB.prepare(`SELECT id, name FROM outlets WHERE LOWER(name) LIKE LOWER(?)`).bind(`%${outletName}%`).first();
     
     if (!outlet) {
       // Create outlet if not exists

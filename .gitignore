@@ -15,6 +15,12 @@ yarn-error.log*
 .wrangler/
 wrangler.toml.backup
 
+# Secrets — never commit (rotate any that were committed previously)
+.dev.vars
+.env.production
+test-token.html
+login.json
+
 # Build outputs
 dist/
 build/
