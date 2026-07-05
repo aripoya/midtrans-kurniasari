@@ -2393,13 +2393,25 @@ export async function updateOrderDetails(request, env) {
         updateFields.push('courier_service = ?'); 
         updateParams.push(courier_service);
         
-        // Also update assigned_deliveryman_id when courier_service changes
-        // Map courier name to deliveryman ID
+        // Also update assigned_deliveryman_id when courier_service changes.
+        // Resolve courier name against the users table so renaming/adding a
+        // courier doesn't silently break the mapping (see Fendi→Ravi rename).
         let deliverymanId = null;
-        if (courier_service && courier_service.toLowerCase() === 'rudi') {
-          deliverymanId = 'usr_1755672750527_49dznt';
-        } else if (courier_service && courier_service.toLowerCase() === 'fendi') {
-          deliverymanId = 'usr_1755672660126_bbil5p';
+        if (courier_service) {
+          try {
+            const courierUser = await env.DB.prepare(`
+              SELECT id FROM users
+              WHERE role = 'deliveryman'
+                AND (LOWER(username) = LOWER(?) OR LOWER(name) = LOWER(?))
+            `).bind(courier_service, courier_service).first();
+            if (courierUser && courierUser.id) {
+              deliverymanId = courierUser.id;
+            } else {
+              console.warn(`[updateOrderDetails] No deliveryman user matches courier_service "${courier_service}". Setting assigned_deliveryman_id NULL.`);
+            }
+          } catch (courierLookupErr) {
+            console.warn('[updateOrderDetails] Failed to resolve courier_service to deliveryman. Setting NULL. Error:', courierLookupErr?.message || courierLookupErr);
+          }
         }
         updateFields.push('assigned_deliveryman_id = ?');
         updateParams.push(deliverymanId);
