@@ -262,7 +262,9 @@ router.post('/api/orders', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return createOrder(request, env);
 });
-router.get('/api/orders', (request, env) => {
+// List of ALL orders (with customer PII) — admin only. Public order tracking
+// uses GET /api/orders/:id, which stays anonymous.
+router.get('/api/orders', verifyToken, (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return getOrders(request, env);
 });
@@ -1146,7 +1148,13 @@ router.options('/api/shipping/images/:orderId', async (request, env) => {
 });
 
 // WORKING SHIPPING IMAGES ENDPOINT - bypasses route conflicts  
-router.get('/api/test-shipping-photos/:orderId', verifyToken, async (request, env) => {
+// NOTE: intentionally anonymous. This read-only endpoint backs the public
+// customer nota page (PublicOrderDetailPage), which has no login/token. It only
+// returns image_url values that already point to the public R2 domain
+// (proses.kurniasari.co.id), and the same orderId already exposes fuller order
+// detail publicly — so requiring auth here breaks photo display for zero benefit.
+// (Regression: verifyToken was added in 5a02d77 and blanked out all photos.)
+router.get('/api/test-shipping-photos/:orderId', async (request, env) => {
     request.corsHeaders = corsHeaders(request);
     console.log('🔍 [SHIPPING PHOTOS] Request for orderId:', request.params?.orderId);
 
