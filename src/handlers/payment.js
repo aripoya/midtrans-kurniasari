@@ -75,12 +75,17 @@ export function buildChargePayload(order, bank) {
   // Midtrans rejects the charge when item_details do not add up to gross_amount,
   // so only send them when they reconcile exactly.
   const normalizedItems = (items || [])
-    .map(item => ({
-      id: String(item.id ?? item.product_id ?? ''),
-      name: String(item.name ?? item.product_name ?? 'Item'),
-      price: Number(item.price ?? item.product_price ?? 0),
-      quantity: Number(item.quantity ?? 0),
-    }))
+    .map(item => {
+      // Midtrans rejects an empty id outright, and caps name at 50 characters.
+      const id = String(item.id ?? item.product_id ?? '').trim();
+      const detail = {
+        name: String(item.name ?? item.product_name ?? 'Item').slice(0, 50),
+        price: Number(item.price ?? item.product_price ?? 0),
+        quantity: Number(item.quantity ?? 0),
+      };
+      if (id) detail.id = id.slice(0, 50);
+      return detail;
+    })
     .filter(item => item.price > 0 && item.quantity > 0);
   const itemsTotal = normalizedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   if (normalizedItems.length > 0 && itemsTotal === Number(totalAmount)) {
@@ -130,9 +135,12 @@ export async function chargeMidtransTransaction(env, payload) {
   const statusCode = String(data?.status_code || '');
   if (!response.ok || !['200', '201'].includes(statusCode)) {
     const detail = Array.isArray(data?.validation_messages) ? data.validation_messages.join(', ') : '';
-    throw new Error(
+    const error = new Error(
       `Midtrans charge failed: ${data?.status_message || `HTTP ${response.status}`}${detail ? ` (${detail})` : ''}`
     );
+    // Surfaced by the handler: a rejected payload must not be retried as a 500.
+    error.midtransStatus = Number(statusCode) || response.status;
+    throw error;
   }
 
   return data;
@@ -279,7 +287,7 @@ export async function chargeOrderPayment(request, env) {
     }
 
     const itemsResult = await env.DB.prepare(
-      'SELECT product_name, product_price, quantity FROM order_items WHERE order_id = ?'
+      'SELECT id, product_name, product_price, quantity FROM order_items WHERE order_id = ?'
     ).bind(orderId).all();
 
     const chargeData = await chargeMidtransTransaction(
@@ -315,7 +323,9 @@ export async function chargeOrderPayment(request, env) {
     return json({ success: true, payment: instruction });
   } catch (error) {
     console.error('[chargeOrderPayment] Error:', error);
-    return json({ success: false, error: error?.message || 'Gagal membuat pembayaran' }, 500);
+    const midtransStatus = Number(error?.midtransStatus) || 0;
+    const status = midtransStatus >= 400 && midtransStatus < 500 ? 400 : 500;
+    return json({ success: false, error: error?.message || 'Gagal membuat pembayaran' }, status);
   }
 }
 
