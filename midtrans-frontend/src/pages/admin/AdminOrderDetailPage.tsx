@@ -12,6 +12,7 @@ import {
 import QRCodeGenerator from '../../components/QRCodeGenerator';
 import { adminApi, Order, Outlet } from '../../api/adminApi';
 import ShippingImageDisplay from '../../components/ShippingImageDisplay';
+import OrderPaymentSection from '../../components/OrderPaymentSection';
 import { formatDateShort } from '../../utils/formatters';
 
 type ShippingImages = {
@@ -1091,6 +1092,12 @@ const AdminOrderDetailPage: React.FC = () => {
             })()}
           </CardBody>
         </Card>
+
+        <OrderPaymentSection
+          orderId={order.id}
+          amount={Number(order.total_amount) || undefined}
+          isPaid={normalizePaymentStatus(order.payment_status) === 'paid'}
+        />
       </VStack>
 
 

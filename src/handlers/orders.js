@@ -4,6 +4,14 @@ import { determineOutletFromLocation } from './outlet-assignment.js';
 import { AdminActivityLogger, getClientInfo } from '../utils/admin-activity-logger.js';
 import { derivePaymentStatusFromData } from '../utils/payment-status.js';
 import { sendOutletWhatsAppNotification, getOutletPhoneNumber } from './whatsapp-notification.js';
+import {
+  buildChargePayload,
+  chargeMidtransTransaction,
+  extractPaymentInstruction,
+  extractQrisUrl,
+  getActiveVaBanks,
+  needsBankSelection,
+} from './payment.js';
 
 // Simple order ID generator
 function generateOrderId() {
@@ -67,13 +75,10 @@ export async function proxyOrderQrisImage(request, env) {
       return new Response(JSON.stringify(statusData), { status: resp.status || 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
 
-    let qrisUrl = null;
-    const actions = Array.isArray(statusData?.actions) ? statusData.actions : [];
-    const qrAction = actions.find(a => (a?.name || '').toLowerCase() === 'generate-qr-code');
-    qrisUrl = qrAction?.url || statusData?.qr_code_url || statusData?.qr_url || null;
+    const qrisUrl = extractQrisUrl(statusData);
     if (!qrisUrl) {
       console.log('[proxyOrderQrisImage] No QR URL found. statusData summary:', {
-        hasActions: !!actions?.length,
+        hasActions: Array.isArray(statusData?.actions) && statusData.actions.length > 0,
         payment_type: statusData?.payment_type,
         transaction_status: statusData?.transaction_status,
         availableKeys: Object.keys(statusData || {})
@@ -259,105 +264,50 @@ export async function createOrder(request, env) {
       processedItems.push({ ...item, id: Number(productId) });
     }
 
-    const isProduction = env.MIDTRANS_IS_PRODUCTION === 'true';
-    const serverKey = env.MIDTRANS_SERVER_KEY;
-    if (!serverKey) {
+    if (!env.MIDTRANS_SERVER_KEY) {
       throw new Error("Midtrans server key not configured.");
     }
 
-    // Use the Snap API endpoint
-    const midtransUrl = isProduction
-      ? 'https://app.midtrans.com/snap/v1/transactions'
-      : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
+    // Payment routing: totals up to the QRIS ceiling are charged right away so the
+    // buyer just scans. Bigger orders need a bank first, so we leave them uncharged
+    // and let the caller collect the choice (POST /api/orders/:id/charge).
+    const requiresBankSelection = needsBankSelection(totalAmount);
 
-    console.log('Midtrans Configuration:', {
-      isProduction,
-      serverKeyLength: serverKey ? serverKey.length : 0,
-      serverKeyPrefix: serverKey ? serverKey.substring(0, 10) + '...' : 'not-set',
-      midtransUrl
-    });
+    let midtransData = null;
+    let paymentInstruction = null;
 
-    const customerDetails = { 
-      first_name: customer_name, 
-      email,
-      phone: customerPhone || ''
-    };
-
-    const requestOrigin = request.headers.get('origin');
-    const finishUrl = `${requestOrigin || 'https://kurniasari-midtrans-frontend.pages.dev'}/orders/${orderId}`;
-    console.log(`[DEBUG] Using finish URL for Midtrans callback: ${finishUrl}. Request origin: ${requestOrigin}`);
-
-    const midtransPayload = {
-      transaction_details: { 
-        order_id: orderId, 
-        gross_amount: totalAmount 
-      },
-      customer_details: customerDetails,
-      item_details: processedItems.map(item => ({
-        id: String(item.id),
-        name: item.name,
-        price: Number(item.product_price || item.price),
-        quantity: Number(item.quantity)
-      })),
-      callbacks: {
-        finish: finishUrl,
+    if (!requiresBankSelection) {
+      console.log('💳 Charging QRIS via Midtrans Core API:', { orderId, totalAmount });
+      try {
+        midtransData = await chargeMidtransTransaction(
+          env,
+          buildChargePayload({
+            orderId,
+            totalAmount,
+            customerName: customer_name,
+            email,
+            phone: customerPhone,
+            items: processedItems.map(item => ({
+              id: item.id,
+              name: item.name,
+              price: Number(item.product_price || item.price),
+              quantity: Number(item.quantity),
+            })),
+          }, null)
+        );
+      } catch (error) {
+        console.error('Error calling Midtrans Core API:', error);
+        throw new Error(`Failed to process payment: ${error.message}`);
       }
-    };
-    
-    console.log('Sending to Midtrans Snap API:', {
-      url: midtransUrl,
-      payload: midtransPayload,
-      isProduction
-    });
-    
-    // Create basic auth header
-    const authString = `${serverKey}:`;
-    // Use Web Worker-compatible base64 encoding
-    const authHeader = `Basic ${btoa(authString)}`;
-    
-    console.log('🔐 Midtrans API call:', {
-      url: midtransUrl,
-      orderId,
-      serverKeyPrefix: serverKey ? serverKey.substring(0, 8) + '...' : 'MISSING',
-      isProduction
-    });
-    
-    // Make request to Midtrans
-    let midtransData;
-    try {
-      const response = await fetch(midtransUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': authHeader
-        },
-        body: JSON.stringify(midtransPayload)
-      });
-      
-      const responseData = await response.json();
-      
-      if (!response.ok) {
-        console.error('❌ Midtrans API error:', {
-          status: response.status,
-          statusText: response.statusText,
-          response: responseData,
-          orderId
-        });
-        throw new Error(`Midtrans API error: ${responseData.error_messages ? responseData.error_messages.join(', ') : 'Unknown error'}`);
+
+      paymentInstruction = extractPaymentInstruction(midtransData);
+      if (!paymentInstruction) {
+        console.error('❌ QRIS charge returned no QR code:', midtransData);
+        throw new Error('Failed to process payment: Midtrans tidak mengembalikan kode QR');
       }
-      
-      midtransData = responseData;
-      console.log('✅ Midtrans response success:', {
-        orderId,
-        token: midtransData.token ? 'Token received' : 'No token',
-        redirect_url: midtransData.redirect_url || 'No redirect URL',
-        hasToken: !!midtransData.token
-      });
-      
-    } catch (error) {
-      console.error('Error calling Midtrans API:', error);
-      throw new Error(`Failed to process payment: ${error.message}`);
+      console.log('✅ QRIS charge success:', { orderId, transaction_id: midtransData.transaction_id });
+    } else {
+      console.log('🏦 Order above QRIS ceiling, awaiting bank selection:', { orderId, totalAmount });
     }
 
     // Determine outlet assignment based on location
@@ -381,18 +331,19 @@ export async function createOrder(request, env) {
     // Insert the order into the database, now including outlet assignment
     // Ensure all values are properly defined to avoid D1 undefined errors
     const safeOutletId = outletId || null;
-    const safeMidtransToken = midtransData?.token || null;
-    const safeMidtransRedirectUrl = midtransData?.redirect_url || null;
+    // Core API has no Snap token and no hosted payment page; the QR/VA detail lives
+    // in payment_response, so these two legacy Snap columns stay empty.
+    const safeMidtransToken = null;
+    const safeMidtransRedirectUrl = null;
     const safeMidtransResponse = midtransData ? JSON.stringify(midtransData) : null;
-    
+
     console.log('🔧 Database insertion values:', {
       orderId,
       customer_name,
       email,
       customerPhone: customerPhone || null,
       totalAmount,
-      snap_token: safeMidtransToken,
-      payment_link: safeMidtransRedirectUrl,
+      payment_type: paymentInstruction?.type || 'awaiting_bank_selection',
       lokasi_pengiriman: orderData.lokasi_pengiriman || null
     });
 
@@ -632,7 +583,16 @@ export async function createOrder(request, env) {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, orderId: orderId, ...midtransData }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+    return new Response(JSON.stringify({
+      success: true,
+      orderId: orderId,
+      total_amount: totalAmount,
+      // Either the QR is ready to show, or the caller must ask which bank to use.
+      payment: paymentInstruction,
+      requires_bank_selection: requiresBankSelection,
+      banks: requiresBankSelection ? getActiveVaBanks() : [],
+      ...midtransData
+    }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
 
   } catch (e) {
     console.error('Create Order Error:', e.message, e.stack);
@@ -1222,28 +1182,16 @@ export async function getOrderQrisUrl(request, env) {
       });
     }
 
-    // Extract QRIS image URL robustly
-    let qrisUrl = null;
-    try {
-      const actions = Array.isArray(statusData?.actions) ? statusData.actions : [];
-      const qrAction = actions.find(a => (a?.name || '').toLowerCase() === 'generate-qr-code');
-      qrisUrl = qrAction?.url || null;
-      // Fallbacks used by some Midtrans responses
-      if (!qrisUrl && typeof statusData?.qr_code_url === 'string') qrisUrl = statusData.qr_code_url;
-      if (!qrisUrl && typeof statusData?.qr_url === 'string') qrisUrl = statusData.qr_url;
-      
-      // Additional fallback: construct QR URL from transaction data
-      if (!qrisUrl && statusData?.payment_type === 'qris' && statusData?.transaction_id) {
-        // Try common Midtrans QR URL patterns
-        const transactionId = statusData.transaction_id;
-        qrisUrl = `https://api.midtrans.com/v2/qris/${transactionId}/qr-code`;
-        console.log(`[DEBUG] Using constructed QR URL: ${qrisUrl}`);
-      }
-    } catch (e) {
-      // ignore and fall through to not found handling
-    }
+    // Extract QRIS image URL from the Midtrans response
+    const qrisUrl = extractQrisUrl(statusData);
 
     if (!qrisUrl) {
+      console.log('[getOrderQrisUrl] No QR URL in Midtrans response:', {
+        orderId,
+        payment_type: statusData?.payment_type,
+        transaction_status: statusData?.transaction_status,
+        availableKeys: Object.keys(statusData || {}),
+      });
       return new Response(JSON.stringify({ success: false, error: 'QRIS URL not available for this order', data: statusData }), {
         status: 404,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
