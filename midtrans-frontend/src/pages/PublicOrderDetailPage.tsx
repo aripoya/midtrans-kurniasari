@@ -43,6 +43,7 @@ import { normalizeShippingStatus } from '../utils/orderStatusUtils';
 import ShippingImageDisplay from '../components/ShippingImageDisplay';
 import OrderPaymentSection from '../components/OrderPaymentSection';
 import CopyOrderLinkButton from '../components/CopyOrderLinkButton';
+import SendWhatsAppButton from '../components/SendWhatsAppButton';
 
 
 
@@ -855,6 +856,14 @@ const PublicOrderDetailPage = () => {
             
             <HStack spacing={4} justify="center" wrap="wrap">
               <CopyOrderLinkButton orderId={order.id} colorScheme="teal" variant="outline" size="lg" />
+              <SendWhatsAppButton
+                orderId={order.id}
+                customerName={order.customer_name}
+                phone={order.customer_phone}
+                amount={order.total_amount}
+                colorScheme="whatsapp"
+                size="lg"
+              />
               {!isPaid && (
                 <Button colorScheme="teal" size="lg" onClick={handleRefreshPayment} isLoading={refreshingPayment} loadingText="Memeriksa..." disabled={refreshingPayment}>
                   Perbarui Pembayaran
