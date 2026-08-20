@@ -13,6 +13,8 @@ import QRCodeGenerator from '../../components/QRCodeGenerator';
 import { adminApi, Order, Outlet } from '../../api/adminApi';
 import ShippingImageDisplay from '../../components/ShippingImageDisplay';
 import OrderPaymentSection from '../../components/OrderPaymentSection';
+import CopyOrderLinkButton from '../../components/CopyOrderLinkButton';
+import { getPublicOrderUrl } from '../../utils/publicOrderUrl';
 import { formatDateShort } from '../../utils/formatters';
 
 type ShippingImages = {
@@ -998,7 +1000,7 @@ const AdminOrderDetailPage: React.FC = () => {
             <VStack spacing={4} align="center">
               {order && (
                 (() => {
-                  const publicUrl = `https://nota.kurniasari.co.id/orders/${order.id}`;
+                  const publicUrl = getPublicOrderUrl(order.id);
                   return (
                     <>
                       <QRCodeGenerator
@@ -1010,14 +1012,7 @@ const AdminOrderDetailPage: React.FC = () => {
                       />
                       <HStack>
                         <Text fontSize="sm" color="gray.600">{publicUrl}</Text>
-                        <Button
-                          size="sm"
-                          onClick={async () => {
-                            try { await navigator.clipboard.writeText(publicUrl); } catch (e) {}
-                          }}
-                        >
-                          Copy
-                        </Button>
+                        <CopyOrderLinkButton orderId={order.id} label="Copy" size="sm" />
                       </HStack>
                     </>
                   );

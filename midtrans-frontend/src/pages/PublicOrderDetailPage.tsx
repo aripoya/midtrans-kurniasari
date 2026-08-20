@@ -42,6 +42,7 @@ import { formatCurrency, formatDateShort } from '../utils/formatters';
 import { normalizeShippingStatus } from '../utils/orderStatusUtils';
 import ShippingImageDisplay from '../components/ShippingImageDisplay';
 import OrderPaymentSection from '../components/OrderPaymentSection';
+import CopyOrderLinkButton from '../components/CopyOrderLinkButton';
 
 
 
@@ -853,6 +854,7 @@ const PublicOrderDetailPage = () => {
             <Divider my={6} />
             
             <HStack spacing={4} justify="center" wrap="wrap">
+              <CopyOrderLinkButton orderId={order.id} colorScheme="teal" variant="outline" size="lg" />
               {!isPaid && (
                 <Button colorScheme="teal" size="lg" onClick={handleRefreshPayment} isLoading={refreshingPayment} loadingText="Memeriksa..." disabled={refreshingPayment}>
                   Perbarui Pembayaran
