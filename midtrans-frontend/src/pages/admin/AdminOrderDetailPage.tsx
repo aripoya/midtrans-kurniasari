@@ -14,6 +14,7 @@ import { adminApi, Order, Outlet } from '../../api/adminApi';
 import ShippingImageDisplay from '../../components/ShippingImageDisplay';
 import OrderPaymentSection from '../../components/OrderPaymentSection';
 import CopyOrderLinkButton from '../../components/CopyOrderLinkButton';
+import SendWhatsAppButton from '../../components/SendWhatsAppButton';
 import { getPublicOrderUrl } from '../../utils/publicOrderUrl';
 import { formatDateShort } from '../../utils/formatters';
 
@@ -1013,6 +1014,15 @@ const AdminOrderDetailPage: React.FC = () => {
                       <HStack>
                         <Text fontSize="sm" color="gray.600">{publicUrl}</Text>
                         <CopyOrderLinkButton orderId={order.id} label="Copy" size="sm" />
+                        <SendWhatsAppButton
+                          orderId={order.id}
+                          customerName={order.customer_name}
+                          phone={order.customer_phone}
+                          amount={order.total_amount}
+                          label="WhatsApp"
+                          colorScheme="whatsapp"
+                          size="sm"
+                        />
                       </HStack>
                     </>
                   );
