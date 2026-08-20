@@ -65,11 +65,18 @@ apiClient.interceptors.request.use(
     // Log API request
     console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
     
-    // Only add auth token for protected endpoints (not for public order details)
-    const isPublicOrderEndpoint = config.url?.includes('/api/orders/') && config.method?.toLowerCase() === 'get';
-    const isPublicEndpoint = config.url?.includes('/orders/') || config.url?.includes('/api/orders/') && config.method?.toLowerCase() === 'get';
-    
-    if (!isPublicOrderEndpoint && !isPublicEndpoint) {
+    // Only add auth token for protected endpoints (not for public order details).
+    // Reading an order is public because buyers open the nota link anonymously, and
+    // these two POSTs are verified server-side by their own means. Everything else
+    // under /api/orders/ needs the token - notably /charge, which issues a VA.
+    const url = config.url || '';
+    const method = (config.method || 'get').toLowerCase();
+    const PUBLIC_ORDER_ACTIONS = ['/refresh-status', '/mark-received'];
+    const isPublicOrderRead = method === 'get' && url.includes('/api/orders/');
+    const isPublicOrderAction = method === 'post' && PUBLIC_ORDER_ACTIONS.some(path => url.includes(path));
+    const isPublicEndpoint = isPublicOrderRead || isPublicOrderAction;
+
+    if (!isPublicEndpoint) {
       // Get token from localStorage for protected endpoints
       const token = localStorage.getItem('token');
       
@@ -102,7 +109,11 @@ apiClient.interceptors.response.use(
     const config = error.config;
     
     // Handle 401 Unauthorized - invalid/expired token
-    if (error.response?.status === 401) {
+    // Only treat a 401 as an expired session when we actually sent a token.
+    // A 401 on a request that carried none means the caller skipped auth by
+    // mistake; logging the user out there would hide the real bug.
+    const sentAuthHeader = !!error.config?.headers?.['Authorization'];
+    if (error.response?.status === 401 && sentAuthHeader) {
       console.error('🔴 Authentication failed - token invalid or expired');
       console.error('Clearing localStorage and redirecting to login...');
       
