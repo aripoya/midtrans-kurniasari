@@ -16,6 +16,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas';
 import { adminApi } from '../api/adminApi';
 import ShippingImageDisplay from '../components/ShippingImageDisplay';
+import OrderPaymentSection from '../components/OrderPaymentSection';
 import { downloadQrisPng } from '../utils/qrisDownload';
 import { formatDateShort } from '../utils/formatters';
 
@@ -1324,6 +1325,15 @@ const OrderDetailPage: React.FC<OrderDetailPageProps> = ({ isOutletView, isDeliv
               </HStack>
             </CardBody>
           </Card>
+
+          {!isDeliveryView && (
+            <OrderPaymentSection
+              orderId={order.id}
+              amount={Number(order.total_amount) || undefined}
+              isPaid={isPaid}
+              canSelectBank={!isOutletView}
+            />
+          )}
         </VStack>
       </Container>
     </>

@@ -41,6 +41,7 @@ import { API_URL } from '../api/config';
 import { formatCurrency, formatDateShort } from '../utils/formatters';
 import { normalizeShippingStatus } from '../utils/orderStatusUtils';
 import ShippingImageDisplay from '../components/ShippingImageDisplay';
+import OrderPaymentSection from '../components/OrderPaymentSection';
 
 
 
@@ -875,6 +876,14 @@ const PublicOrderDetailPage = () => {
             </HStack>
           </CardBody>
         </Card>
+
+        <OrderPaymentSection
+          orderId={order.id}
+          amount={Number(order.total_amount) || undefined}
+          isPaid={isPaid}
+          // Issuing a Virtual Account needs an admin token; buyers only read the result
+          canSelectBank={typeof localStorage !== 'undefined' && !!localStorage.getItem('token')}
+        />
       </VStack>
     </Container>
   );

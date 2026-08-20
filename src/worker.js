@@ -30,6 +30,7 @@ import { listMigrationBackups, getMigrationBackup, restoreMigrationBackup } from
 import { resetAdminPassword } from '../reset-admin-password.js';
 import { handleGetOutlets } from './handlers/outlets';
 import { handleMidtransWebhook, checkTransactionStatus, updateOrderStatusFromMidtrans } from './handlers/webhook.js';
+import { chargeOrderPayment, getOrderPaymentOptions } from './handlers/payment.js';
 import { handleAiChat } from './handlers/ai-chat.js';
 
 console.log('Initializing router');
@@ -314,6 +315,17 @@ router.get('/api/orders/:id/qris-url', (request, env) => {
 router.get('/api/orders/:id/qris-image', (request, env) => {
     request.corsHeaders = corsHeaders(request);
     return proxyOrderQrisImage(request, env);
+});
+// Payment instruction for an order (QR/VA), or the bank choices when none issued yet.
+// Public like GET /api/orders/:id, so a buyer opening the nota link can see how to pay.
+router.get('/api/orders/:id/payment', (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return getOrderPaymentOptions(request, env);
+});
+// Issue a Virtual Account for the bank the buyer picked (orders above the QRIS ceiling)
+router.post('/api/orders/:id/charge', verifyToken, (request, env) => {
+    request.corsHeaders = corsHeaders(request);
+    return chargeOrderPayment(request, env);
 });
 // CORS preflight handler for updating order status
 router.options('/api/orders/:id/status', (request) => {
