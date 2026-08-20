@@ -16,6 +16,13 @@ export const QRIS_MAX_AMOUNT = 500000;
 // "GoPay Dynamic QRIS" is the QRIS acquirer active on the Midtrans dashboard.
 const QRIS_ACQUIRER = 'gopay';
 
+// How long a buyer has to pay. Without this, QRIS via GoPay expires after only
+// 15 minutes, which is far too short for an order someone pays later in the day.
+// Midtrans accepts custom_expiry for every payment type except credit card;
+// GoPay QRIS caps it at 7 days, so a single day is well inside the limit.
+// order_time is left out on purpose - Midtrans then counts from the charge itself.
+const PAYMENT_EXPIRY = { expiry_duration: 1, unit: 'day' };
+
 // Mirrors the active payment methods on the Midtrans dashboard. Set `active` to
 // false for a method Midtrans has not approved (or has suspended) for us yet.
 export const VA_BANKS = [
@@ -70,6 +77,7 @@ export function buildChargePayload(order, bank) {
       email: email || '',
       phone: phone || '',
     },
+    custom_expiry: { ...PAYMENT_EXPIRY },
   };
 
   // Midtrans rejects the charge when item_details do not add up to gross_amount,
