@@ -22,7 +22,7 @@ export interface OrderData {
   customer_address: string;
   lokasi_pengiriman?: string;
   lokasi_pengambilan?: string;
-  shipping_area: 'dalam_kota' | 'luar_kota';
+  shipping_area: 'dalam-kota' | 'luar-kota';
   pickup_method: string;
   courier_service?: string | null;
   shipping_notes?: string | null;
@@ -59,11 +59,53 @@ export interface OrderResponse {
   error?: string;
 }
 
+/** A bank the buyer can pick for a Virtual Account */
+export interface VaBank {
+  code: string;
+  name: string;
+  label: string;
+}
+
+/**
+ * What the buyer needs in order to pay, as returned by the Midtrans Core API.
+ * `qris` carries a QR image, `bank_transfer` a VA number, `echannel` a Mandiri bill.
+ */
+export interface PaymentInstruction {
+  type: 'qris' | 'bank_transfer' | 'echannel';
+  qr_url?: string;
+  bank?: string;
+  bank_name?: string;
+  va_number?: string;
+  biller_code?: string;
+  bill_key?: string;
+  expiry_time?: string | null;
+}
+
 export interface CreateOrderResponse {
   success: boolean;
   orderId?: string;
-  token?: string;
-  redirect_url?: string;
+  total_amount?: number;
+  /** Present when the order was charged right away (QRIS) */
+  payment?: PaymentInstruction | null;
+  /** True when the order is above the QRIS ceiling and a bank must be picked */
+  requires_bank_selection?: boolean;
+  banks?: VaBank[];
+  error?: string;
+}
+
+export interface PaymentOptionsResponse {
+  success: boolean;
+  payment_status?: string;
+  payment?: PaymentInstruction | null;
+  requires_bank_selection?: boolean;
+  banks?: VaBank[];
+  error?: string;
+}
+
+export interface ChargePaymentResponse {
+  success: boolean;
+  payment?: PaymentInstruction;
+  already_charged?: boolean;
   error?: string;
 }
 
@@ -221,6 +263,55 @@ export const orderService = {
     }
   },
   
+  /**
+   * Get the payment instruction for an order (QR/VA), or the bank choices when
+   * no payment has been issued yet.
+   * @param orderId - The ID of the order
+   */
+  async getPaymentOptions(orderId: string): Promise<PaymentOptionsResponse> {
+    try {
+      if (!orderId || typeof orderId !== 'string') {
+        throw new Error('Order ID is required and must be a string');
+      }
+
+      const response: AxiosResponse<PaymentOptionsResponse> = await apiClient.get(
+        `/api/orders/${orderId}/payment`
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error(`❌ Error fetching payment options for ${orderId}:`, error?.response?.data || error);
+      throw createOrderServiceError(`Failed to fetch payment options for ${orderId}`, error);
+    }
+  },
+
+  /**
+   * Issue a Virtual Account for the bank the buyer picked.
+   * Only valid for orders above the QRIS ceiling; calling it twice returns the
+   * VA that was already issued, because Midtrans refuses a second charge.
+   * @param orderId - The ID of the order
+   * @param bank - Bank code, e.g. 'bni'
+   */
+  async chargePayment(orderId: string, bank: string): Promise<ChargePaymentResponse> {
+    try {
+      if (!orderId || typeof orderId !== 'string') {
+        throw new Error('Order ID is required and must be a string');
+      }
+      if (!bank) {
+        throw new Error('Bank is required');
+      }
+
+      const response: AxiosResponse<ChargePaymentResponse> = await apiClient.post(
+        `/api/orders/${orderId}/charge`,
+        { bank }
+      );
+      return response.data;
+    } catch (error: any) {
+      const message = error?.response?.data?.error || `Failed to charge order ${orderId}`;
+      console.error(`❌ Error charging order ${orderId}:`, error?.response?.data || error);
+      throw createOrderServiceError(message, error);
+    }
+  },
+
   /**
    * Get a single order by ID
    * @param orderId - The ID of the order to fetch

@@ -29,7 +29,7 @@ export async function getAdminActivity(request, env) {
       total: activities.length
     }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
 
   } catch (error) {
@@ -40,7 +40,7 @@ export async function getAdminActivity(request, env) {
       error: error.message
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
   }
 }
@@ -49,6 +49,11 @@ export async function getAdminActivity(request, env) {
 export async function getActiveSessions(request, env) {
   try {
     const activityLogger = new AdminActivityLogger(env);
+    
+    // Cleanup old sessions first
+    await activityLogger.cleanupOldSessions();
+    
+    // Get currently active sessions
     const sessions = await activityLogger.getActiveSessions();
 
     return new Response(JSON.stringify({
@@ -57,7 +62,7 @@ export async function getActiveSessions(request, env) {
       total: sessions.length
     }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
 
   } catch (error) {
@@ -68,7 +73,7 @@ export async function getActiveSessions(request, env) {
       error: error.message
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
   }
 }
@@ -85,7 +90,7 @@ export async function logoutUser(request, env) {
         message: 'Session ID or Admin ID is required'
       }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
       });
     }
 
@@ -121,7 +126,7 @@ export async function logoutUser(request, env) {
       message: 'Logged out successfully'
     }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
 
   } catch (error) {
@@ -132,7 +137,7 @@ export async function logoutUser(request, env) {
       error: error.message
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
   }
 }
@@ -142,7 +147,7 @@ export async function getAdminStats(request, env) {
   try {
     const activityLogger = new AdminActivityLogger(env);
     
-    // Get today's activities
+    // Get today's activities (use localtime for WIB timezone)
     const today = new Date().toISOString().split('T')[0];
     const todayActivities = await activityLogger.getActivityHistory({
       dateFrom: today + 'T00:00:00Z',
@@ -151,6 +156,43 @@ export async function getAdminStats(request, env) {
 
     // Get active sessions
     const activeSessions = await activityLogger.getActiveSessions();
+
+    // Get today's logins - use SUBSTR to extract date portion
+    // Format: YYYY-MM-DD
+    const nowDate = new Date();
+    const wibOffset = 7 * 60; // WIB is UTC+7
+    const wibTime = new Date(nowDate.getTime() + wibOffset * 60 * 1000);
+    const todayWIB = wibTime.toISOString().split('T')[0]; // e.g., '2025-12-10'
+    
+    console.log('📅 Today in WIB:', todayWIB);
+    
+    try {
+      const todayLoginsResult = await env.DB.prepare(`
+        SELECT COUNT(DISTINCT admin_id) as count
+        FROM admin_sessions
+        WHERE SUBSTR(login_at, 1, 10) = ?
+      `).bind(todayWIB).first();
+      
+      const todayLogins = todayLoginsResult?.count || 0;
+      
+      console.log('📊 Login Stats:', {
+        today_wib: todayWIB,
+        logins_count: todayLogins
+      });
+      
+      var finalTodayLogins = todayLogins;
+    } catch (error) {
+      console.error('❌ Error counting logins:', error);
+      var finalTodayLogins = 0;
+    }
+    
+    // Get total activities today from activity logs
+    const todayActivitiesCountResult = await env.DB.prepare(`
+      SELECT COUNT(*) as count
+      FROM admin_activity_logs
+      WHERE DATE(created_at, 'localtime') = DATE('now', 'localtime')
+    `).first();
+    const todayActivitiesCount = todayActivitiesCountResult?.count || 0;
 
     // Get recent order activities
     const recentOrderActivities = await activityLogger.getActivityHistory({
@@ -161,8 +203,8 @@ export async function getAdminStats(request, env) {
     // Calculate stats
     const stats = {
       today: {
-        total_activities: todayActivities.length,
-        logins: todayActivities.filter(a => a.activity_type === 'login').length,
+        total_activities: todayActivitiesCount,
+        logins: finalTodayLogins,
         orders_created: todayActivities.filter(a => a.activity_type === 'order_created').length,
         orders_updated: todayActivities.filter(a => a.activity_type === 'order_updated').length
       },
@@ -175,7 +217,7 @@ export async function getAdminStats(request, env) {
       data: stats
     }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
 
   } catch (error) {
@@ -186,7 +228,7 @@ export async function getAdminStats(request, env) {
       error: error.message
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...(request.corsHeaders || {}) }
     });
   }
 }

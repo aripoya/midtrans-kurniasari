@@ -23,10 +23,11 @@ import {
 } from '@chakra-ui/react';
 import { RepeatIcon } from '@chakra-ui/icons';
 import adminApi, { MigrateSafeDbOptions, SafeMigrationStartResult, SafeMigrationStatus } from '../../api/adminApi';
+import PasswordProtected from '../../components/PasswordProtected';
 
 const POLL_INTERVAL_MS = 60_000; // 60 seconds per business constraints
 
-const SafeMigrationPage: React.FC = () => {
+const SafeMigrationPageContent: React.FC = () => {
   const toast = useToast();
   const [status, setStatus] = useState<SafeMigrationStatus | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -213,6 +214,19 @@ const SafeMigrationPage: React.FC = () => {
         </Box>
       )}
     </Box>
+  );
+};
+
+const SafeMigrationPage: React.FC = () => {
+  return (
+    <PasswordProtected
+      requiredUsername="Ari Web Pass"
+      requiredPassword="KurniaJaya@2100"
+      pageTitle="Safe Relational DB Migration"
+      storageKey="safe_migration_auth"
+    >
+      <SafeMigrationPageContent />
+    </PasswordProtected>
   );
 };
 

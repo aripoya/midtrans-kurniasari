@@ -29,10 +29,13 @@ export interface PublicOrder {
   shipping_status: string;
   shipping_area: string;
   pickup_method: string;
+  tipe_pesanan?: string;
   courier_service?: string;
   tracking_number?: string;
   lokasi_pengiriman?: string;
   lokasi_pengambilan?: string;
+  delivery_date?: string;
+  delivery_time?: string;
   admin_note?: string;
   courier_name?: string;
   created_at: string;

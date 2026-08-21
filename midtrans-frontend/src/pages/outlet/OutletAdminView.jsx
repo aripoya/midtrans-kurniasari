@@ -95,7 +95,7 @@ function OutletAdminView() {
         `${import.meta.env.VITE_API_URL || 'https://order-management-app-production.wahwooh.workers.dev'}/api/orders/outlet`,
         {
           headers: {
-            'Authorization': `Bearer ${sessionStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
         }
       );
@@ -159,7 +159,7 @@ function OutletAdminView() {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${sessionStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
           },
           body: JSON.stringify({
             shipping_status: newStatus
