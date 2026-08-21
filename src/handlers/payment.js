@@ -170,6 +170,22 @@ export function extractQrisUrl(data) {
 }
 
 /**
+ * The QR image URL Midtrans hands back as its `generate-qr-code` action.
+ *
+ * Rebuilding it matters because a webhook notification carries no actions and no
+ * qr_string, and it overwrites payment_response seconds after the charge - so for
+ * a QRIS order this is often the only way left to show the QR. The shape is taken
+ * from the actions[].url Midtrans itself returns, not invented.
+ */
+export function qrisImageUrlFromTransaction(env, transactionId) {
+  if (!transactionId) return null;
+  const host = env?.MIDTRANS_IS_PRODUCTION === 'true'
+    ? 'https://api.midtrans.com'
+    : 'https://api.sandbox.midtrans.com';
+  return `${host}/v2/qris/${encodeURIComponent(transactionId)}/qr-code`;
+}
+
+/**
  * Normalize a Midtrans charge/status response into what the UI needs to show.
  * @returns {object|null} instruction, or null when the response carries no payment detail
  */
@@ -213,15 +229,38 @@ export function extractPaymentInstruction(data) {
 
 /**
  * Payment instruction already stored on an order row, if any.
+ *
+ * payment_response holds the charge response only until the first webhook lands,
+ * because the webhook overwrites it with a notification that has no actions and no
+ * qr_string. VA details survive that (notifications repeat va_numbers), but the QR
+ * does not - so for QRIS we fall back to the URL saved at charge time, and finally
+ * to rebuilding it from the transaction id.
+ *
+ * @param {object} order - row with payment_response and payment_link
+ * @param {object} [env] - worker env, needed only for the rebuilt QR URL
  */
-export function instructionFromOrder(order) {
+export function instructionFromOrder(order, env) {
   if (!order?.payment_response) return null;
+
+  let data = null;
   try {
-    return extractPaymentInstruction(JSON.parse(order.payment_response));
+    data = JSON.parse(order.payment_response);
   } catch (e) {
     console.warn('[payment] Could not parse payment_response:', e?.message || e);
     return null;
   }
+
+  const instruction = extractPaymentInstruction(data);
+  if (instruction) return instruction;
+
+  if (data?.payment_type === 'qris') {
+    const qrUrl = order.payment_link || qrisImageUrlFromTransaction(env, data.transaction_id);
+    if (qrUrl) {
+      return { type: 'qris', qr_url: qrUrl, expiry_time: data.expiry_time || null };
+    }
+  }
+
+  return null;
 }
 
 const PAID_STATUSES = new Set(['settlement', 'capture']);
@@ -268,7 +307,8 @@ export async function chargeOrderPayment(request, env) {
     }
 
     const order = await env.DB.prepare(
-      `SELECT id, customer_name, customer_email, customer_phone, total_amount, payment_status, payment_response
+      `SELECT id, customer_name, customer_email, customer_phone, total_amount, payment_status,
+              payment_response, payment_link
        FROM orders WHERE id = ?`
     ).bind(orderId).first();
 
@@ -282,7 +322,7 @@ export async function chargeOrderPayment(request, env) {
 
     // Midtrans rejects a second charge on the same order id, so an order that already
     // has payment details keeps them - returning the existing instruction instead.
-    const existing = instructionFromOrder(order);
+    const existing = instructionFromOrder(order, env);
     if (existing) {
       return json({ success: true, already_charged: true, payment: existing });
     }
@@ -362,14 +402,14 @@ export async function getOrderPaymentOptions(request, env) {
     const url = new URL(request.url);
     const orderId = url.pathname.split('/')[3]; // /api/orders/:id/payment
     const order = await env.DB.prepare(
-      'SELECT id, total_amount, payment_status, payment_response FROM orders WHERE id = ?'
+      'SELECT id, total_amount, payment_status, payment_response, payment_link FROM orders WHERE id = ?'
     ).bind(orderId).first();
 
     if (!order) {
       return json({ success: false, error: 'Pesanan tidak ditemukan' }, 404);
     }
 
-    const instruction = instructionFromOrder(order);
+    const instruction = instructionFromOrder(order, env);
     const requiresBankSelection = !instruction && needsBankSelection(order.total_amount);
 
     return json({

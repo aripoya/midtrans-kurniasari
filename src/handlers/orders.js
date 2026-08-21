@@ -10,6 +10,7 @@ import {
   extractPaymentInstruction,
   extractQrisUrl,
   getActiveVaBanks,
+  instructionFromOrder,
   needsBankSelection,
 } from './payment.js';
 
@@ -75,7 +76,17 @@ export async function proxyOrderQrisImage(request, env) {
       return new Response(JSON.stringify(statusData), { status: resp.status || 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
 
-    const qrisUrl = extractQrisUrl(statusData);
+    let qrisUrl = extractQrisUrl(statusData);
+    if (!qrisUrl) {
+      // Same recovery as getOrderQrisUrl: the status API stops returning actions
+      // once Midtrans has sent a notification for the transaction.
+      const stored = await env.DB
+        .prepare('SELECT payment_response, payment_link FROM orders WHERE id = ?')
+        .bind(orderId)
+        .first()
+        .catch(() => null);
+      qrisUrl = instructionFromOrder(stored, env)?.qr_url || null;
+    }
     if (!qrisUrl) {
       console.log('[proxyOrderQrisImage] No QR URL found. statusData summary:', {
         hasActions: Array.isArray(statusData?.actions) && statusData.actions.length > 0,
@@ -331,10 +342,11 @@ export async function createOrder(request, env) {
     // Insert the order into the database, now including outlet assignment
     // Ensure all values are properly defined to avoid D1 undefined errors
     const safeOutletId = outletId || null;
-    // Core API has no Snap token and no hosted payment page; the QR/VA detail lives
-    // in payment_response, so these two legacy Snap columns stay empty.
+    // Core API has no Snap token. payment_link keeps the QR image URL, because the
+    // first webhook overwrites payment_response with a notification that carries no
+    // actions and no qr_string - without this copy the QR would be lost in seconds.
     const safeMidtransToken = null;
-    const safeMidtransRedirectUrl = null;
+    const safeMidtransRedirectUrl = paymentInstruction?.qr_url || null;
     const safeMidtransResponse = midtransData ? JSON.stringify(midtransData) : null;
 
     console.log('🔧 Database insertion values:', {
@@ -1186,6 +1198,22 @@ export async function getOrderQrisUrl(request, env) {
     const qrisUrl = extractQrisUrl(statusData);
 
     if (!qrisUrl) {
+      // The status API drops actions once a notification has been sent, so fall
+      // back to what we stored for this order at charge time.
+      const stored = await env.DB
+        .prepare('SELECT payment_response, payment_link FROM orders WHERE id = ?')
+        .bind(orderId)
+        .first()
+        .catch(() => null);
+      const recovered = instructionFromOrder(stored, env);
+      if (recovered?.qr_url) {
+        console.log('[getOrderQrisUrl] Recovered QR URL from stored order data:', orderId);
+        return new Response(JSON.stringify({ success: true, orderId, qris_url: recovered.qr_url }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+
       console.log('[getOrderQrisUrl] No QR URL in Midtrans response:', {
         orderId,
         payment_type: statusData?.payment_type,
