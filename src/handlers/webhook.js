@@ -2,6 +2,42 @@
 import crypto from 'node:crypto';
 import { normalizeTransactionStatus } from '../utils/payment-status.js';
 
+/**
+ * Merge a Midtrans notification onto whatever we already stored for the order.
+ *
+ * A notification only reports status. It leaves out everything the charge
+ * response carried about *how* to pay - actions and qr_string for QRIS, the
+ * acquirer, and so on. Overwriting the column wholesale used to throw those
+ * away seconds after checkout, which is how QRIS orders ended up with no code
+ * to scan. Newer fields from the notification still win; older ones survive.
+ *
+ * @param {string|null} existingJson - payment_response currently on the row
+ * @param {object} notification - Midtrans notification or status response
+ * @returns {object} what to store back
+ */
+export function mergePaymentResponse(existingJson, notification) {
+    if (!existingJson) return notification;
+
+    let existing;
+    try {
+        existing = JSON.parse(existingJson);
+    } catch (e) {
+        console.warn('[Webhook Handler] Stored payment_response is not valid JSON, replacing it:', e?.message || e);
+        return notification;
+    }
+
+    if (!existing || typeof existing !== 'object' || Array.isArray(existing)) return notification;
+
+    // Different transaction id means this is not the same payment attempt, so the
+    // old details describe something else and must not be carried over.
+    if (existing.transaction_id && notification?.transaction_id
+        && existing.transaction_id !== notification.transaction_id) {
+        return notification;
+    }
+
+    return { ...existing, ...notification };
+}
+
 // Centralized function to update order status from a Midtrans notification/status object
 export async function updateOrderStatusFromMidtrans(notification, env) {
     console.log('[Webhook Handler] Received notification for update:', JSON.stringify(notification, null, 2));
@@ -17,7 +53,20 @@ export async function updateOrderStatusFromMidtrans(notification, env) {
             // Try to persist both normalized status and raw payment_response; fallback if column missing
             let info;
             const nowIso = new Date().toISOString();
-            const paymentResponseJson = JSON.stringify(notification);
+
+            // Keep the payment details the charge response carried; a notification
+            // reports status only and would otherwise wipe them out.
+            const existingRow = await env.DB
+                .prepare('SELECT payment_response FROM orders WHERE id = ?')
+                .bind(orderId)
+                .first()
+                .catch(err => {
+                    console.warn('[Webhook Handler] Could not read existing payment_response:', err?.message || err);
+                    return null;
+                });
+            const paymentResponseJson = JSON.stringify(
+                mergePaymentResponse(existingRow?.payment_response, notification)
+            );
             try {
                 info = await env.DB.prepare(`
                     UPDATE orders 
