@@ -41,7 +41,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const { isLoggedIn, user } = useAuth();
+  const { isLoggedIn } = useAuth();
 
   // Fetch notifications
   const fetchNotifications = useCallback(async (unreadOnly: boolean = false): Promise<void> => {
@@ -53,9 +53,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       const response = await NotificationService.getNotifications(unreadOnly);
       
       if (response.success) {
-        setNotifications(response.data || []);
+        setNotifications((response.notifications as unknown) as Notification[] || []);
         // Count unread notifications
-        const unreadItems = response.data.filter((item: Notification) => item.is_read === 0);
+        const unreadItems = ((response.notifications as unknown) as Notification[] || []).filter((item: Notification) => item.is_read === 0);
         setUnreadCount(unreadItems.length);
       } else {
         setError(response.error || 'Failed to fetch notifications');
@@ -110,22 +110,23 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
   };
 
-  // Poll for new notifications every minute when user is authenticated
+  // Poll for new notifications every 5 minutes
   useEffect(() => {
     if (!isLoggedIn) return;
     
     // Initial fetch
     fetchNotifications();
     
-    // Set up polling
+    // Set up polling every 5 seconds
     const pollingInterval = setInterval(() => {
       fetchNotifications();
-    }, 60000); // 1 minute
+    }, 5000); // 5 seconds - optimized for real-time responsiveness
     
     return () => {
       clearInterval(pollingInterval);
     };
-  }, [isLoggedIn, fetchNotifications]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]); // Only depend on isLoggedIn, not fetchNotifications to avoid loop
 
   const value: NotificationContextType = {
     notifications, 

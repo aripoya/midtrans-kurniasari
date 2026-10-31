@@ -19,14 +19,24 @@ import PublicOrderDetailPage from './pages/PublicOrderDetailPage';
 import ProductsPage from './pages/ProductsPage';
 import DebugPage from './pages/DebugPage';
 import LoginPage from './pages/LoginPage';
+import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminOrdersPage from './pages/admin/AdminOrdersPage';
 import AdminOrderDetailPage from './pages/admin/AdminOrderDetailPage';
 import UserManagementPage from './pages/admin/UserManagementPage';
 import AdminActivityPage from './pages/admin/AdminActivityPage';
+import LuarKotaReportPage from './pages/admin/LuarKotaReportPage';
+import DalamKotaReportPage from './pages/admin/DalamKotaReportPage';
+import DalamKotaWeeklyReportPage from './pages/admin/DalamKotaWeeklyReportPage';
+import DalamKotaWeeklyOrdersPage from './pages/admin/DalamKotaWeeklyOrdersPage';
+import LuarKotaWeeklyReportPage from './pages/admin/LuarKotaWeeklyReportPage';
+import LuarKotaWeeklyOrdersPage from './pages/admin/LuarKotaWeeklyOrdersPage';
 import SafeMigrationPage from './pages/admin/SafeMigrationPage';
 import OutletDashboard from './pages/outlet/OutletDashboard';
 import OutletAdminView from './pages/outlet/OutletAdminView';
+import OutletWeeklyReportPage from './pages/outlet/OutletWeeklyReportPage';
+import OutletWeeklyOrdersPage from './pages/outlet/OutletWeeklyOrdersPage';
 import DeliveryDashboard from './pages/delivery/DeliveryDashboard';
+import DeliveryCalendar from './pages/delivery/DeliveryCalendar';
 import DebugNotificationPage from './pages/DebugNotificationPage';
 import TIKITrackingPage from './components/TIKITrackingPage';
 import JNETrackingPage from './components/JNETrackingPage';
@@ -46,7 +56,7 @@ const App: React.FC = () => {
                 {/* Login Routes */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/admin/login" element={<LoginPage />} />
-                
+
                 {/* Root redirection */}
                 <Route path="/" element={<Navigate to="/login" replace />} />
 
@@ -61,12 +71,18 @@ const App: React.FC = () => {
 
                 {/* Admin Routes */}
                 <Route path="/admin" element={<RoleProtectedRoute allowedRoles={['admin']}><AdminLayout /></RoleProtectedRoute>}>
-                  <Route index element={<Navigate to="orders" replace />} />
+                  <Route index element={<AdminDashboard />} />
                   <Route path="orders" element={<AdminOrdersPage />} />
                   <Route path="orders/new" element={<NewOrderPage />} />
                   <Route path="orders/:id" element={<AdminOrderDetailPage />} />
                   <Route path="users" element={<UserManagementPage />} />
                   <Route path="activity" element={<AdminActivityPage />} />
+                  <Route path="dalam-kota-report" element={<DalamKotaReportPage />} />
+                  <Route path="dalam-kota-report/weekly/:year/:month" element={<DalamKotaWeeklyReportPage />} />
+                  <Route path="dalam-kota-report/weekly/:year/:month/orders" element={<DalamKotaWeeklyOrdersPage />} />
+                  <Route path="luar-kota-report" element={<LuarKotaReportPage />} />
+                  <Route path="luar-kota-report/weekly/:year/:month" element={<LuarKotaWeeklyReportPage />} />
+                  <Route path="luar-kota-report/weekly/:year/:month/orders" element={<LuarKotaWeeklyOrdersPage />} />
                   <Route path="safe-migration" element={<SafeMigrationPage />} />
                 </Route>
 
@@ -74,15 +90,18 @@ const App: React.FC = () => {
                 <Route path="/outlet/dashboard" element={<RoleProtectedRoute allowedRoles={['outlet_manager']}><Layout><OutletDashboard /></Layout></RoleProtectedRoute>} />
                 <Route path="/outlet/admin" element={<RoleProtectedRoute allowedRoles={['outlet_manager']}><Layout><OutletAdminView /></Layout></RoleProtectedRoute>} />
                 <Route path="/outlet/orders/:id" element={<RoleProtectedRoute allowedRoles={['outlet_manager']}><Layout><OrderDetailPage isOutletView={true} /></Layout></RoleProtectedRoute>} />
+                <Route path="/outlet/report/weekly/:year/:month" element={<RoleProtectedRoute allowedRoles={['outlet_manager']}><Layout><OutletWeeklyReportPage /></Layout></RoleProtectedRoute>} />
+                <Route path="/outlet/report/weekly/:year/:month/orders" element={<RoleProtectedRoute allowedRoles={['outlet_manager']}><Layout><OutletWeeklyOrdersPage /></Layout></RoleProtectedRoute>} />
 
                 {/* Deliveryman Routes */}
                 <Route path="/delivery/dashboard" element={<RoleProtectedRoute allowedRoles={['deliveryman']}><Layout><DeliveryDashboard /></Layout></RoleProtectedRoute>} />
+                <Route path="/delivery/calendar" element={<RoleProtectedRoute allowedRoles={['deliveryman']}><Layout><DeliveryCalendar /></Layout></RoleProtectedRoute>} />
                 <Route path="/delivery/orders/:id" element={<RoleProtectedRoute allowedRoles={['deliveryman']}><Layout><OrderDetailPage isDeliveryView={true} /></Layout></RoleProtectedRoute>} />
 
                 {/* Shared/Protected Routes */}
                 <Route path="/orders/new" element={<RoleProtectedRoute allowedRoles={['admin', 'outlet_manager']}><Layout><NewOrderPage /></Layout></RoleProtectedRoute>} />
                 <Route path="/products" element={<RoleProtectedRoute allowedRoles={['admin', 'outlet_manager']}><Layout><ProductsPage /></Layout></RoleProtectedRoute>} />
-                
+
                 {/* Debug Routes */}
                 <Route path="/debug" element={<RoleProtectedRoute allowedRoles={['admin']}><Layout><DebugPage /></Layout></RoleProtectedRoute>} />
                 <Route path="/debug-notifications" element={<RoleProtectedRoute allowedRoles={['admin']}><Layout><DebugNotificationPage /></Layout></RoleProtectedRoute>} />

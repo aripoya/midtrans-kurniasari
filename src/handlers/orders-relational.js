@@ -81,8 +81,26 @@ export async function getOutletOrdersRelational(request, env) {
         let outletName = '';
         try {
           if (outletId) {
-            const outletInfo = await env.DB.prepare(`SELECT name FROM outlets_unified WHERE id = ?`).bind(outletId).first();
+            // Try exact match first
+            let outletInfo = await env.DB.prepare(`SELECT name FROM outlets_unified WHERE id = ?`).bind(outletId).first();
+            
+            // If not found and ID doesn't have double "outlet_" prefix, try with it
+            if (!outletInfo && outletId.startsWith('outlet_') && !outletId.startsWith('outlet_outlet_')) {
+              const alternateId = `outlet_${outletId}`;
+              console.log(`🔍 Trying alternate outlet ID: ${alternateId}`);
+              outletInfo = await env.DB.prepare(`SELECT name FROM outlets_unified WHERE id = ?`).bind(alternateId).first();
+            }
+            
             outletName = outletInfo?.name || '';
+            
+            // Fallback: if still not found, use outlet_id as-is for filtering
+            if (!outletName) {
+              console.warn(`⚠️ Outlet not found in outlets_unified for ID: ${outletId}, using ID directly for filtering`);
+              // Extract outlet name from ID (e.g., "outlet_monjali" -> "Monjali")
+              outletName = outletId.replace(/^outlet_/, '').replace(/_/g, ' ');
+              // Capitalize first letter
+              outletName = outletName.charAt(0).toUpperCase() + outletName.slice(1);
+            }
           }
         } catch (error) {
           console.warn('Could not fetch outlet info:', error);
@@ -91,11 +109,12 @@ export async function getOutletOrdersRelational(request, env) {
         // Filter orders by lokasi_pengambilan matching the outlet name
         if (outletName) {
           const outletCondition = ` AND (o.lokasi_pengambilan = ?` +
+            ` OR LOWER(o.lokasi_pengambilan) LIKE LOWER(?)` +
             ` OR LOWER(o.lokasi_pengiriman) LIKE LOWER(?))`;
           orderQuery += outletCondition;
           countQuery += outletCondition;
-          queryParams.push(outletName, `%${outletName}%`);
-          countParams.push(outletName, `%${outletName}%`);
+          queryParams.push(outletName, `%${outletName}%`, `%${outletName}%`);
+          countParams.push(outletName, `%${outletName}%`, `%${outletName}%`);
         }
 
         console.log(`🏪 Filtering orders for outlet manager by lokasi_pengambilan: ${outletName} (resolved from ID: ${outletId})`);

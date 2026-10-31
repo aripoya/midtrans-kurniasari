@@ -6,8 +6,8 @@ import {
 import CreatableSelect from 'react-select/creatable';
 import { DeleteIcon } from '@chakra-ui/icons';
 import { orderService } from '../api/orderService';
-import { processPayment } from '../utils/midtransHelper';
-import { refreshOrderStatus } from '../api/api';
+import type { PaymentInstruction, VaBank } from '../api/orderService';
+import PaymentModal from '../components/PaymentModal';
 import { productService } from '../api/productService';
  
 
@@ -69,8 +69,13 @@ const NewOrderPage: React.FC = () => {
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
-  // Small helper for retry delays
-  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  // Set once the order exists; drives the payment modal (QRIS or bank selection)
+  const [paymentState, setPaymentState] = useState<{
+    orderId: string;
+    amount: number;
+    payment: PaymentInstruction | null;
+    banks: VaBank[];
+  } | null>(null);
 
   // Helper: format price in Indonesian Rupiah without decimals
   const formatRupiah = (value: number): string => {
@@ -215,6 +220,10 @@ const NewOrderPage: React.FC = () => {
     setIsLoading(true);
 
     try {
+      // Create a backup summary of items to store in shipping_notes
+      // This ensures we have a record of items even if the relational insert fails
+      const itemBackupSummary = items.map(item => `${item.quantity}x ${item.name}`).join(', ');
+
       const orderData = {
         customer_name: formData.customer_name,
         phone: formData.phone,
@@ -223,10 +232,10 @@ const NewOrderPage: React.FC = () => {
         // DEFAULT SHIPPING INFO - Since form fields were removed
         lokasi_pengambilan: "Outlet Bonbin", // Default outlet for pickup
         lokasi_pengantaran: formData.customer_address, // Always customer address (delivery destination)
-        shipping_area: "dalam_kota" as 'dalam_kota' | 'luar_kota', // Default to dalam kota
+        shipping_area: "dalam-kota" as 'dalam-kota' | 'luar-kota', // Default to dalam kota
         pickup_method: "deliveryman" as 'deliveryman' | 'pickup_sendiri' | 'ojek_online', // Default pickup method
         courier_service: null,
-        shipping_notes: null,
+        shipping_notes: `[Auto-Backup] ${itemBackupSummary}`,
         items: items.map(item => ({
           id: item.productId,
           name: item.name,
@@ -244,50 +253,15 @@ const NewOrderPage: React.FC = () => {
       const response = await orderService.createOrder(orderData);
       console.log('🚀 [DEBUG] Order service response:', JSON.stringify(response, null, 2));
       if (response.success && response.orderId) {
-        // Open Midtrans Snap payment popup immediately (no success toast)
-        try {
-          await processPayment({
-            snap_token: response.token,
-            payment_url: response.redirect_url,
-            order_id: response.orderId as any,
-          } as any);
-        } catch (payErr) {
-          console.error('❌ [Payment] Error during Snap process:', payErr);
-          // Optional: you may show an error toast if payment fails to open
-          toast({
-            title: 'Gagal membuka pembayaran',
-            description: payErr instanceof Error ? payErr.message : 'Silakan coba lagi dari halaman detail pesanan.',
-            status: 'error',
-            duration: 5000,
-            isClosable: true,
-          });
-        } finally {
-          // Force refresh payment status from Midtrans before navigating (with quick retry)
-          try {
-            toast({ title: 'Menyinkronkan status pembayaran…', status: 'info', duration: 1500, isClosable: true });
-            let refreshed = false;
-            for (let attempt = 1; attempt <= 2; attempt++) {
-              try {
-                const resp = await refreshOrderStatus(response.orderId);
-                if (resp?.data?.success) {
-                  refreshed = true;
-                  break;
-                }
-              } catch (e) {
-                // ignore and retry
-              }
-              await delay(1500);
-            }
-            if (refreshed) {
-              toast({ title: 'Status pembayaran terbarui', status: 'success', duration: 1200, isClosable: true });
-            }
-          } catch (e) {
-            console.warn('⚠️ Failed to refresh status immediately after payment:', e);
-          } finally {
-            // After refresh, go to order detail
-            navigate(`/orders/${response.orderId}`);
-          }
-        }
+        // Small orders come back already charged as QRIS; bigger ones come back with
+        // a bank list so the buyer can pick a Virtual Account. Either way the payment
+        // modal takes over from here.
+        setPaymentState({
+          orderId: response.orderId,
+          amount: response.total_amount ?? calculateTotal(),
+          payment: response.payment ?? null,
+          banks: response.banks ?? [],
+        });
       } else {
         throw new Error(response.error || 'Gagal membuat pesanan');
       }
@@ -548,7 +522,17 @@ const NewOrderPage: React.FC = () => {
           Buat Pesanan
         </Button>
       </form>
-      
+
+      {paymentState && (
+        <PaymentModal
+          isOpen
+          orderId={paymentState.orderId}
+          amount={paymentState.amount}
+          initialPayment={paymentState.payment}
+          banks={paymentState.banks}
+          onClose={() => navigate(`/orders/${paymentState.orderId}`)}
+        />
+      )}
     </Box>
   );
 };

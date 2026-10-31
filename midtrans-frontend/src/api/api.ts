@@ -46,8 +46,10 @@ export interface MarkAsReceivedResponse {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://order-management-app-production.wahwooh.workers.dev';
 
 // Create axios instance with default config and TypeScript typing
+// Increased timeout for slow ISPs (XL, Indihome) - 60 seconds
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 60000, // 60 seconds timeout for slow ISPs
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
@@ -63,17 +65,27 @@ apiClient.interceptors.request.use(
     // Log API request
     console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
     
-    // Only add auth token for protected endpoints (not for public order details)
-    const isPublicOrderEndpoint = config.url?.includes('/api/orders/') && config.method?.toLowerCase() === 'get';
-    const isPublicEndpoint = config.url?.includes('/orders/') || config.url?.includes('/api/orders/') && config.method?.toLowerCase() === 'get';
-    
-    if (!isPublicOrderEndpoint && !isPublicEndpoint) {
-      // Get token from sessionStorage for protected endpoints
-      const token = sessionStorage.getItem('token');
+    // Only add auth token for protected endpoints (not for public order details).
+    // Reading an order is public because buyers open the nota link anonymously, and
+    // these two POSTs are verified server-side by their own means. Everything else
+    // under /api/orders/ needs the token - notably /charge, which issues a VA.
+    const url = config.url || '';
+    const method = (config.method || 'get').toLowerCase();
+    const PUBLIC_ORDER_ACTIONS = ['/refresh-status', '/mark-received'];
+    const isPublicOrderRead = method === 'get' && url.includes('/api/orders/');
+    const isPublicOrderAction = method === 'post' && PUBLIC_ORDER_ACTIONS.some(path => url.includes(path));
+    const isPublicEndpoint = isPublicOrderRead || isPublicOrderAction;
+
+    if (!isPublicEndpoint) {
+      // Get token from localStorage for protected endpoints
+      const token = localStorage.getItem('token');
       
       // If token exists, add it to the Authorization header
       if (token) {
         console.log('Adding Authorization token to protected endpoint request');
+        if (!config.headers) {
+          config.headers = {} as any;
+        }
         if (config.headers) {
           config.headers['Authorization'] = `Bearer ${token}`;
         }
@@ -86,6 +98,67 @@ apiClient.interceptors.request.use(
   },
   (error: any) => {
     console.error('API Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for retry mechanism on network errors (for slow ISPs like XL, Indihome)
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const config = error.config;
+    
+    // Handle 401 Unauthorized - invalid/expired token
+    // Only treat a 401 as an expired session when we actually sent a token.
+    // A 401 on a request that carried none means the caller skipped auth by
+    // mistake; logging the user out there would hide the real bug.
+    const sentAuthHeader = !!error.config?.headers?.['Authorization'];
+    if (error.response?.status === 401 && sentAuthHeader) {
+      console.error('🔴 Authentication failed - token invalid or expired');
+      console.error('Clearing localStorage and redirecting to login...');
+      
+      // Clear authentication data
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Redirect to login page
+      window.location.href = '/login';
+      
+      return Promise.reject(error);
+    }
+    
+    // Don't retry if we've already retried 3 times
+    if (!config || !config.headers) {
+      return Promise.reject(error);
+    }
+    
+    config.__retryCount = config.__retryCount || 0;
+    
+    // Check if we should retry (network errors, timeouts, 5xx errors)
+    const shouldRetry = 
+      error.code === 'ECONNABORTED' || // Timeout
+      error.code === 'ERR_NETWORK' || // Network error
+      !error.response || // No response (network issue)
+      (error.response && error.response.status >= 500); // Server error
+    
+    if (shouldRetry && config.__retryCount < 3) {
+      config.__retryCount += 1;
+      
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = Math.min(1000 * Math.pow(2, config.__retryCount - 1), 4000);
+      
+      console.warn(`⚠️ Request failed, retrying in ${delay}ms (attempt ${config.__retryCount}/3)...`);
+      console.warn(`Error: ${error.message}`);
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      // Retry the request
+      return apiClient(config);
+    }
+    
+    // If we've exhausted retries or shouldn't retry, reject
+    console.error('❌ Request failed after retries:', error.message);
     return Promise.reject(error);
   }
 );

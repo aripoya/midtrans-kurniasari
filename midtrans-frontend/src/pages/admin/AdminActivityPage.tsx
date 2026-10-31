@@ -46,6 +46,7 @@ import {
 } from 'react-icons/fi';
 import { adminApi } from '../../api/adminApi';
 import { formatDate } from '../../utils/date';
+import { formatDateTime } from '../../utils/formatters';
 
 interface AdminActivity {
   id: number;
@@ -292,8 +293,9 @@ const AdminActivityPage: React.FC = () => {
                     <Th>Nama Admin</Th>
                     <Th>Email</Th>
                     <Th>IP Address</Th>
-                    <Th>Login</Th>
+                    <Th>Login (Waktu)</Th>
                     <Th>Aktivitas Terakhir</Th>
+                    <Th>Status</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -309,14 +311,30 @@ const AdminActivityPage: React.FC = () => {
                       <Td>
                         <Badge variant="outline">{session.ip_address}</Badge>
                       </Td>
-                      <Td>{formatDate(session.login_at)}</Td>
                       <Td>
-                        <Tooltip label={formatDate(session.last_activity)}>
-                          <Badge colorScheme="green">
-                            <Icon as={FiClock} mr={1} />
-                            Aktif
-                          </Badge>
-                        </Tooltip>
+                        <Text fontSize="sm">{formatDateTime(session.login_at)}</Text>
+                      </Td>
+                      <Td>
+                        <VStack align="start" spacing={0}>
+                          <Text fontSize="sm" fontWeight="medium">{formatDateTime(session.last_activity)}</Text>
+                          <Text fontSize="xs" color="gray.500">
+                            {(() => {
+                              const now = new Date();
+                              const lastActivity = new Date(session.last_activity);
+                              const diffMinutes = Math.floor((now.getTime() - lastActivity.getTime()) / 60000);
+                              if (diffMinutes < 1) return 'Baru saja';
+                              if (diffMinutes < 60) return `${diffMinutes} menit lalu`;
+                              const diffHours = Math.floor(diffMinutes / 60);
+                              return `${diffHours} jam lalu`;
+                            })()}
+                          </Text>
+                        </VStack>
+                      </Td>
+                      <Td>
+                        <Badge colorScheme="green" display="flex" alignItems="center" w="fit-content">
+                          <Icon as={FiClock} mr={1} />
+                          Online
+                        </Badge>
                       </Td>
                     </Tr>
                   ))}

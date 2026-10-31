@@ -5,6 +5,8 @@
  * Documentation: https://docs.midtrans.com/snap/integration-guide
  */
 
+import { MIDTRANS_CLIENT_KEY, getSnapUrlForClientKey } from './env';
+
 // TypeScript interfaces for Midtrans integration
 export interface MidtransPaymentResult {
   order_id: string;
@@ -84,18 +86,6 @@ declare global {
 }
 
 /**
- * Get environment variable with fallback
- * @param key - Environment variable key
- * @returns Environment variable value or empty string
- */
-const getEnvVar = (key: string): string => {
-  if (typeof import.meta.env === 'object' && import.meta.env[key]) {
-    return import.meta.env[key] as string;
-  }
-  return '';
-};
-
-/**
  * Loads the Midtrans Snap JS script with type safety
  * @param clientKey - Optional client key override
  * @returns Promise that resolves when script is loaded
@@ -119,19 +109,19 @@ export const loadMidtransScript = (clientKey?: string): Promise<void> => {
       const script = document.createElement('script');
       script.id = 'midtrans-script';
       script.type = 'text/javascript';
-      
-      // Use production URL since we're using production credentials
-      const snapUrl = 'https://app.midtrans.com/snap/snap.js';
-      script.src = snapUrl;
-      
-      const finalClientKey = clientKey || getEnvVar('VITE_MIDTRANS_CLIENT_KEY');
+
+      const finalClientKey = clientKey || MIDTRANS_CLIENT_KEY;
       if (!finalClientKey) {
         const error = new Error('Midtrans client key is required') as MidtransScriptLoadError;
         error.type = 'script_load_error';
         reject(error);
         return;
       }
-      
+
+      // Snap script must come from the same environment as the client key
+      const snapUrl = getSnapUrlForClientKey(finalClientKey);
+      script.src = snapUrl;
+
       script.setAttribute('data-client-key', finalClientKey);
       
       script.onload = () => {

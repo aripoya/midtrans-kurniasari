@@ -23,9 +23,22 @@ export interface MidtransConfig {
 // Environment variable access helpers
 type ViteEnv = {
   VITE_MIDTRANS_CLIENT_KEY?: string;
+  VITE_MIDTRANS_IS_PRODUCTION?: string;
   VITE_API_BASE_URL?: string;
   MODE?: string;
 };
+
+/**
+ * Parse a boolean-ish environment variable
+ * @param value - Raw environment variable value
+ * @returns Boolean value, or null if the value is not recognisable
+ */
+function parseBooleanEnv(value: string): boolean | null {
+  const lower = value.trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(lower)) return true;
+  if (['false', '0', 'no', 'off'].includes(lower)) return false;
+  return null;
+}
 
 /**
  * Get environment variable with type safety
@@ -78,10 +91,39 @@ console.log('🌐 env.ts: Using API URL:', API_URL);
 
 // Midtrans configuration with type safety
 export const MIDTRANS_CLIENT_KEY: string = getEnvVar('VITE_MIDTRANS_CLIENT_KEY', '');
-export const MIDTRANS_IS_PRODUCTION: boolean = true; // SELALU gunakan production
 
-// Determines which Midtrans script URL to use
-export const MIDTRANS_SNAP_URL: string = 'https://app.midtrans.com/snap/snap.js'; // SELALU gunakan production
+// Midtrans sandbox client keys carry an `SB-` prefix, production keys do not.
+// The key itself decides which Midtrans environment we talk to, so we derive the
+// environment from it instead of a separate flag that can drift out of sync and
+// leave us opening a sandbox token in the production Snap (or vice versa).
+const isSandboxClientKey = (key: string): boolean => key.trim().toUpperCase().startsWith('SB-');
+
+// Only used when no client key is configured yet, and for the mismatch warning below.
+const EXPLICIT_MIDTRANS_IS_PRODUCTION: boolean | null = parseBooleanEnv(
+  getEnvVar('VITE_MIDTRANS_IS_PRODUCTION')
+);
+
+export const MIDTRANS_IS_PRODUCTION: boolean = MIDTRANS_CLIENT_KEY
+  ? !isSandboxClientKey(MIDTRANS_CLIENT_KEY)
+  : (EXPLICIT_MIDTRANS_IS_PRODUCTION ?? true);
+
+const PRODUCTION_SNAP_URL = 'https://app.midtrans.com/snap/snap.js';
+const SANDBOX_SNAP_URL = 'https://app.sandbox.midtrans.com/snap/snap.js';
+
+// Determines which Midtrans script URL to use — must match the client key's environment
+export const MIDTRANS_SNAP_URL: string = MIDTRANS_IS_PRODUCTION
+  ? PRODUCTION_SNAP_URL
+  : SANDBOX_SNAP_URL;
+
+/**
+ * Get the Snap script URL matching a specific client key
+ * @param clientKey - Client key to resolve, falls back to the configured one
+ * @returns Snap script URL for that key's environment
+ */
+export const getSnapUrlForClientKey = (clientKey?: string): string => {
+  if (!clientKey) return MIDTRANS_SNAP_URL;
+  return isSandboxClientKey(clientKey) ? SANDBOX_SNAP_URL : PRODUCTION_SNAP_URL;
+};
 
 /**
  * Helper function to check if Midtrans is configured
@@ -143,6 +185,19 @@ export const validateEnvironmentConfig = (): {
     warnings.push('Midtrans client key is not configured - payment features will be disabled');
   } else if (MIDTRANS_CLIENT_KEY.length < 10) {
     warnings.push('Midtrans client key seems too short - please verify configuration');
+  }
+
+  // A VITE_MIDTRANS_IS_PRODUCTION that disagrees with the client key is a configuration
+  // bug: the key wins, but the operator almost certainly set one of the two by mistake.
+  if (
+    MIDTRANS_CLIENT_KEY &&
+    EXPLICIT_MIDTRANS_IS_PRODUCTION !== null &&
+    EXPLICIT_MIDTRANS_IS_PRODUCTION !== MIDTRANS_IS_PRODUCTION
+  ) {
+    warnings.push(
+      `VITE_MIDTRANS_IS_PRODUCTION=${EXPLICIT_MIDTRANS_IS_PRODUCTION} contradicts the client key, ` +
+        `which is a ${MIDTRANS_IS_PRODUCTION ? 'production' : 'sandbox'} key - the client key wins`
+    );
   }
 
   // Check Snap URL
@@ -261,12 +316,7 @@ export const envValidators = {
    * @param value - Value to validate
    * @returns Boolean value or null
    */
-  boolean: (value: string): boolean | null => {
-    const lower = value.toLowerCase();
-    if (['true', '1', 'yes', 'on'].includes(lower)) return true;
-    if (['false', '0', 'no', 'off'].includes(lower)) return false;
-    return null;
-  },
+  boolean: (value: string): boolean | null => parseBooleanEnv(value),
 
   /**
    * Validate number string
